@@ -1,5 +1,9 @@
+import { config } from 'dotenv';
 import { NestFactory } from '@nestjs/core';
+import { fileURLToPath } from 'node:url';
 import { AppModule } from './app.module.js';
+
+config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
