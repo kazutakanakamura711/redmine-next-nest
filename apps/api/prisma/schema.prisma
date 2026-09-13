@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id          String   @id @default(cuid()) // プロジェクトのID
+  name        String // プロジェクトの名前
+  key         String   @unique // プロジェクトのキー
+  description String? // プロジェクトの説明
+  isArchived  Boolean  @default(false) @map("is_archived") // プロジェクトがアーカイブされているかどうか
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("projects")
+}
