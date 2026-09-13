@@ -1,0 +1,9 @@
+docs/
+AGENTS.md
+apps/*/AGENTS.md
+**/next-env.d.ts
+pnpm-lock.yaml
+.env*
+node_modules/
+dist/
+coverage/

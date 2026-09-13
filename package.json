@@ -1,0 +1,28 @@
+{
+  "name": "redmine-next-nest",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @redmine-next-nest/web dev",
+    "dev:api": "pnpm --filter @redmine-next-nest/api start:dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @redmine-next-nest/api test:e2e",
+    "format": "prettier --write --ignore-unknown .",
+    "format:check": "prettier --check --ignore-unknown .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs,json,css,md,yml,yaml}": "prettier --write",
+    "apps/web/**/*.{ts,tsx,js,mjs}": "pnpm --filter @redmine-next-nest/web exec eslint --fix",
+    "apps/api/**/*.ts": "pnpm --filter @redmine-next-nest/api exec oxlint --fix"
+  }
+}
