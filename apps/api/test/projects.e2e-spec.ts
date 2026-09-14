@@ -1,0 +1,92 @@
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { AppModule } from '../src/app.module.js';
+import { PrismaService } from '../src/modules/prisma/prisma.service.js';
+
+// describe は、同じ機能に関するテストをひとまとまりにする。
+describe('Projects endpoint', () => {
+  let app: INestApplication;
+  let projectKey: string;
+
+  // beforeEach は各テストの前に実行され、新しいNestJSアプリを用意する。
+  beforeEach(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api');
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
+    await app.init();
+
+    // テストごとに一意なkeyを作り、既存データとの重複を避ける。
+    projectKey = `E2E${crypto.randomUUID().replaceAll('-', '').slice(0, 16).toUpperCase()}`;
+  });
+
+  // afterEach は各テストの後に実行され、テスト用データとアプリを片付ける。
+  afterEach(async () => {
+    await app.get(PrismaService).project.deleteMany({
+      where: { key: projectKey },
+    });
+    await app.close();
+  });
+
+  // it は、1つの期待する振る舞いを確認するテストケースである。
+  it('プロジェクトを作成し、keyを大文字で保存する', async () => {
+    // request は実際のHTTPリクエストと同じ形でAPIを呼び出す。
+    const response = await request(app.getHttpServer())
+      .post('/api/projects')
+      .send({
+        name: 'Test Project',
+        key: projectKey.toLowerCase(),
+        description: 'Test Description',
+      })
+      .expect(201);
+
+    // DBが作るidや日時は毎回変わるため、固定値ではなく型と必要な値を確認する。
+    expect(response.body).toMatchObject({
+      id: expect.any(String),
+      name: 'Test Project',
+      key: projectKey,
+      description: 'Test Description',
+      isArchived: false,
+    });
+  });
+
+  it('リクエスト本文が不正な場合は400を返す', async () => {
+    await request(app.getHttpServer())
+      .post('/api/projects')
+      .send({ name: '', key: 'INVALID-KEY' })
+      .expect(400);
+  });
+
+  it('プロジェクトkeyがすでに使われている場合は409を返す', async () => {
+    const project = {
+      name: 'Duplicate Key Project',
+      key: projectKey,
+    };
+
+    await request(app.getHttpServer())
+      .post('/api/projects')
+      .send(project)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/projects')
+      .send(project)
+      .expect(409)
+      .expect({
+        message: 'プロジェクトキーは既に使用されています',
+        error: 'Conflict',
+        statusCode: 409,
+      });
+  });
+});
