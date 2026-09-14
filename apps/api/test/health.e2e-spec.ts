@@ -21,7 +21,7 @@ describe('Health endpoint', () => {
     await app.close();
   });
 
-  it('returns an OK status', async () => {
+  it('正常なステータスを返す', async () => {
     await request(app.getHttpServer()).get('/api/health').expect(200).expect({
       status: 'ok',
     });
