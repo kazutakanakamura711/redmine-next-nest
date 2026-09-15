@@ -7,6 +7,10 @@ import { ProjectsRepository } from './projects.repository.js';
 export class ProjectsService {
   constructor(private readonly projectsRepository: ProjectsRepository) {}
 
+  async findAll() {
+    return await this.projectsRepository.findAll();
+  }
+
   async create(dto: CreateProjectDto) {
     try {
       return await this.projectsRepository.create({

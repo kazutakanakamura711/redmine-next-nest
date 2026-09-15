@@ -11,6 +11,14 @@ type CreateProjectData = {
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  findAll() {
+    return this.prisma.project.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
   create(data: CreateProjectData) {
     return this.prisma.project.create({
       data,
