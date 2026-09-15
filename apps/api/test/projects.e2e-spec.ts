@@ -9,6 +9,7 @@ import { PrismaService } from '../src/modules/prisma/prisma.service.js';
 describe('Projects endpoint', () => {
   let app: INestApplication;
   let projectKey: string;
+  let projectKeys: string[];
 
   // beforeEach は各テストの前に実行され、新しいNestJSアプリを用意する。
   beforeEach(async () => {
@@ -29,17 +30,87 @@ describe('Projects endpoint', () => {
 
     // テストごとに一意なkeyを作り、既存データとの重複を避ける。
     projectKey = `E2E${crypto.randomUUID().replaceAll('-', '').slice(0, 16).toUpperCase()}`;
+    projectKeys = [projectKey];
   });
 
   // afterEach は各テストの後に実行され、テスト用データとアプリを片付ける。
   afterEach(async () => {
     await app.get(PrismaService).project.deleteMany({
-      where: { key: projectKey },
+      where: { key: { in: projectKeys } },
     });
     await app.close();
   });
 
-  // it は、1つの期待する振る舞いを確認するテストケースである。
+  it('プロジェクトを取得する', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/projects')
+      .expect(200);
+    expect(response.body).toEqual(expect.any(Array));
+  });
+
+  it('アーカイブ済みのプロジェクトも取得する', async () => {
+    const archivedProjectKey = projectKey.replace('E2E', 'ARC');
+    projectKeys.push(archivedProjectKey);
+
+    // アーカイブ操作APIは未実装のため、テストデータだけをPrismaで用意する。
+    await app.get(PrismaService).project.create({
+      data: {
+        name: 'Archived Project',
+        key: archivedProjectKey,
+        isArchived: true,
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/projects')
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: archivedProjectKey,
+          isArchived: true,
+        }),
+      ]),
+    );
+  });
+
+  it('プロジェクト一覧を作成日時の新しい順に取得する', async () => {
+    const olderProjectKey = projectKey.replace('E2E', 'OLD');
+    const newerProjectKey = projectKey.replace('E2E', 'NEW');
+    projectKeys.push(olderProjectKey, newerProjectKey);
+
+    // createdAt を固定し、実行速度に左右されず並び順を確認できるようにする。
+    await app.get(PrismaService).project.create({
+      data: {
+        name: 'Older Project',
+        key: olderProjectKey,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    });
+    await app.get(PrismaService).project.create({
+      data: {
+        name: 'Newer Project',
+        key: newerProjectKey,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/projects')
+      .expect(200);
+    const projectKeysInResponse = response.body.map(
+      (project: { key: string }) => project.key,
+    );
+
+    expect(projectKeysInResponse).toEqual(
+      expect.arrayContaining([olderProjectKey, newerProjectKey]),
+    );
+    expect(projectKeysInResponse.indexOf(newerProjectKey)).toBeLessThan(
+      projectKeysInResponse.indexOf(olderProjectKey),
+    );
+  });
+
   it('プロジェクトを作成し、keyを大文字で保存する', async () => {
     // request は実際のHTTPリクエストと同じ形でAPIを呼び出す。
     const response = await request(app.getHttpServer())
