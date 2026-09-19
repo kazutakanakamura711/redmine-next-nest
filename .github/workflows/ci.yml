@@ -42,6 +42,9 @@ jobs:
       # Prisma Client は Git 管理していない生成ファイルなので、CI 上で生成する。
       - name: Generate Prisma Client
         run: pnpm --filter @redmine-next-nest/api exec prisma generate
+        # generate は DB へ接続しないが、Prisma 設定を読み込むため URL は必要になる。
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/redmine_next_nest?schema=public
 
       - name: Check formatting
         run: pnpm format:check
