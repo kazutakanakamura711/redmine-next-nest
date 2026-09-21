@@ -3,5 +3,6 @@ packages:
 allowBuilds:
   '@parcel/watcher': set this to true or false
   '@prisma/engines': true
+  '@scarf/scarf': false
   prisma: true
   unrs-resolver: true

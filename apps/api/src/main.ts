@@ -1,8 +1,9 @@
+import { ValidationPipe } from '@nestjs/common';
 import { config } from 'dotenv';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { fileURLToPath } from 'node:url';
 import { AppModule } from './app.module.js';
-import { ValidationPipe } from '@nestjs/common';
 
 config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
 
@@ -19,6 +20,22 @@ async function bootstrap() {
       forbidNonWhitelisted: true, //DTOクラスに定義されていないプロパティがある場合は400エラーを返す
     }),
   );
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Redmine Next Nest API')
+    .setDescription('Redmine Next Nest の REST API 仕様')
+    .setVersion('1.0')
+    .addTag('Health')
+    .addTag('Projects')
+    .build();
+  const documentFactory = () =>
+    SwaggerModule.createDocument(app, swaggerConfig);
+
+  // useGlobalPrefix により Swagger UI は /api/docs で公開される。
+  SwaggerModule.setup('docs', app, documentFactory, {
+    useGlobalPrefix: true,
+  });
+
   await app.listen(process.env.API_PORT ?? 3001);
 }
 await bootstrap();
