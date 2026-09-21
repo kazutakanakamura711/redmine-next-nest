@@ -19,6 +19,12 @@ export class ProjectsRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.project.findUnique({
+      where: { id },
+    });
+  }
+
   create(data: CreateProjectData) {
     return this.prisma.project.create({
       data,

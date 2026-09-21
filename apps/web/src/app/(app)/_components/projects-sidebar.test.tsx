@@ -1,8 +1,16 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Project } from '../projects/_lib/get-projects';
 import { ProjectsSidebar } from './projects-sidebar';
+
+const navigationMocks = vi.hoisted(() => ({
+  pathname: '/projects/project-id',
+}));
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => navigationMocks.pathname,
+}));
 
 const project: Project = {
   id: 'project-id',
@@ -15,6 +23,10 @@ const project: Project = {
 };
 
 describe('ProjectsSidebar', () => {
+  beforeEach(() => {
+    navigationMocks.pathname = '/projects/project-id';
+  });
+
   it('長いプロジェクトキーを省略表示できる要素として描画する', () => {
     render(<ProjectsSidebar projects={[project]} />);
 
@@ -24,6 +36,25 @@ describe('ProjectsSidebar', () => {
       'flex-1',
       'truncate',
     );
+  });
+
+  it('プロジェクト詳細へのリンクを表示する', () => {
+    render(<ProjectsSidebar projects={[project]} />);
+
+    expect(
+      screen.getByRole('link', { name: /とても長いプロジェクト名/ }),
+    ).toHaveAttribute('href', '/projects/project-id');
+  });
+
+  it('現在表示中のプロジェクトを選択状態で表示する', () => {
+    render(<ProjectsSidebar projects={[project]} />);
+
+    expect(
+      screen.getByRole('link', { name: /とても長いプロジェクト名/ }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(
+      screen.getByRole('link', { name: /とても長いプロジェクト名/ }),
+    ).toHaveClass('bg-indigo-50', 'text-indigo-700');
   });
 
   it('アーカイブ済みプロジェクトを補助テキスト付きで表示する', () => {

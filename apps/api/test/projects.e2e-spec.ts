@@ -111,6 +111,39 @@ describe('Projects endpoint', () => {
     );
   });
 
+  it('IDを指定してプロジェクトを取得する', async () => {
+    const project = await app.get(PrismaService).project.create({
+      data: {
+        name: 'Project Detail',
+        key: projectKey,
+        description: '詳細取得用のテストデータ',
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/projects/${project.id}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: project.id,
+      name: 'Project Detail',
+      key: projectKey,
+      description: '詳細取得用のテストデータ',
+      isArchived: false,
+    });
+  });
+
+  it('存在しないIDを指定すると404を返す', async () => {
+    await request(app.getHttpServer())
+      .get('/api/projects/not-found')
+      .expect(404)
+      .expect({
+        message: 'プロジェクトが見つかりません',
+        error: 'Not Found',
+        statusCode: 404,
+      });
+  });
+
   it('プロジェクトを作成し、keyを大文字で保存する', async () => {
     // request は実際のHTTPリクエストと同じ形でAPIを呼び出す。
     const response = await request(app.getHttpServer())

@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectsRepository } from './projects.repository.js';
@@ -9,6 +13,16 @@ export class ProjectsService {
 
   async findAll() {
     return await this.projectsRepository.findAll();
+  }
+
+  async findOne(id: string) {
+    const project = await this.projectsRepository.findById(id);
+
+    if (!project) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    return project;
   }
 
   async create(dto: CreateProjectDto) {
