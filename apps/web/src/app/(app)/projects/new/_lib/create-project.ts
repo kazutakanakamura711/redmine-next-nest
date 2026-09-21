@@ -1,0 +1,62 @@
+// NestJS の POST /projects に送るリクエスト本文の形。
+export type CreateProjectInput = {
+  name: string;
+  key: string;
+  description?: string;
+};
+
+// API のエラーレスポンスは外部から受け取る値なので、unknown として安全に確認する。
+function getErrorMessage(errorBody: unknown): string | undefined {
+  if (
+    typeof errorBody !== 'object' ||
+    errorBody === null ||
+    !('message' in errorBody) ||
+    typeof errorBody.message !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return errorBody.message;
+}
+
+// HTTP ステータスコードをフォーム側でも判定できるようにした独自エラー。
+export class CreateProjectRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+  ) {
+    super(message);
+  }
+}
+
+// プロジェクト作成 API を呼び出し、成功時は何も返さず、失敗時はエラーを投げる。
+export async function createProject(input: CreateProjectInput): Promise<void> {
+  // Client Component からも参照できる公開用の API ベース URL を取得する。
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (!apiBaseUrl) {
+    throw new Error('NEXT_PUBLIC_API_BASE_URL が設定されていません。');
+  }
+
+  // 入力値を JSON にして NestJS の作成 endpoint へ POST する。
+  const response = await fetch(`${apiBaseUrl}/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  // JSON でないエラー本文や空の本文もあり得るため、解析に失敗したら null とする。
+  const errorBody: unknown = await response.json().catch(() => null);
+
+  // API が返した message を使い、取得できない場合は画面用の汎用メッセージを使う。
+  throw new CreateProjectRequestError(
+    getErrorMessage(errorBody) ?? 'プロジェクトの作成に失敗しました。',
+    response.status,
+  );
+}

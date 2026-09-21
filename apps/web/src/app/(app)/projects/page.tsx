@@ -9,6 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import Link from 'next/link';
 
 import { getProjects } from './_lib/get-projects';
 
@@ -37,8 +38,8 @@ export default async function ProjectsPage() {
             </p>
           </div>
           <Button
-            disabled
-            title="プロジェクト作成画面は次の機能として実装します。"
+            nativeButton={false}
+            render={<Link href="/projects/new" />}
             className="bg-indigo-600 text-white hover:bg-indigo-700"
           >
             <Plus aria-hidden="true" />
