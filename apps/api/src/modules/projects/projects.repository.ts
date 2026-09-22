@@ -7,6 +7,11 @@ type CreateProjectData = {
   description?: string;
 };
 
+type UpdateProjectData = {
+  name?: string;
+  description?: string | null;
+};
+
 @Injectable()
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -27,6 +32,13 @@ export class ProjectsRepository {
 
   create(data: CreateProjectData) {
     return this.prisma.project.create({
+      data,
+    });
+  }
+
+  update(id: string, data: UpdateProjectData) {
+    return this.prisma.project.update({
+      where: { id },
       data,
     });
   }
