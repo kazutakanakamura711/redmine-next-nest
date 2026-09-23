@@ -67,4 +67,11 @@ export class ProjectsService {
       }),
     });
   }
+
+  async archive(id: string) {
+    // 存在しないプロジェクトなら 404 を返す
+    await this.findOne(id);
+
+    return await this.projectsRepository.archive(id);
+  }
 }

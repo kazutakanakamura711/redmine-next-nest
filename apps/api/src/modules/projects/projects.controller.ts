@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -78,5 +86,22 @@ export class ProjectsController {
   })
   update(@Param('projectId') projectId: string, @Body() dto: UpdateProjectDto) {
     return this.projectsService.update(projectId, dto);
+  }
+
+  @Delete(':projectId')
+  @ApiOperation({ summary: 'プロジェクトをアーカイブする' })
+  @ApiParam({
+    name: 'projectId',
+    description: 'アーカイブするプロジェクトの ID',
+  })
+  @ApiOkResponse({
+    description: 'プロジェクトをアーカイブして返す',
+    type: ProjectResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない',
+  })
+  archive(@Param('projectId') projectId: string) {
+    return this.projectsService.archive(projectId);
   }
 }

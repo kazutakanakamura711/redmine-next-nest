@@ -42,4 +42,13 @@ export class ProjectsRepository {
       data,
     });
   }
+
+  archive(id: string) {
+    return this.prisma.project.update({
+      where: { id },
+      data: {
+        isArchived: true,
+      },
+    });
+  }
 }

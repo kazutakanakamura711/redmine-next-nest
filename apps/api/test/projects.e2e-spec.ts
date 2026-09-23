@@ -52,7 +52,7 @@ describe('Projects endpoint', () => {
     const archivedProjectKey = projectKey.replace('E2E', 'ARC');
     projectKeys.push(archivedProjectKey);
 
-    // アーカイブ操作APIは未実装のため、テストデータだけをPrismaで用意する。
+    // アーカイブ済みプロジェクトも一覧に含まれることを確認する。
     await app.get(PrismaService).project.create({
       data: {
         name: 'Archived Project',
@@ -287,5 +287,61 @@ describe('Projects endpoint', () => {
         error: 'Not Found',
         statusCode: 404,
       });
+  });
+
+  it('プロジェクトをアーカイブできる', async () => {
+    const project = await app.get(PrismaService).project.create({
+      data: {
+        name: 'Project To Archive',
+        key: projectKey,
+        isArchived: false,
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/projects/${project.id}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: project.id,
+      name: 'Project To Archive',
+      key: projectKey,
+      isArchived: true,
+    });
+
+    const archivedProject = await app
+      .get(PrismaService)
+      .project.findUnique({ where: { id: project.id } });
+    expect(archivedProject?.isArchived).toBe(true);
+  });
+
+  it('存在しないIDをアーカイブしようとすると404を返す', async () => {
+    await request(app.getHttpServer())
+      .delete('/api/projects/not-found')
+      .expect(404)
+      .expect({
+        message: 'プロジェクトが見つかりません',
+        error: 'Not Found',
+        statusCode: 404,
+      });
+  });
+
+  it('アーカイブ済みのプロジェクトを再度アーカイブしても成功する', async () => {
+    const project = await app.get(PrismaService).project.create({
+      data: {
+        name: 'Already Archived Project',
+        key: projectKey,
+        isArchived: true,
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/projects/${project.id}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: project.id,
+      isArchived: true,
+    });
   });
 });
