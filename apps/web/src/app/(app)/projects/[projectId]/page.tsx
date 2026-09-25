@@ -9,9 +9,8 @@ import {
   BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
 import Link from 'next/link';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ClipboardList, Settings, Users } from 'lucide-react';
-import { ProjectSettingsForm } from './_components/project-settings-form';
+import { TriangleAlert } from 'lucide-react';
+import { ProjectDetailTabs } from './_components/project-detail-tabs';
 
 type ProjectDetailPageProps = {
   params: Promise<{
@@ -61,46 +60,19 @@ export default async function ProjectDetailPage({
         </div>
       </header>
 
-      <Tabs defaultValue="tasks" className="flex-col gap-0">
-        <div className="border-b border-border bg-background">
-          <TabsList variant="line" className="h-11! gap-0 px-5 sm:px-6">
-            <TabsTrigger
-              value="tasks"
-              className="h-11! flex-none rounded-none px-4 text-muted-foreground hover:text-indigo-600! data-active:border-b-2! data-active:border-b-indigo-600! data-active:text-indigo-600! after:opacity-0!"
-            >
-              <ClipboardList aria-hidden="true" />
-              タスク
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="members"
-              disabled
-              title="メンバー画面は今後実装します。"
-              className="h-11! flex-none rounded-none px-4 text-muted-foreground disabled:opacity-100"
-            >
-              <Users aria-hidden="true" />
-              メンバー
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="settings"
-              className="h-11! flex-none rounded-none px-4 text-muted-foreground hover:text-indigo-600! data-active:border-b-2! data-active:border-b-indigo-600! data-active:text-indigo-600! after:opacity-0!"
-            >
-              <Settings aria-hidden="true" />
-              設定
-            </TabsTrigger>
-          </TabsList>
+      {project.isArchived && (
+        <div
+          role="status"
+          className="flex items-center gap-2 border-b border-amber-300 bg-amber-50 px-5 py-3 text-sm text-amber-950 sm:px-6"
+        >
+          <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
+          <p>
+            このプロジェクトはアーカイブ済みです。タスクの作成・更新操作は無効化されています。
+          </p>
         </div>
+      )}
 
-        <TabsContent value="settings" className="m-0 p-5 sm:p-6">
-          <ProjectSettingsForm
-            projectId={project.id}
-            initialName={project.name}
-            projectKey={project.key}
-            initialDescription={project.description}
-          />
-        </TabsContent>
-      </Tabs>
+      <ProjectDetailTabs project={project} />
     </>
   );
 }

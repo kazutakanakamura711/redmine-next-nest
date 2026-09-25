@@ -1,33 +1,11 @@
+import { getErrorMessage, ProjectRequestError } from '../../_lib/api-error';
+
 // NestJS の POST /projects に送るリクエスト本文の形。
 export type CreateProjectInput = {
   name: string;
   key: string;
   description?: string;
 };
-
-// API のエラーレスポンスは外部から受け取る値なので、unknown として安全に確認する。
-function getErrorMessage(errorBody: unknown): string | undefined {
-  if (
-    typeof errorBody !== 'object' ||
-    errorBody === null ||
-    !('message' in errorBody) ||
-    typeof errorBody.message !== 'string'
-  ) {
-    return undefined;
-  }
-
-  return errorBody.message;
-}
-
-// HTTP ステータスコードをフォーム側でも判定できるようにした独自エラー。
-export class CreateProjectRequestError extends Error {
-  constructor(
-    message: string,
-    public readonly statusCode: number,
-  ) {
-    super(message);
-  }
-}
 
 // プロジェクト作成 API を呼び出し、成功時は何も返さず、失敗時はエラーを投げる。
 export async function createProject(input: CreateProjectInput): Promise<void> {
@@ -55,7 +33,7 @@ export async function createProject(input: CreateProjectInput): Promise<void> {
   const errorBody: unknown = await response.json().catch(() => null);
 
   // API が返した message を使い、取得できない場合は画面用の汎用メッセージを使う。
-  throw new CreateProjectRequestError(
+  throw new ProjectRequestError(
     getErrorMessage(errorBody) ?? 'プロジェクトの作成に失敗しました。',
     response.status,
   );

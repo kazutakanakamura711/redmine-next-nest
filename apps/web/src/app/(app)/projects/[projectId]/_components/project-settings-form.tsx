@@ -5,10 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import {
-  UpdateProjectRequestError,
-  updateProject,
-} from '../../_lib/update-project';
+import { updateProject } from '../../_lib/update-project';
+import { ProjectRequestError } from '../../_lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -81,7 +79,7 @@ export function ProjectSettingsForm({
     } catch (error) {
       setSubmitError(
         // API が返す業務エラーはそのまま表示し、通信失敗は日本語の案内にする。
-        error instanceof UpdateProjectRequestError
+        error instanceof ProjectRequestError
           ? error.message
           : '通信に失敗しました。ネットワーク接続を確認して、もう一度お試しください。',
       );

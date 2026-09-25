@@ -1,18 +1,8 @@
 import { getErrorMessage, ProjectRequestError } from './api-error';
 
-// NestJS の PATCH /projects/:projectId に送るリクエスト本文の形。
-// key は作成後に変更できないため、含めない。
-export type UpdateProjectInput = {
-  name: string;
-  description: string;
-};
-
-// プロジェクト更新 API を呼び出す。
+// プロジェクトアーカイブ API を呼び出す。
 // 成功時は何も返さず、失敗時は画面で扱えるエラーを投げる。
-export async function updateProject(
-  projectId: string,
-  input: UpdateProjectInput,
-): Promise<void> {
+export async function archiveProject(projectId: string): Promise<void> {
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   if (!apiBaseUrl) {
@@ -22,11 +12,7 @@ export async function updateProject(
   const response = await fetch(
     `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}`,
     {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
+      method: 'DELETE',
     },
   );
 
@@ -39,7 +25,7 @@ export async function updateProject(
 
   // API が返した message を使い、取得できない場合は画面用の汎用メッセージを使う。
   throw new ProjectRequestError(
-    getErrorMessage(errorBody) ?? 'プロジェクトの更新に失敗しました。',
+    getErrorMessage(errorBody) ?? 'プロジェクトのアーカイブに失敗しました。',
     response.status,
   );
 }

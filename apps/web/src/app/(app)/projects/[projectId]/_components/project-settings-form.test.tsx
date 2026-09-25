@@ -2,10 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  UpdateProjectRequestError,
-  updateProject,
-} from '../../_lib/update-project';
+import { ProjectRequestError } from '../../_lib/api-error';
+import { updateProject } from '../../_lib/update-project';
 import { ProjectSettingsForm } from './project-settings-form';
 
 const routerMocks = vi.hoisted(() => ({
@@ -22,18 +20,7 @@ vi.mock('next/navigation', () => ({
 
 // 本物の API 通信を行わず、呼び出し内容だけをテストできるようにする。
 vi.mock('../../_lib/update-project', () => {
-  // コンポーネントの instanceof 判定を再現するためのテスト用エラークラス。
-  class MockUpdateProjectRequestError extends Error {
-    constructor(
-      message: string,
-      public readonly statusCode: number,
-    ) {
-      super(message);
-    }
-  }
-
   return {
-    UpdateProjectRequestError: MockUpdateProjectRequestError,
     updateProject: vi.fn(),
   };
 });
@@ -133,7 +120,7 @@ describe('ProjectSettingsForm', () => {
   it('APIエラーの場合はAPIのメッセージを表示する', async () => {
     const user = userEvent.setup();
     updateProjectMock.mockRejectedValue(
-      new UpdateProjectRequestError('プロジェクトが見つかりません', 404),
+      new ProjectRequestError('プロジェクトが見つかりません', 404),
     );
     render(<ProjectSettingsForm {...defaultProps} />);
 
