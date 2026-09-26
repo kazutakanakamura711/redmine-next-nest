@@ -19,5 +19,23 @@ services:
       timeout: 5s
       retries: 12
 
+  db-test:
+    profiles: ['test']
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-redmine_test}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-change-me-for-local-test}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-redmine_next_nest_test}
+    ports:
+      - '${POSTGRES_TEST_PORT:-5433}:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
 volumes:
   postgres_data:
+  postgres_test_data:

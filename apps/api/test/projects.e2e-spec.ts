@@ -35,10 +35,13 @@ describe('Projects endpoint', () => {
 
   // afterEach は各テストの後に実行され、テスト用データとアプリを片付ける。
   afterEach(async () => {
-    await app.get(PrismaService).project.deleteMany({
-      where: { key: { in: projectKeys } },
-    });
-    await app.close();
+    try {
+      await app.get(PrismaService).project.deleteMany({
+        where: { key: { in: projectKeys } },
+      });
+    } finally {
+      await app.close();
+    }
   });
 
   it('プロジェクトを取得する', async () => {
