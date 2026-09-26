@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Project } from '../projects/_lib/get-projects';
+import type { Project } from '@/app/(app)/projects/_lib/get-projects';
 import { ProjectsSidebar } from './projects-sidebar';
 
 const navigationMocks = vi.hoisted(() => ({

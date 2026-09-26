@@ -1,7 +1,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ProjectRequestError } from '../../_lib/api-error';
-import { unarchiveProject } from '../../_lib/unarchive-project';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
+import { unarchiveProject } from '@/app/(app)/projects/_lib/unarchive-project';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

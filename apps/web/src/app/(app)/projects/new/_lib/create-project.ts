@@ -1,4 +1,7 @@
-import { getErrorMessage, ProjectRequestError } from '../../_lib/api-error';
+import {
+  getErrorMessage,
+  ProjectRequestError,
+} from '@/app/(app)/projects/_lib/api-error';
 
 // NestJS の POST /projects に送るリクエスト本文の形。
 export type CreateProjectInput = {

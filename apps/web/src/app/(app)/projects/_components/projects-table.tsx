@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'next/navigation';
 import type { KeyboardEvent } from 'react';
 
-import type { Project } from '../_lib/get-projects';
+import type { Project } from '@/app/(app)/projects/_lib/get-projects';
 
 type ProjectsTableProps = {
   projects: Project[];

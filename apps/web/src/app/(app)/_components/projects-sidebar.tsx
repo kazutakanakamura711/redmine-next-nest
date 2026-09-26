@@ -4,7 +4,7 @@ import { Archive, ChevronUp, ClipboardList, Folder } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import type { Project } from '../projects/_lib/get-projects';
+import type { Project } from '@/app/(app)/projects/_lib/get-projects';
 
 type ProjectsSidebarProps = {
   projects: Project[];
