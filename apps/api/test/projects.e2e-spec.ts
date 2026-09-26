@@ -165,6 +165,25 @@ describe('Projects endpoint', () => {
     });
   });
 
+  it('作成時にプロジェクト名の前後空白を除いて保存する', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/projects')
+      .send({ name: '  正規化された名前  ', key: projectKey })
+      .expect(201);
+
+    expect(response.body.name).toBe('正規化された名前');
+  });
+
+  it.each([
+    ['空白だけの名前', '   '],
+    ['trim後に100文字を超える名前', ` ${'a'.repeat(101)} `],
+  ])('作成時に%sを400で拒否する', async (_caseName, name) => {
+    await request(app.getHttpServer())
+      .post('/api/projects')
+      .send({ name, key: projectKey })
+      .expect(400);
+  });
+
   it('リクエスト本文が不正な場合は400を返す', async () => {
     await request(app.getHttpServer())
       .post('/api/projects')
@@ -218,6 +237,29 @@ describe('Projects endpoint', () => {
       description: '更新後の説明',
       isArchived: false,
     });
+  });
+
+  it('更新時にプロジェクト名をtrimして保存し、trim後の制約を検証する', async () => {
+    const project = await app.get(PrismaService).project.create({
+      data: { name: '更新前', key: projectKey },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/projects/${project.id}`)
+      .send({ name: '  更新後  ' })
+      .expect(200);
+
+    expect(response.body.name).toBe('更新後');
+
+    await request(app.getHttpServer())
+      .patch(`/api/projects/${project.id}`)
+      .send({ name: '   ' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/api/projects/${project.id}`)
+      .send({ name: ` ${'a'.repeat(101)} ` })
+      .expect(400);
   });
 
   it('descriptionをnullにして説明を削除できる', async () => {

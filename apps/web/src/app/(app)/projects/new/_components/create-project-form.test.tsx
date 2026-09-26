@@ -65,6 +65,52 @@ describe('CreateProjectForm', () => {
     expect(createProjectMock).not.toHaveBeenCalled();
   });
 
+  it('前後空白を除いた名前で作成し、空白だけとtrim後101文字を拒否する', async () => {
+    const user = userEvent.setup();
+    createProjectMock.mockResolvedValue(undefined);
+    const { unmount } = render(<CreateProjectForm />);
+
+    await user.type(screen.getByLabelText(/プロジェクト名/), '  名前  ');
+    await user.type(screen.getByLabelText(/プロジェクトキー/), 'TEST');
+    await user.click(
+      screen.getByRole('button', { name: 'プロジェクトを作成' }),
+    );
+
+    await waitFor(() => {
+      expect(createProjectMock).toHaveBeenCalledWith({
+        name: '名前',
+        key: 'TEST',
+        description: undefined,
+      });
+    });
+
+    createProjectMock.mockClear();
+    unmount();
+    render(<CreateProjectForm />);
+    await user.type(screen.getByLabelText(/プロジェクト名/), '   ');
+    await user.type(screen.getByLabelText(/プロジェクトキー/), 'TEST');
+    await user.click(
+      screen.getByRole('button', { name: 'プロジェクトを作成' }),
+    );
+    expect(
+      await screen.findByText('プロジェクト名は必須です'),
+    ).toBeInTheDocument();
+    expect(createProjectMock).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText(/プロジェクト名/));
+    await user.type(
+      screen.getByLabelText(/プロジェクト名/),
+      ` ${'a'.repeat(101)} `,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'プロジェクトを作成' }),
+    );
+    expect(
+      await screen.findByText('プロジェクト名は100文字以内で入力してください'),
+    ).toBeInTheDocument();
+    expect(createProjectMock).not.toHaveBeenCalled();
+  });
+
   it('入力内容でプロジェクトを作成し、一覧画面とサイドバーを更新する', async () => {
     createProjectMock.mockResolvedValue(undefined);
     render(<CreateProjectForm />);

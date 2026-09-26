@@ -108,7 +108,6 @@ export function ProjectSettingsForm({
               <Input
                 id="name"
                 placeholder="例: Task Management App"
-                maxLength={100}
                 aria-invalid={Boolean(errors.name)}
                 {...register('name')}
               />

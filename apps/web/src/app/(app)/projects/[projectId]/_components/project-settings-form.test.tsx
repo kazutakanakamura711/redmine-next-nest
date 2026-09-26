@@ -74,6 +74,41 @@ describe('ProjectSettingsForm', () => {
     expect(updateProjectMock).not.toHaveBeenCalled();
   });
 
+  it('名前をtrimして更新し、空白だけとtrim後101文字を拒否する', async () => {
+    const user = userEvent.setup();
+    updateProjectMock.mockResolvedValue(undefined);
+    render(<ProjectSettingsForm {...defaultProps} />);
+
+    const nameInput = screen.getByLabelText(/^プロジェクト名/);
+    await user.clear(nameInput);
+    await user.type(nameInput, '  更新後  ');
+    await user.click(screen.getByRole('button', { name: '設定を保存' }));
+
+    await waitFor(() => {
+      expect(updateProjectMock).toHaveBeenCalledWith('project-id', {
+        name: '更新後',
+        description: 'テスト用の説明',
+      });
+    });
+
+    updateProjectMock.mockClear();
+    await user.clear(nameInput);
+    await user.type(nameInput, '   ');
+    await user.click(screen.getByRole('button', { name: '設定を保存' }));
+    expect(
+      await screen.findByText('プロジェクト名は必須です'),
+    ).toBeInTheDocument();
+    expect(updateProjectMock).not.toHaveBeenCalled();
+
+    await user.clear(nameInput);
+    await user.type(nameInput, ` ${'a'.repeat(101)} `);
+    await user.click(screen.getByRole('button', { name: '設定を保存' }));
+    expect(
+      await screen.findByText('プロジェクト名は100文字以内で入力してください'),
+    ).toBeInTheDocument();
+    expect(updateProjectMock).not.toHaveBeenCalled();
+  });
+
   it('入力内容を更新し、成功トーストを表示して画面を再取得する', async () => {
     const user = userEvent.setup();
     updateProjectMock.mockResolvedValue(undefined);
