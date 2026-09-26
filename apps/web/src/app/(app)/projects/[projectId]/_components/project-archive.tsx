@@ -29,17 +29,17 @@ const archiveConfirmationSchema = z.object({
 
 type ArchiveConfirmationValues = z.infer<typeof archiveConfirmationSchema>;
 
-type ProjectDangerZoneProps = {
+type ProjectArchiveProps = {
   projectId: string;
   projectName: string;
   onArchived: () => void;
 };
 
-export function ProjectDangerZone({
+export function ProjectArchive({
   projectId,
   projectName,
   onArchived,
-}: ProjectDangerZoneProps) {
+}: ProjectArchiveProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

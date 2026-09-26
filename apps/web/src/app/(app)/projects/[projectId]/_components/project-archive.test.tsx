@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '../../_lib/api-error';
 import { archiveProject } from '../../_lib/archive-project';
-import { ProjectDangerZone } from './project-danger-zone';
+import { ProjectArchive } from './project-archive';
 
 const routerMocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -42,7 +42,7 @@ async function openDialog() {
   return user;
 }
 
-describe('ProjectDangerZone', () => {
+describe('ProjectArchive', () => {
   beforeEach(() => {
     archiveProjectMock.mockReset();
     routerMocks.refresh.mockReset();
@@ -50,7 +50,7 @@ describe('ProjectDangerZone', () => {
   });
 
   it('確認名が一致するまでアーカイブボタンを非活性にする', async () => {
-    render(<ProjectDangerZone {...defaultProps} />);
+    render(<ProjectArchive {...defaultProps} />);
     const user = await openDialog();
     const archiveButton = screen.getByRole('button', {
       name: 'アーカイブする',
@@ -85,7 +85,7 @@ describe('ProjectDangerZone', () => {
 
   it('確認名が一致した場合はアーカイブして成功トーストを表示する', async () => {
     archiveProjectMock.mockResolvedValue(undefined);
-    render(<ProjectDangerZone {...defaultProps} />);
+    render(<ProjectArchive {...defaultProps} />);
     const user = await openDialog();
 
     await user.type(
@@ -110,7 +110,7 @@ describe('ProjectDangerZone', () => {
     archiveProjectMock.mockRejectedValue(
       new ProjectRequestError('プロジェクトが見つかりません', 404),
     );
-    render(<ProjectDangerZone {...defaultProps} />);
+    render(<ProjectArchive {...defaultProps} />);
     const user = await openDialog();
 
     await user.type(

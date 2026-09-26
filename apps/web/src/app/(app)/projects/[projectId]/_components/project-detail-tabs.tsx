@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { ClipboardList, Settings, Users } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Project } from '../../_lib/get-projects';
-import { ProjectArchiveRestore } from './project-archive-restore';
-import { ProjectDangerZone } from './project-danger-zone';
+import { ProjectUnarchive } from './project-unarchive';
+import { ProjectArchive } from './project-archive';
 import { ProjectSettingsForm } from './project-settings-form';
 
 export const ProjectTabs = {
@@ -81,9 +81,12 @@ export function ProjectDetailTabs({ project }: ProjectDetailTabsProps) {
           initialDescription={project.description}
         />
         {project.isArchived ? (
-          <ProjectArchiveRestore />
+          <ProjectUnarchive
+            projectId={project.id}
+            onUnarchived={() => setActiveTab(ProjectTabs.Task)}
+          />
         ) : (
-          <ProjectDangerZone
+          <ProjectArchive
             projectId={project.id}
             projectName={project.name}
             onArchived={() => setActiveTab(ProjectTabs.Task)}
