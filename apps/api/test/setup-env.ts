@@ -1,5 +1,4 @@
-import { config } from 'dotenv';
-import { fileURLToPath } from 'node:url';
+import { getTestDatabaseUrl } from './test-database.mjs';
 
-// E2Eテストでも、アプリ本体と同じルート .env を読み込む。
-config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
+// Vitest を直接起動した場合も、DB 接続前に専用 DB だけを選ぶ。
+process.env.DATABASE_URL = getTestDatabaseUrl();
