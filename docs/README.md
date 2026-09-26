@@ -34,6 +34,7 @@ Controller -> Service -> Repository -> Prisma -> PostgreSQL
 - [ER.md](./ER.md): 完成形のデータ関係
 - [UI_API.md](./UI_API.md): 画面と REST API の段階的な仕様
 - [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md): 1機能を実装・確認する順番
+- [PULL_REQUEST_GUIDE.md](./PULL_REQUEST_GUIDE.md): Pull Request の作成・確認手順
 - [DOCKER_NOTES.md](./DOCKER_NOTES.md): Docker Compose、PostgreSQL、Prisma で詰まりやすい点
 
 ## 想定スタック

@@ -2,10 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  CreateProjectRequestError,
-  createProject,
-} from '../_lib/create-project';
+import { ProjectRequestError } from '../../_lib/api-error';
+import { createProject } from '../_lib/create-project';
 import { CreateProjectForm } from './create-project-form';
 
 // vi.mock() は通常の変数定義より先に実行されるため、vi.hoisted() を使って
@@ -23,19 +21,7 @@ vi.mock('next/navigation', () => ({
 
 // テスト中に本物の NestJS APIへ通信しないよう、作成処理をモックへ置き換える。
 vi.mock('../_lib/create-project', () => {
-  // コンポーネントの instanceof 判定を再現するため、
-  // statusCode を保持できるテスト用のエラークラスも返す。
-  class MockCreateProjectRequestError extends Error {
-    constructor(
-      message: string,
-      public readonly statusCode: number,
-    ) {
-      super(message);
-    }
-  }
-
   return {
-    CreateProjectRequestError: MockCreateProjectRequestError,
     // 各テストで成功や409エラーなど、返す結果を自由に設定できる偽の関数。
     createProject: vi.fn(),
   };
@@ -102,10 +88,7 @@ describe('CreateProjectForm', () => {
 
   it('プロジェクトキーが重複した場合はキー入力欄にエラーを表示する', async () => {
     createProjectMock.mockRejectedValue(
-      new CreateProjectRequestError(
-        'プロジェクトキーは既に使用されています',
-        409,
-      ),
+      new ProjectRequestError('プロジェクトキーは既に使用されています', 409),
     );
     render(<CreateProjectForm />);
     const user = await fillRequiredFields();

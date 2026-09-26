@@ -11,10 +11,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import {
-  CreateProjectRequestError,
-  createProject,
-} from '../_lib/create-project';
+import { ProjectRequestError } from '../../_lib/api-error';
+import { createProject } from '../_lib/create-project';
 
 // NestJS の CreateProjectDto と同じ入力ルールを、画面でも検証する。
 const createProjectSchema = z.object({
@@ -78,10 +76,7 @@ export function CreateProjectForm() {
       // 共通レイアウト内のサイドバーも再取得し、作成したプロジェクトを反映する。
       router.refresh();
     } catch (error) {
-      if (
-        error instanceof CreateProjectRequestError &&
-        error.statusCode === 409
-      ) {
+      if (error instanceof ProjectRequestError && error.statusCode === 409) {
         // キーの重複は key 項目のエラーとして表示する。
         setError('key', {
           type: 'server',

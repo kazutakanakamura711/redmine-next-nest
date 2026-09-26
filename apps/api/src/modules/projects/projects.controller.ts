@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -12,6 +21,7 @@ import {
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectResponseDto } from './dto/project-response.dto.js';
+import { UpdateProjectDto } from './dto/update-project.dto.js';
 
 @ApiTags('Projects')
 @Controller('projects')
@@ -57,5 +67,61 @@ export class ProjectsController {
   })
   create(@Body() dto: CreateProjectDto) {
     return this.projectsService.create(dto);
+  }
+
+  @Patch(':projectId')
+  @ApiOperation({ summary: 'プロジェクトを更新する' })
+  @ApiParam({
+    name: 'projectId',
+    description: '更新するプロジェクトの ID',
+  })
+  @ApiOkResponse({
+    description: 'プロジェクトを更新して返す',
+    type: ProjectResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'リクエスト本文が不正、または更新項目が指定されていない',
+  })
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない',
+  })
+  update(@Param('projectId') projectId: string, @Body() dto: UpdateProjectDto) {
+    return this.projectsService.update(projectId, dto);
+  }
+
+  @Post(':projectId/archive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'プロジェクトをアーカイブする' })
+  @ApiParam({
+    name: 'projectId',
+    description: 'アーカイブするプロジェクトの ID',
+  })
+  @ApiOkResponse({
+    description: 'プロジェクトをアーカイブして返す',
+    type: ProjectResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない',
+  })
+  archive(@Param('projectId') projectId: string) {
+    return this.projectsService.archive(projectId);
+  }
+
+  @Post(':projectId/unarchive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'プロジェクトのアーカイブを解除する' })
+  @ApiParam({
+    name: 'projectId',
+    description: 'アーカイブを解除するプロジェクトの ID',
+  })
+  @ApiOkResponse({
+    description: 'プロジェクトのアーカイブを解除して返す',
+    type: ProjectResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない',
+  })
+  unarchive(@Param('projectId') projectId: string) {
+    return this.projectsService.unarchive(projectId);
   }
 }

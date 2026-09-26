@@ -13,7 +13,7 @@ export default function NewProjectPage() {
   return (
     <>
       <header className="border-b border-border bg-background">
-        <div className="flex min-h-[70px] items-center px-5 py-3 sm:px-6">
+        <div className="flex min-h-17.5 items-center px-5 py-3 sm:px-6">
           <div>
             <Breadcrumb className="text-xs">
               <BreadcrumbList className="gap-1 text-xs">

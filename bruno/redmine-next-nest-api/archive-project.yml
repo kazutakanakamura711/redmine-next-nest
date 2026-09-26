@@ -1,0 +1,16 @@
+info:
+  name: archive-project
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: http://localhost:3001/api/projects/cmu2ipk9r0001tyd8ub21c53s/archive
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
