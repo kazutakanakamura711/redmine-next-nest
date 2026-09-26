@@ -100,7 +100,7 @@ POST   /api/projects/:projectId/unarchive
 
 初期に扱うルール:
 
-- `name` は1〜100文字
+- `name` は前後の空白を除いた後、1〜100文字。保存時も前後の空白を除く
 - `key` は英数字1〜20文字で、重複しない
 - `description` は任意で2,000文字以内
 - `POST /api/projects/:projectId/archive` は `isArchived` を `true` にする論理アーカイブ操作とする
