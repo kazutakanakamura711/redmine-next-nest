@@ -84,7 +84,8 @@ GET    /api/projects
 POST   /api/projects
 GET    /api/projects/:projectId
 PATCH  /api/projects/:projectId
-DELETE /api/projects/:projectId
+POST   /api/projects/:projectId/archive
+POST   /api/projects/:projectId/unarchive
 ```
 
 `POST /api/projects` の入力例:
@@ -102,7 +103,10 @@ DELETE /api/projects/:projectId
 - `name` は1〜100文字
 - `key` は英数字1〜20文字で、重複しない
 - `description` は任意で2,000文字以内
-- `DELETE` は物理削除ではなく、`isArchived` を `true` にするアーカイブ操作とする
+- `POST /api/projects/:projectId/archive` は `isArchived` を `true` にする論理アーカイブ操作とする
+- `POST /api/projects/:projectId/unarchive` は `isArchived` を `false` に戻す
+- アーカイブ・解除の POST はリクエスト本文を持たず、成功時は更新後の Project を `200` で返す
+- `DELETE /api/projects/:projectId` は将来の物理削除用とし、現時点では未実装
 - 認証導入後は、一覧・詳細を ProjectMember に限定し、作成者を owner にする
 
 ### 段階2: Tasks

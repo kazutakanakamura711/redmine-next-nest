@@ -299,7 +299,7 @@ describe('Projects endpoint', () => {
     });
 
     const response = await request(app.getHttpServer())
-      .delete(`/api/projects/${project.id}`)
+      .post(`/api/projects/${project.id}/archive`)
       .expect(200);
 
     expect(response.body).toMatchObject({
@@ -317,7 +317,7 @@ describe('Projects endpoint', () => {
 
   it('存在しないIDをアーカイブしようとすると404を返す', async () => {
     await request(app.getHttpServer())
-      .delete('/api/projects/not-found')
+      .post('/api/projects/not-found/archive')
       .expect(404)
       .expect({
         message: 'プロジェクトが見つかりません',
@@ -336,12 +336,49 @@ describe('Projects endpoint', () => {
     });
 
     const response = await request(app.getHttpServer())
-      .delete(`/api/projects/${project.id}`)
+      .post(`/api/projects/${project.id}/archive`)
       .expect(200);
 
     expect(response.body).toMatchObject({
       id: project.id,
       isArchived: true,
     });
+  });
+
+  it('アーカイブ済みのプロジェクトを解除できる', async () => {
+    const project = await app.get(PrismaService).project.create({
+      data: {
+        name: 'Project To Unarchive',
+        key: projectKey,
+        isArchived: true,
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/projects/${project.id}/unarchive`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: project.id,
+      name: 'Project To Unarchive',
+      key: projectKey,
+      isArchived: false,
+    });
+
+    const unarchivedProject = await app
+      .get(PrismaService)
+      .project.findUnique({ where: { id: project.id } });
+    expect(unarchivedProject?.isArchived).toBe(false);
+  });
+
+  it('存在しないIDのアーカイブを解除しようとすると404を返す', async () => {
+    await request(app.getHttpServer())
+      .post('/api/projects/not-found/unarchive')
+      .expect(404)
+      .expect({
+        message: 'プロジェクトが見つかりません',
+        error: 'Not Found',
+        statusCode: 404,
+      });
   });
 });

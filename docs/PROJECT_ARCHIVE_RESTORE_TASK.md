@@ -14,9 +14,10 @@
 
 ### API
 
-- `isArchived` を `false` に戻す API を追加する。
-- API の route、HTTP method、request body は実装時に REST API の既存規約と照らして決定し、`docs/UI_API.md` と Swagger に反映する。
-- 存在しないプロジェクト ID は既存 API と同様に `404` を返す。
+- `POST /api/projects/:projectId/archive` で `isArchived` を `true` にする。
+- `POST /api/projects/:projectId/unarchive` で `isArchived` を `false` に戻す。
+- どちらもリクエスト本文は不要とし、成功時は更新後の Project を `200` で返す。
+- 存在しないプロジェクト ID は `404` を返す。
 - アーカイブ解除では Project や関連データを物理削除しない。
 - API の成功・404・状態変更を E2E テストで確認する。
 
@@ -37,7 +38,7 @@
 
 ## 対象外
 
-- プロジェクトやタスクの物理削除
+- プロジェクトやタスクの物理削除（`DELETE /api/projects/:projectId` は将来対応）
 - プロジェクトキーの変更
 - サイドバーの操作メニューからアーカイブ・アーカイブ解除する機能（別タスクで対応）
 - 認証・owner 権限の実装（認証導入時に、アーカイブ解除を許可する role も API 側で検証する）

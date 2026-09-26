@@ -51,4 +51,13 @@ export class ProjectsRepository {
       },
     });
   }
+
+  unarchive(id: string) {
+    return this.prisma.project.update({
+      where: { id },
+      data: {
+        isArchived: false,
+      },
+    });
+  }
 }

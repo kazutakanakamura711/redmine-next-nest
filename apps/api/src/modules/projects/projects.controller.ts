@@ -1,8 +1,9 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -88,7 +89,8 @@ export class ProjectsController {
     return this.projectsService.update(projectId, dto);
   }
 
-  @Delete(':projectId')
+  @Post(':projectId/archive')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'プロジェクトをアーカイブする' })
   @ApiParam({
     name: 'projectId',
@@ -103,5 +105,23 @@ export class ProjectsController {
   })
   archive(@Param('projectId') projectId: string) {
     return this.projectsService.archive(projectId);
+  }
+
+  @Post(':projectId/unarchive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'プロジェクトのアーカイブを解除する' })
+  @ApiParam({
+    name: 'projectId',
+    description: 'アーカイブを解除するプロジェクトの ID',
+  })
+  @ApiOkResponse({
+    description: 'プロジェクトのアーカイブを解除して返す',
+    type: ProjectResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない',
+  })
+  unarchive(@Param('projectId') projectId: string) {
+    return this.projectsService.unarchive(projectId);
   }
 }

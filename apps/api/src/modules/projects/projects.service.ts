@@ -74,4 +74,11 @@ export class ProjectsService {
 
     return await this.projectsRepository.archive(id);
   }
+
+  async unarchive(id: string) {
+    // 存在しないプロジェクトなら 404 を返す
+    await this.findOne(id);
+
+    return await this.projectsRepository.unarchive(id);
+  }
 }

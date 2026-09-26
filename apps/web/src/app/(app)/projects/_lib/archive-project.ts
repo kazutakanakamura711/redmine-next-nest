@@ -10,9 +10,9 @@ export async function archiveProject(projectId: string): Promise<void> {
   }
 
   const response = await fetch(
-    `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}`,
+    `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}/archive`,
     {
-      method: 'DELETE',
+      method: 'POST',
     },
   );
 
