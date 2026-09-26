@@ -7,7 +7,7 @@
 ```text
 Next.js    : ローカルで pnpm dev
 NestJS     : ローカルで pnpm dev
-PostgreSQL : Docker Compose の db service
+PostgreSQL : Docker Compose の db service（API E2E では db-test）
 ```
 
 Web と API まで Docker に入れると、ログ、hot reload、環境変数、volume の管理が一度に必要になる。まずは DB だけを Docker 化し、アプリケーションの実装をシンプルに保つ。
@@ -24,7 +24,7 @@ Web と API まで Docker に入れると、ログ、hot reload、環境変数�
 
 ## 初期の Compose に必要なもの
 
-このプロジェクトの `docker-compose.yml` は、`db` service と `postgres_data` volume だけを定義している。DB 接続値は `.env.example` を `.env` へコピーして設定する。
+このプロジェクトの `docker-compose.yml` は、開発用の `db` と、`test` profile で起動する API E2E 用の `db-test` を定義している。それぞれ別の volume を使う。DB 接続値は `.env.example` を `.env` へコピーして設定する。
 
 - `image`: PostgreSQL の version を固定する
 - `environment`: DB user、password、database 名を渡す
@@ -107,7 +107,7 @@ docker compose up db -d
 docker compose down -v
 ```
 
-`-v` は `postgres_data` を含む volume も削除する。migration 済みのローカルデータも消えるため、データを失ってよいと確認できた時だけ実行する。
+`-v` は `postgres_data` や `postgres_test_data` など Compose の volume も削除する。migration 済みのローカルデータも消えるため、データを失ってよいと確認できた時だけ実行する。
 
 ### healthcheck を起動完了の基準にする
 
@@ -117,14 +117,28 @@ Container が `running` でも、PostgreSQL が接続を受け付ける前とは
 
 ## Prisma とテスト DB
 
-初期の CRUD が安定してから、結合テスト用 DB を開発用 DB と分離する。
+API E2E 用に `db-test` service を用意している。通常の `docker compose up db -d` では
+起動せず、必要なときだけ Compose の `test` profile で起動する。
 
 ```text
 開発用 DB: DATABASE_URL       -> host port 5432
 テスト用 DB: TEST_DATABASE_URL -> host port 5433
 ```
 
-テストで cleanup や migration を行っても、普段の開発データを壊さないためである。テスト用 `db-test` service は Compose profile として追加すると、通常の開発では起動しなくてよい。
+テスト DB は専用 volume を使う。ルート `.env` に `.env.example` の `POSTGRES_TEST_*`
+と `TEST_DATABASE_URL` を設定し、次の順に実行する。
+
+```bash
+docker compose --profile test up -d db-test
+docker compose --profile test ps db-test
+pnpm test:e2e
+```
+
+`pnpm test:e2e` は接続先を検証してからテスト DB に migration を適用し、API E2E を
+実行する。`TEST_DATABASE_URL` が未設定、開発用 `DATABASE_URL` と同じ DB、または
+DB 名が `_test` で終わらない場合は停止する。接続先の比較ではユーザー名・password・
+URL の query parameter の違いは別 DB と見なさない。CI に PostgreSQL service を
+追加するタスクでも、この `pnpm test:e2e` を使う。
 
 ## API / Web を Docker 化する時の注意
 
