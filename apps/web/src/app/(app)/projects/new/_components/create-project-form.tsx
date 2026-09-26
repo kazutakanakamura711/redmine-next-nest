@@ -11,8 +11,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { ProjectRequestError } from '../../_lib/api-error';
-import { createProject } from '../_lib/create-project';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
+import { createProject } from '@/app/(app)/projects/new/_lib/create-project';
 
 // NestJS の CreateProjectDto と同じ入力ルールを、画面でも検証する。
 const createProjectSchema = z.object({

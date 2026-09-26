@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Project } from '../_lib/get-projects';
+import type { Project } from '@/app/(app)/projects/_lib/get-projects';
 import { ProjectsTable } from './projects-table';
 
 const routerMocks = vi.hoisted(() => ({

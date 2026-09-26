@@ -2,8 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectRequestError } from '../../_lib/api-error';
-import { createProject } from '../_lib/create-project';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
+import { createProject } from '@/app/(app)/projects/new/_lib/create-project';
 import { CreateProjectForm } from './create-project-form';
 
 // vi.mock() は通常の変数定義より先に実行されるため、vi.hoisted() を使って
@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 // テスト中に本物の NestJS APIへ通信しないよう、作成処理をモックへ置き換える。
-vi.mock('../_lib/create-project', () => {
+vi.mock('@/app/(app)/projects/new/_lib/create-project', () => {
   return {
     // 各テストで成功や409エラーなど、返す結果を自由に設定できる偽の関数。
     createProject: vi.fn(),

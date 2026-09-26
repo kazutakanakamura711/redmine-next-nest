@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ClipboardList, Settings, Users } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Project } from '../../_lib/get-projects';
+import type { Project } from '@/app/(app)/projects/_lib/get-projects';
 import { ProjectUnarchive } from './project-unarchive';
 import { ProjectArchive } from './project-archive';
 import { ProjectSettingsForm } from './project-settings-form';

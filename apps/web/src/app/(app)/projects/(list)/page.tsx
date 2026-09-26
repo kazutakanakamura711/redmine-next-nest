@@ -2,8 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 
-import { ProjectsTable } from '../_components/projects-table';
-import { getProjects } from '../_lib/get-projects';
+import { ProjectsTable } from '@/app/(app)/projects/_components/projects-table';
+import { getProjects } from '@/app/(app)/projects/_lib/get-projects';
 
 export default async function ProjectsPage() {
   const projects = await getProjects();
