@@ -14,15 +14,7 @@
 | `/projects` | プロジェクト一覧を表示する |
 | `/projects/new` | プロジェクトを作成する |
 
-### 段階2: タスク管理
-
-| URL | 目的 |
-| --- | --- |
-| `/projects/[projectId]` | Project の基本情報とタスク一覧を表示する |
-| `/projects/[projectId]/tasks/new` | タスクを作成する |
-| `/projects/[projectId]/tasks/[taskId]` | タスクを表示・編集する |
-
-### 段階3: 認証・メンバー
+### 段階2: 認証・メンバー
 
 | URL | 目的 |
 | --- | --- |
@@ -30,7 +22,17 @@
 | `/register` | ユーザー登録をする |
 | `/projects/[projectId]/members` | メンバーの追加・閲覧・role変更をする |
 
-ログイン画面を先に作ること自体は問題ない。ただし、認証・Cookie・token 検証が重なるため、CRUD とは別の小さな機能として扱う。
+認証済みの Project 操作が使えるようになったら、Playwright でログインと Project の主要導線を確認し、既存の再利用 UI を Storybook に登録する。
+
+### 段階3: タスク管理
+
+| URL | 目的 |
+| --- | --- |
+| `/projects/[projectId]` | 既存の Project 詳細画面にタスク一覧を追加する |
+| `/projects/[projectId]/tasks/new` | タスクを作成する |
+| `/projects/[projectId]/tasks/[taskId]` | タスクを表示・編集する |
+
+認証・権限を整えた Project に Task を追加し、Task の主要導線を Playwright に、再利用する Task UI を Storybook に追加する。
 
 ## 初期 UI のルール
 
@@ -48,7 +50,7 @@
 - Base URL は `/api`、データ形式は JSON とする。
 - 入力値は NestJS の DTO と `class-validator` で検証する。
 - API は成功時に JSON を返し、失敗時は HTTP status code とエラー内容を返す。
-- 認証導入後、保護する API には `Authorization: Bearer <access token>` を付ける。
+- 段階2から、保護する API には `Authorization: Bearer <access token>` を付ける。
 - API 側でも Project の閲覧・編集権限を確認する。
 - DB のカラム名をそのまま画面の都合へ広げず、必要な形で response を返す。
 
@@ -107,9 +109,25 @@ POST   /api/projects/:projectId/unarchive
 - `POST /api/projects/:projectId/unarchive` は `isArchived` を `false` に戻す
 - アーカイブ・解除の POST はリクエスト本文を持たず、成功時は更新後の Project を `200` で返す
 - `DELETE /api/projects/:projectId` は将来の物理削除用とし、現時点では未実装
-- 認証導入後は、一覧・詳細を ProjectMember に限定し、作成者を owner にする
+- 段階2から、作成は認証済みユーザーに限定し、作成者を owner にする
+- 段階2から、一覧・詳細は ProjectMember に限定する
+- 段階2から、更新・アーカイブ・解除は owner のみ許可する
 
-### 段階2: Tasks
+### 段階2: Auth と Members
+
+```text
+GET    /api/auth/me
+GET    /api/projects/:projectId/members
+POST   /api/projects/:projectId/members
+PATCH  /api/projects/:projectId/members/:memberId
+DELETE /api/projects/:projectId/members/:memberId
+```
+
+- ログイン・登録そのものは Next.js から Supabase Auth を呼ぶ。
+- NestJS は access token を検証し、アプリ側の User を取得または初回作成する。
+- member の追加・削除・role変更は owner のみ許可する。owner 自身の削除・role変更は許可しない。
+
+### 段階3: Tasks
 
 ```text
 GET    /api/projects/:projectId/tasks
@@ -139,22 +157,10 @@ DELETE /api/projects/:projectId/tasks/:taskId
 - `priority` は `low`、`normal`、`high`
 - `dueDate` は `startDate` より前にできない
 - URL の `projectId` と Task の所属 Project が一致しない場合は取得・更新・削除できない
+- ProjectMember でなければ取得できない。owner・member は作成・更新でき、削除は owner のみ、viewer は閲覧だけできる
+- アーカイブ済み Project には Task を作成・更新できない
 
 担当者指定、絞り込み、ページネーション、親子タスクは基本 CRUD の後に追加する。
-
-### 段階3: Auth と Members
-
-```text
-GET    /api/auth/me
-GET    /api/projects/:projectId/members
-POST   /api/projects/:projectId/members
-PATCH  /api/projects/:projectId/members/:memberId
-DELETE /api/projects/:projectId/members/:memberId
-```
-
-- ログイン・登録そのものは Next.js から Supabase Auth を呼ぶ。
-- NestJS は access token を検証し、アプリ側の User を取得または初回作成する。
-- member の追加・削除・role変更は owner のみ許可する。
 
 ## 後続段階の API
 

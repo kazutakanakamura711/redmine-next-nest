@@ -52,7 +52,7 @@ Controller -> Service -> Repository -> Prisma -> PostgreSQL
 - E2E test: Playwright
 - UI catalog: Storybook
 
-具体的な構成や依存関係は、初期化時に必要最小限から確定する。
+Playwright と Storybook は採用予定で、現時点では未導入。依存関係と設定は、それぞれの導入時に確定する。
 
 ## UI・テストの使い分け
 
@@ -66,11 +66,12 @@ Controller -> Service -> Repository -> Prisma -> PostgreSQL
 
 テストを目的なく増やさない。小さな UI の見た目確認は Storybook、UI と API の操作は Vitest、ユーザーの主要導線は Playwright と役割を分ける。
 
-## 最初の MVP
+## MVP の次の実装順
 
 1. ヘルスチェック API
-2. プロジェクトの作成・一覧・詳細・更新・削除
-3. プロジェクトに属するタスクの CRUD
-4. ログインと、プロジェクト単位の閲覧・編集権限
+2. プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除（実装済み）
+3. ログインと、プロジェクト単位の閲覧・編集・メンバー権限
+4. Playwright による認証済み Project の主要導線、Storybook による再利用 UI の確認
+5. プロジェクトに属するタスクの CRUD と role ごとの権限
 
 コメント、変更履歴、親子タスク、通知などは、基本 CRUD を理解・完成させた後に追加する。
