@@ -123,7 +123,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 4. 依存関係監査の警告を確認して対応する
 
-- 状態: 未着手
+- 状態: PR #15 作成済み（ローカル検証・CI 通過、未マージ）
 - 優先度: 高（外部公開・ファイルアップロード導入の前に再確認）
 
 #### 背景
@@ -146,6 +146,20 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - 該当依存の親パッケージ、実行経路、アプリでの使用有無を調べる。
 - 互換性を確認して、親パッケージの更新を優先する。理由なく lockfile override だけで依存を置き換えない。
 - 更新後に install、lint、typecheck、test、build を実行する。
+
+#### 実施メモ（2026-09-27）
+
+- 着手時の `pnpm audit --prod --json` は計 7 件（High 5、Moderate 1、Low 1）で、上記スナップショットと同じだった。`pnpm why --recursive multer mysql2 deepmerge-ts` と lockfile で親パッケージを確認した。
+- `multer@2.2.0` は本番 API が使う `@nestjs/platform-express@12.0.1` の依存。現時点で API コードに multipart / upload 用の interceptor やエンドポイントはないが、Express アダプターは実行時に使うため、親パッケージを互換性のある `12.0.3` に更新した。これにより `multer@2.4.0` となり、該当する 4 件（High 3、Low 1）は再監査から消えた。override は使っていない。
+- 更新後の `pnpm audit --prod --json` は計 3 件（High 2、Moderate 1）。`@prisma/client@7.10.0` の optional peer dependency として `prisma@7.10.0` が監査の本番依存経路に含まれ、そこから `@prisma/config@7.10.0 -> deepmerge-ts@7.1.5` と `mysql2@3.15.3` が検出される。
+
+| 保留する警告 | 現在の影響を限定する根拠 | 再確認するタイミング |
+| --- | --- | --- |
+| `mysql2` High 1、Moderate 1 | `mysql2` は Prisma CLI の依存で、アプリの Prisma datasource と adapter は PostgreSQL / `@prisma/adapter-pg`。MySQL 接続と圧縮プロトコルを使うコード経路はない。現行の安定版 `prisma@7.10.0` 自体が `mysql2@3.15.3` を固定しており、修正版 `>=3.23.1` への親パッケージ更新はまだできない。 | Prisma の次の安定版更新時、MySQL の導入を検討する前、外部公開前の依存監査時。 |
+| `deepmerge-ts` High 1 | `@prisma/config` は Prisma CLI の設定読み込みに使われる。現在の Prisma 設定はリポジトリ内の静的ファイルで、外部入力から循環参照を含む設定オブジェクトを作らない。この advisory の再帰オブジェクト入力がアプリの HTTP 経路から届かない。現行の `@prisma/config@7.10.0` は `deepmerge-ts@7.1.5` を固定し、修正版 `>=8.0.0` はメジャー更新となる。 | Prisma の次の安定版更新時、設定を外部入力から生成する変更の前、外部公開前の依存監査時。 |
+
+- `pnpm install --frozen-lockfile`、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 5 件、Web 28 件）、`pnpm build` が通過。専用 PostgreSQL で `pnpm test:e2e`（23 件）も通過した。
+- PR #15 の [GitHub Actions CI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/36320604183) で `quality` と `api_e2e` の両 job が通過した。ファイルアップロードを導入する前にも `pnpm audit --prod` を再実行し、multipart の入力制限を設計する。
 
 #### 完了条件
 
