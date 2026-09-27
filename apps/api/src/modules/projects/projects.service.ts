@@ -30,7 +30,7 @@ export class ProjectsService {
   async create(dto: CreateProjectDto) {
     try {
       return await this.projectsRepository.create({
-        name: dto.name,
+        name: dto.name.trim(),
         key: dto.key.toUpperCase(),
         description: dto.description,
       });
@@ -58,7 +58,7 @@ export class ProjectsService {
     return await this.projectsRepository.update(id, {
       // undefined の項目は更新データに含めない
       ...(dto.name !== undefined && {
-        name: dto.name,
+        name: dto.name.trim(),
       }),
 
       // 空文字・null は「説明なし」を表す null に統一する

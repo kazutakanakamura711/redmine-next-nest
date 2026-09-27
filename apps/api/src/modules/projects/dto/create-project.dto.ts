@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
@@ -10,11 +11,12 @@ import {
 export class CreateProjectDto {
   // name: 必須、1〜100文字
   @ApiProperty({
-    description: 'プロジェクト名',
+    description: '前後の空白を除いた後、1〜100文字',
     example: 'Task Management App',
     minLength: 1,
     maxLength: 100,
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
