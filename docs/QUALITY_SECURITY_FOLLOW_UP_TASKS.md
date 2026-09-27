@@ -12,7 +12,7 @@
 
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Supabase Auth と Project membership による API 認証・認可は未実装で、外部公開前に必要。
-- ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、GitHub Actions の CI にはまだ含まれていない。
+- ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright の設定・ブラウザE2Eテストはまだない。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - フェーズの記述に差がある。`REQUIREMENTS.md` は Task CRUD の後に認証を置く一方、`DOMAIN_MODEL.md` は認証・メンバーを Task より先に置いている。Phase 2 の作業順を決める際にどちらに揃えるか確認する。
 - 依存関係の監査結果は 2026-09-26 時点のスナップショット。着手時に必ず再実行し、最新の advisory と lockfile を確認する。
@@ -94,7 +94,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 3. API E2E テストを GitHub Actions CI で実行する
 
-- 状態: 作業ブランチで実装・ローカル確認済み（Pull Request の CI 実行待ち）
+- 状態: PR #14 で実装・CI 通過（未マージ）
 - 優先度: 高（タスク 2 に依存）
 
 #### 背景
@@ -112,7 +112,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - `ci/api-e2e` で、既存の quality job に PostgreSQL 17 の一時 service と health check を追加した。job 内の開発用 `DATABASE_URL` と専用 `TEST_DATABASE_URL` は異なる DB 名を指し、テスト用の固定値だけを使う。
 - 既存の `pnpm test:e2e` を CI に追加した。このコマンドが接続先を検証し、専用 DB に migration を適用してから API E2E を実行する。format、lint、typecheck、unit test、build の既存 step は維持した。
 - ローカルの専用 DB で 23 件が通過した。さらに CI と同じ設定の空の一時 PostgreSQL を起動し、初回 migration と API E2E 23 件が通過した。一時コンテナは確認後に停止・削除した。
-- Pull Request 上での CI 成否はまだ確認していない。
+- PR #14 の [CI 実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/36309461013) で PostgreSQL の health check、初回 migration、API E2E、既存の品質チェックがすべて成功した。job 終了時に一時コンテナが削除されたこともログで確認した。
 
 #### 完了条件
 
