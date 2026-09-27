@@ -94,7 +94,7 @@ priority: low  | normal      | high
 - Frontend が表示を隠すだけでは不十分である。NestJS API でも、ログイン済みか・対象 Project の member かを確認する。
 - クライアントから渡された `userId` をそのまま信用しない。認証済み token からユーザーを特定する。
 
-認証機能をまだ実装していない間は、ローカル開発用の固定ユーザーを一時的に使って CRUD の流れを学んでもよい。ただし、本番公開前に必ず Supabase Auth に置き換える。
+Project の基本操作は認証なしで実装済み。外部公開に向け、次は Supabase Auth と Project の権限を実装してから Task CRUD に進む。今後は認証済みの作成者を owner にする。
 
 ## 後続段階で追加するもの
 

@@ -1,5 +1,21 @@
 # 機能を実装する順番
 
+## Project 基本操作の次に進める順番
+
+Project の作成・一覧・詳細・更新・アーカイブ・解除までは実装済み。外部公開を見据え、次は認証と Project 権限を整えてから Task CRUD に進む。
+
+| 順番 | 対象 | 到達点 |
+| --- | --- | --- |
+| 1 | Supabase Auth と Project 権限 | ログイン、API の token 検証、User / ProjectMember、owner 登録、参加者だけの閲覧、owner だけの設定・アーカイブ操作を実装する。メンバー管理と権限別の API E2E も確認する。 |
+| 2 | Playwright の導入 | ログインと Project の作成・更新・アーカイブ・解除を、専用データを使うブラウザE2Eとしてローカルと CI で確認する。 |
+| 3 | Storybook の導入 | 既存の再利用 UI から story を作り、代表的な状態を画面から切り離して確認できるようにする。カタログの build を CI でも確認する。 |
+| 4 | Task CRUD と Task 権限 | Project に属する Task の API と画面を操作ごとに追加する。最初から ProjectMember の role、別 Project へのアクセス、アーカイブ状態を検証し、主要導線と再利用 UI の確認も拡張する。 |
+
+開発用 DB の既存 Project 6 件は試作データとして削除済み。作成者を記録していなかったため、所有者を推測して割り当てる移行処理は入れない。新規 Project は認証済みの作成者を owner として登録する。認証・権限・DB変更の影響と確認方法は実装前に明確にする。
+
+各段階は複数の小さな Pull Request に分けてよい。Task の権限判定は Task API と同じ変更で入れ、認証なしの Task endpoint を新たに追加しない。
+Task は一覧・詳細、作成、更新、削除を操作ごとに進め、対応する画面と API E2E を追加する。主要導線が増えた時点で Playwright、再利用 UI が増えた時点で Storybook も更新する。
+
 ## 例: プロジェクト作成 API
 
 新しい CRUD 機能は、毎回次の小さな順番で進める。
