@@ -123,7 +123,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 4. 依存関係監査の警告を確認して対応する
 
-- 状態: ローカル対応・検証済み（変更分の CI は未実行）
+- 状態: PR #15 作成済み（ローカル検証・CI 通過、未マージ）
 - 優先度: 高（外部公開・ファイルアップロード導入の前に再確認）
 
 #### 背景
@@ -159,7 +159,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 | `deepmerge-ts` High 1 | `@prisma/config` は Prisma CLI の設定読み込みに使われる。現在の Prisma 設定はリポジトリ内の静的ファイルで、外部入力から循環参照を含む設定オブジェクトを作らない。この advisory の再帰オブジェクト入力がアプリの HTTP 経路から届かない。現行の `@prisma/config@7.10.0` は `deepmerge-ts@7.1.5` を固定し、修正版 `>=8.0.0` はメジャー更新となる。 | Prisma の次の安定版更新時、設定を外部入力から生成する変更の前、外部公開前の依存監査時。 |
 
 - `pnpm install --frozen-lockfile`、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 5 件、Web 28 件）、`pnpm build` が通過。専用 PostgreSQL で `pnpm test:e2e`（23 件）も通過した。
-- 変更は未コミットのため、この変更分の CI は未実行。レビュー後に Pull Request の `quality` と `api_e2e` job を確認する。ファイルアップロードを導入する前にも `pnpm audit --prod` を再実行し、multipart の入力制限を設計する。
+- PR #15 の [GitHub Actions CI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/36320604183) で `quality` と `api_e2e` の両 job が通過した。ファイルアップロードを導入する前にも `pnpm audit --prod` を再実行し、multipart の入力制限を設計する。
 
 #### 完了条件
 
