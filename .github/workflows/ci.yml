@@ -1,8 +1,12 @@
+# GitHub Actions の画面に表示するワークフロー名。
 name: CI
 
+# どのイベントでワークフローを起動するか。
 on:
+  # develop 向け Pull Request の作成・更新・再オープン時に実行する。
   pull_request:
     branches: [develop]
+  # develop ブランチへの push 時に実行する。
   push:
     branches: [develop]
 
@@ -15,8 +19,17 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Prisma Client 生成時の設定読み込みと、E2E の開発用 DB との接続先比較に使う。
+# この開発用 DB は CI では作成せず、生成処理も DB には接続しない。
+env:
+  DATABASE_URL: postgresql://redmine_test:ci-test-only@localhost:5432/redmine_next_nest?schema=public
+
+# ワークフローで実行する job の一覧。
+# needs を指定しない job は、それぞれ別の runner で並行して実行される。
 jobs:
+  # job ID。ほかの job から参照するときや、依存関係を指定するときに使う。
   quality:
+    # GitHub Actions の画面に表示する job 名。
     name: Quality checks
     runs-on: ubuntu-latest
 
@@ -42,9 +55,6 @@ jobs:
       # Prisma Client は Git 管理していない生成ファイルなので、CI 上で生成する。
       - name: Generate Prisma Client
         run: pnpm --filter @redmine-next-nest/api exec prisma generate
-        # generate は DB へ接続しないが、Prisma 設定を読み込むため URL は必要になる。
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/redmine_next_nest?schema=public
 
       - name: Check formatting
         run: pnpm format:check
@@ -60,3 +70,50 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # PostgreSQL が必要な結合テストを独立して実行する job。
+  api_e2e:
+    name: API E2E
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://redmine_test:ci-test-only@localhost:5432/redmine_next_nest_test?schema=public
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: redmine_test
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: redmine_next_nest_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U redmine_test -d redmine_next_nest_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @redmine-next-nest/api exec prisma generate
+
+      # 接続先を検証し、専用 DB に migration を適用してからテストする。
+      - name: Run API E2E
+        run: pnpm test:e2e
