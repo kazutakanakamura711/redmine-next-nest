@@ -1,8 +1,12 @@
+# GitHub Actions の画面に表示するワークフロー名。
 name: CI
 
+# どのイベントでワークフローを起動するか。
 on:
+  # develop 向け Pull Request の作成・更新・再オープン時に実行する。
   pull_request:
     branches: [develop]
+  # develop ブランチへの push 時に実行する。
   push:
     branches: [develop]
 
@@ -15,8 +19,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# ワークフローで実行する job の一覧。
 jobs:
+  # job ID。ほかの job から参照するときや、依存関係を指定するときに使う。
   quality:
+    # GitHub Actions の画面に表示する job 名。
     name: Quality checks
     runs-on: ubuntu-latest
     env:
