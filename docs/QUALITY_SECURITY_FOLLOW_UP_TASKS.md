@@ -170,7 +170,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 未着手
+- 状態: 着手中（最初の PR で `User` と `GET /api/auth/me` を実装）
 - 優先度: 次に着手。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -194,12 +194,13 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 #### 実装の区切り
 
-1. User / ProjectMember と owner の migration を設計する。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
-2. Supabase のログイン・登録、API の token 検証、`GET /api/auth/me` を実装する。
-3. Project 作成時の owner 登録と、一覧・詳細・更新・アーカイブ・解除の権限を操作ごとに実装する。
-4. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
+1. `User` の migration、API の token 検証、`GET /api/auth/me` を実装する。ローカルの認証設定と CI のテスト用応答を用意する。
+2. Supabase のログイン・登録画面を実装する。
+3. `ProjectMember` と Project owner の migration を設計し、Project 作成時に認証済みの作成者を owner として登録する。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
+4. Project の一覧・詳細・更新・アーカイブ・解除の権限を操作ごとに実装する。
+5. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
 
-各区切りはさらに小さな Pull Request に分けてよい。既存 Project API の保護が揃うまでは外部公開しない。
+ログイン画面を Project API の保護より先に用意し、保護した時点でも既存の画面を操作できるようにする。各区切りはさらに小さな Pull Request に分けてよい。既存 Project API の保護が揃うまでは外部公開しない。
 
 #### 完了条件
 

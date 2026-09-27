@@ -13,6 +13,26 @@ pnpm dev:api
 
 起動確認には `GET http://localhost:3001/api/health` を使用します。
 
+## Supabase Auth
+
+本番とは分けた開発用 Supabase プロジェクトを用意し、その URL と publishable key をルートの `.env` に
+`SUPABASE_URL`、`SUPABASE_PUBLISHABLE_KEY` として設定します。API は
+`GET /api/auth/me` の Bearer token を Supabase Auth の `/auth/v1/user` に渡し、
+本人と確認済みメールアドレスを検証してからアプリ側の `users` に登録します。
+テストユーザーは開発用 Supabase Auth に確認済みメールアドレスで作成し、
+パスワードや access token を Git に保存しません。ローカルでの実接続確認には
+そのユーザーで取得した access token を使います。
+
+```bash
+curl -H 'Authorization: Bearer <access-token>' http://localhost:3001/api/auth/me
+```
+
+API E2E は外部の Supabase プロジェクトに接続せず、テスト内のループバック
+HTTP サーバーが `/auth/v1/user` を再現します。ユーザー ID はテストごとに生成し、
+テスト専用 DB から終了時に削除します。CI に Supabase の秘密情報は不要です。
+実サービスとの疎通は、開発用 Supabase プロジェクトを設定した後に別途確認します。
+Project API の認証・権限は後続の PR で追加します。
+
 ## 確認コマンド
 
 ```bash
