@@ -12,7 +12,7 @@
 
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
-- `feat/phase-2/auth-foundation` で、Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E を実装済み。PR・マージ前で、Project API の認証保護と membership による認可は未実装。外部公開前に必要。
+- `feat/phase-2/auth-foundation` で、Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E を実装済み。PR #18 の CI が通過し、レビュー・マージ待ち。Project API の認証保護と membership による認可は未実装で、外部公開前に必要。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -170,7 +170,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（認証基盤は実装済み。PR・CI 確認前で、Project 権限とログイン画面は未実装）
+- 状態: 対応中（認証基盤は PR #18 で実装・CI 通過、レビュー・マージ待ち。Project 権限とログイン画面は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -210,12 +210,11 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - Auth E2E はローカル Supabase の管理 API で確認済みの一時ユーザーを作成し、Publishable key のクライアントでログインして access token を取得する。実行ごとに異なるメールとランダムなパスワードを使い、`finally` でアプリ側 User と Supabase Auth ユーザーの削除を試みる。HTTP の loopback 接続先だけを許可し、固定ユーザーやクラウドの認証データは使用しない。
 - ローカルの `pnpm test:e2e` は Health 1 件、Projects 22 件、Auth 3 件の合計 26 件が通過した。
 - PR 前のコードレビュー、`pnpm install --frozen-lockfile`、Prisma Client 生成、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 5 件・Web 28 件）、`pnpm build` が完了した。workflow の YAML と各 `run` step の shell 構文、`git diff --check` も確認した。
-- GitHub Actions の `api_e2e` job に、Supabase の起動、起動した URL・Publishable key・Secret key の環境変数への設定、テスト後の `supabase stop --no-backup` を追加した。キーをログへ出す処理を避け、後続のログでもマスクする。GitHub Actions 上での今回の Auth E2E の実行確認は、PR 作成後に行う。
+- GitHub Actions の `api_e2e` job に、Supabase の起動、起動した URL・Publishable key・Secret key の環境変数への設定、テスト後の `supabase stop --no-backup` を追加した。キーをログへ出す処理を避け、後続のログでもマスクする。PR #18 の [CI 実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/37001772093) で `quality` と `api_e2e` が成功し、Supabase の起動・環境変数設定・Auth を含む API E2E・Supabase の停止がすべて通過した。
 - ローカルの準備、環境変数、一時ユーザーの扱い、CI の流れを [API README](../apps/api/README.md) に記載した。
 
-#### 今回の PR で残る確認と後続作業
+#### 後続作業
 
-- PR の GitHub Actions で、今回追加した Auth E2E と既存の品質チェックが通ることを確認する。
 - 次の PR で Project API の認証保護、ProjectMember / owner の migration、作成者の owner 登録を進める。続いてログイン画面、参加者だけの閲覧、owner だけの更新、メンバー管理を実装する。
 - 現在のローカル設定は `[auth.email].enable_confirmations = false` で、Auth E2E は管理 API の `email_confirm: true` を使う。登録画面を実装する際に、Supabase のメール確認設定を「確認済みメールアドレスを使う」というアプリのルールに揃え、登録・メール確認から `/api/auth/me` までの導線を確認する。
 
