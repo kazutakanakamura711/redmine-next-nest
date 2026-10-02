@@ -12,6 +12,16 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id        String   @id @db.Uuid //Supabase AuthのユーザーID
+  email     String   @unique // ユーザーのメールアドレス
+  name      String? // ユーザーの名前
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
 model Project {
   id          String   @id @default(cuid()) // プロジェクトのID
   name        String // プロジェクトの名前
