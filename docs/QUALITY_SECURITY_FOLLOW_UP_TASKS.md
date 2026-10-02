@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-09-27
+最終更新: 2026-10-02
 
 ## 目的
 
@@ -12,7 +12,7 @@
 
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
-- Supabase Auth と Project membership による API 認証・認可は未実装で、外部公開前に必要。
+- `feat/phase-2/auth-foundation` で、Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E を実装済み。PR #18 の CI が通過し、レビュー・マージ待ち。Project API の認証保護と membership による認可は未実装で、外部公開前に必要。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -170,8 +170,8 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 未着手
-- 優先度: 次に着手。Task CRUD と外部公開より前に完了する。
+- 状態: 対応中（認証基盤は PR #18 で実装・CI 通過、レビュー・マージ待ち。Project 権限とログイン画面は未実装）
+- 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
 
@@ -194,12 +194,29 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 #### 実装の区切り
 
-1. User / ProjectMember と owner の migration を設計する。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
-2. Supabase のログイン・登録、API の token 検証、`GET /api/auth/me` を実装する。
-3. Project 作成時の owner 登録と、一覧・詳細・更新・アーカイブ・解除の権限を操作ごとに実装する。
-4. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
+1. 認証基盤を実装する（今回の PR）。ローカル・CI の Supabase Auth 設定、テストユーザーの作成・削除、User migration、API の token 検証、`GET /api/auth/me` と API E2E を対象にする。
+2. ProjectMember / owner の migration、Project 作成時の owner 登録、既存 Project API の認証保護を実装する（次の PR）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
+3. Next.js のログイン・登録画面と、既存 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
+4. Project の一覧・詳細は参加者だけ、設定更新・アーカイブ・解除は owner だけに許可し、API E2E で権限ごとの成功・失敗を確認する。
+5. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
 
 各区切りはさらに小さな Pull Request に分けてよい。既存 Project API の保護が揃うまでは外部公開しない。
+
+#### 実施メモ（2026-10-02）
+
+- `feat/phase-2/auth-foundation` に、ローカル Supabase の設定と、Supabase Auth の UUID を主キーとするアプリ側 `User` の migration を追加した。Supabase 自身の DB と、Prisma が使うアプリの開発用・テスト用 DB は分離している。
+- NestJS の `AuthController -> AuthService -> AuthRepository -> PrismaService` で `GET /api/auth/me` を実装した。受け取った Bearer token を `supabase.auth.getUser(token)` に渡して本人を確認し、確認済みメールアドレスを持つ User を取得・初回作成する。既存 User のメールアドレスは更新し、任意の `name` は保持する。
+- token なし・無効 token は `401`、有効な token でもメールアドレスが未設定・未確認なら `403` にする。Auth E2E では token なし・無効 token の `401` と、有効な token の `200`・本人の `id` / `email` を確認した。`403` のケースはまだ E2E に追加していない。
+- Auth E2E はローカル Supabase の管理 API で確認済みの一時ユーザーを作成し、Publishable key のクライアントでログインして access token を取得する。実行ごとに異なるメールとランダムなパスワードを使い、`finally` でアプリ側 User と Supabase Auth ユーザーの削除を試みる。HTTP の loopback 接続先だけを許可し、固定ユーザーやクラウドの認証データは使用しない。
+- ローカルの `pnpm test:e2e` は Health 1 件、Projects 22 件、Auth 3 件の合計 26 件が通過した。
+- PR 前のコードレビュー、`pnpm install --frozen-lockfile`、Prisma Client 生成、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 5 件・Web 28 件）、`pnpm build` が完了した。workflow の YAML と各 `run` step の shell 構文、`git diff --check` も確認した。
+- GitHub Actions の `api_e2e` job に、Supabase の起動、起動した URL・Publishable key・Secret key の環境変数への設定、テスト後の `supabase stop --no-backup` を追加した。キーをログへ出す処理を避け、後続のログでもマスクする。PR #18 の [CI 実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/37001772093) で `quality` と `api_e2e` が成功し、Supabase の起動・環境変数設定・Auth を含む API E2E・Supabase の停止がすべて通過した。
+- ローカルの準備、環境変数、一時ユーザーの扱い、CI の流れを [API README](../apps/api/README.md) に記載した。
+
+#### 後続作業
+
+- 次の PR で Project API の認証保護、ProjectMember / owner の migration、作成者の owner 登録を進める。続いてログイン画面、参加者だけの閲覧、owner だけの更新、メンバー管理を実装する。
+- 現在のローカル設定は `[auth.email].enable_confirmations = false` で、Auth E2E は管理 API の `email_confirm: true` を使う。登録画面を実装する際に、Supabase のメール確認設定を「確認済みメールアドレスを使う」というアプリのルールに揃え、登録・メール確認から `/api/auth/me` までの導線を確認する。
 
 #### 完了条件
 

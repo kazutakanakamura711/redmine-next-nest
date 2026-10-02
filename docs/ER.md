@@ -16,9 +16,9 @@ erDiagram
     User ||--o{ TaskHistory : performs
 
     User {
-        string id PK
+        string id PK "Supabase Auth UUID"
         string email UK
-        string name
+        string name "nullable"
         string avatar_url "nullable"
         datetime created_at
         datetime updated_at
