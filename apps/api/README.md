@@ -33,11 +33,11 @@ pnpm exec supabase status
 
 表示された値をルートの `.env` に設定します。
 
-| 環境変数                   | 設定する値                                           | 使用箇所                               |
-| -------------------------- | ---------------------------------------------------- | -------------------------------------- |
-| `SUPABASE_URL`             | Project URL（ローカルでは `http://127.0.0.1:54321`） | API と Auth E2E                        |
-| `SUPABASE_PUBLISHABLE_KEY` | Authentication Keys の Publishable                   | API の token 検証、Auth E2E のログイン |
-| `SUPABASE_SECRET_KEY`      | Authentication Keys の Secret                        | Auth E2E のユーザー作成・削除          |
+| 環境変数                   | 設定する値                                           | 使用箇所                                         |
+| -------------------------- | ---------------------------------------------------- | ------------------------------------------------ |
+| `SUPABASE_URL`             | Project URL（ローカルでは `http://127.0.0.1:54321`） | API と Auth・Projects E2E                        |
+| `SUPABASE_PUBLISHABLE_KEY` | Authentication Keys の Publishable                   | API の token 検証、Auth・Projects E2E のログイン |
+| `SUPABASE_SECRET_KEY`      | Authentication Keys の Secret                        | Auth・Projects E2E のユーザー作成・削除          |
 
 Secret key はテストの管理 API 用です。ブラウザ側や `NEXT_PUBLIC_*` に設定せず、
 `.env` と実際のキーは Git に含めないでください。`status` の出力にもキーが含まれます。
@@ -92,7 +92,45 @@ API は `supabase.auth.getUser(token)` で本人を確認し、Supabase Auth の
 | token なし、Bearer 形式の不備、無効な token          | `401`                                                                     |
 | token は有効だが、メールアドレスが未設定または未確認 | `403`                                                                     |
 
-ログイン画面、Project API の認証保護、owner・membership による権限確認は後続の PR で実装します。
+Bruno でのテストユーザー作成、ログイン、token 保存、パスワード変更の手順は
+[Bruno README](../../bruno/README.md) を参照してください。
+
+### Swagger
+
+[http://localhost:3001/api/docs](http://localhost:3001/api/docs) の Auth に、
+`GET /api/auth/me` の概要、初回 User 作成の説明、User のレスポンスと `401`・`403` の条件を記載しています。
+Projects の全 API にも Bearer 認証と `401`・`403` を設定し、Project のレスポンスには
+作成者の UUID である `ownerId` を含めています。
+**Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
+`Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
+
+Supabase のログイン・パスワード変更は別のサーバーが提供する API なので、
+NestJS の Swagger には含めず、Bruno のリクエストと README に手順を記載しています。
+
+## Project API の認証と owner 登録
+
+次の全 API は共通の `AuthGuard` で保護し、Supabase の有効な Bearer token と
+確認済みメールアドレスを必要とします。token なし・形式不正・無効な token は `401`、
+メールアドレスが未設定・未確認の場合は `403` を返します。
+
+| 操作           | メソッド・パス                            | 成功時の応答          |
+| -------------- | ----------------------------------------- | --------------------- |
+| 一覧取得       | `GET /api/projects`                       | `200`、Project の配列 |
+| 詳細取得       | `GET /api/projects/:projectId`            | `200`、Project        |
+| 作成           | `POST /api/projects`                      | `201`、Project        |
+| 更新           | `PATCH /api/projects/:projectId`          | `200`、Project        |
+| アーカイブ     | `POST /api/projects/:projectId/archive`   | `200`、Project        |
+| アーカイブ解除 | `POST /api/projects/:projectId/unarchive` | `200`、Project        |
+
+作成者の ID は `AuthGuard` が設定した `request.user.id` から取得します。
+リクエスト本文に `ownerId` を指定する必要はありません。
+Project の `ownerId` と、作成者の `ProjectMember`（`role: owner`）は同じ transaction で保存します。
+Project のレスポンスには `ownerId` を含めます。
+
+現在は全 Project API の本人確認まで実装しています。membership による閲覧制限、
+owner のみの更新・アーカイブ・解除、メンバー管理は後続の実装対象です。
+Next.js のログイン・登録画面と API 呼び出しへの token 付与も後続のため、
+現在の Web 画面から token なしで呼ぶ Project API は `401` になります。
 
 ## 確認コマンド
 
@@ -130,8 +168,23 @@ Publishable key のクライアントで `auth.signInWithPassword()` を呼び�
 取得した `session.access_token` を NestJS に送り、`finally` で今回作成した
 アプリ側 User と Supabase Auth のユーザーの削除を試みます。固定のテストユーザーは不要です。
 
-ユーザーを作成・削除するため、成功ケースの接続先は HTTP の `localhost`、`127.0.0.1`、
-`[::1]` に限定しています。クラウドの Supabase や本番ユーザーは使用しません。
+Projects E2E も実際のローカル Supabase Auth を使い、テストごとに確認済みの一時ユーザーと
+access token を用意します。後片付けは ProjectMember → Project → User の順に行い、
+Supabase Auth の一時ユーザーも削除します。
+
+Projects E2E の 34 件には、次の確認を含めています。
+
+- 全 6 API の token なし・無効な token の `401`（計 12 件）。
+- 作成者の `ownerId` と `role: owner` の ProjectMember が DB に保存されること。
+- 認証失敗時に Project が作成されず、更新・アーカイブ・解除でも DB が変わらないこと。
+- 有効な token を使う既存の成功ケースと、入力・対象 ID に応じた `400`・`404`・`409`。
+
+テストは一覧・詳細・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
+membership・role による認可のテストは、対応する API の権限制御と合わせて追加します。
+
+ユーザーを作成・削除するため、Auth E2E の成功ケースと Projects E2E の接続先は
+HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。
+クラウドの Supabase や本番ユーザーは使用しません。
 メール送信・確認リンクの操作は、この E2E の確認対象に含めていません。
 
 ローカルでは `pnpm test:e2e` 自体は Supabase を起動・停止しないため、上記の準備が必要です。

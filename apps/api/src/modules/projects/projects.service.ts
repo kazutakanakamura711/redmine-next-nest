@@ -27,9 +27,10 @@ export class ProjectsService {
     return project;
   }
 
-  async create(dto: CreateProjectDto) {
+  async create(dto: CreateProjectDto, ownerId: string) {
     try {
       return await this.projectsRepository.create({
+        ownerId,
         name: dto.name.trim(),
         key: dto.key.toUpperCase(),
         description: dto.description,

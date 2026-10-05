@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-02
+最終更新: 2026-10-05
 
 ## 目的
 
@@ -12,7 +12,8 @@
 
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
-- `feat/phase-2/auth-foundation` で、Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E を実装済み。PR #18 の CI が通過し、レビュー・マージ待ち。Project API の認証保護と membership による認可は未実装で、外部公開前に必要。
+- 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
+- `feat/phase-2/project-auth-foundation` で、共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護を実装済み。作業ブランチでの実装・ローカル確認が完了し、PR 作成前。ログイン画面、membership・role による認可、メンバー管理は後続作業である。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -170,12 +171,12 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（認証基盤は PR #18 で実装・CI 通過、レビュー・マージ待ち。Project 権限とログイン画面は未実装）
+- 状態: 対応中（認証基盤は PR #18 を `develop` にマージ済み。全 Project API の認証保護と owner 登録は作業ブランチで実装済み、PR 作成前。ログイン画面・Project 権限・メンバー管理は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
 
-現在の Projects API には認証 guard と Project membership の認可チェックがない。ネットワークから API に到達できる状態では、認証なしでプロジェクトを閲覧・変更できる。
+着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。現在の作業ブランチでは全 Project API を AuthGuard で保護している。membership・role による認可は未実装のため、外部公開前に参加者だけの閲覧と owner 専用操作の制限を完成させる必要がある。
 
 #### 作業内容
 
@@ -194,13 +195,13 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 #### 実装の区切り
 
-1. 認証基盤を実装する（今回の PR）。ローカル・CI の Supabase Auth 設定、テストユーザーの作成・削除、User migration、API の token 検証、`GET /api/auth/me` と API E2E を対象にする。
-2. ProjectMember / owner の migration、Project 作成時の owner 登録、既存 Project API の認証保護を実装する（次の PR）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
+1. 認証基盤（PR #18、`develop` にマージ済み）。ローカル・CI の Supabase Auth 設定、テストユーザーの作成・削除、User migration、API の token 検証、`GET /api/auth/me` と API E2E を対象にする。
+2. ProjectMember / owner の migration、Project 作成時の owner 登録、全 Project API の認証保護（`feat/phase-2/project-auth-foundation` で実装済み、PR 作成前）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
 3. Next.js のログイン・登録画面と、既存 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
 4. Project の一覧・詳細は参加者だけ、設定更新・アーカイブ・解除は owner だけに許可し、API E2E で権限ごとの成功・失敗を確認する。
 5. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
 
-各区切りはさらに小さな Pull Request に分けてよい。既存 Project API の保護が揃うまでは外部公開しない。
+各区切りはさらに小さな Pull Request に分けてよい。既存 Project API の認証と membership・role による認可が揃うまでは外部公開しない。
 
 #### 実施メモ（2026-10-02）
 
@@ -213,9 +214,22 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - GitHub Actions の `api_e2e` job に、Supabase の起動、起動した URL・Publishable key・Secret key の環境変数への設定、テスト後の `supabase stop --no-backup` を追加した。キーをログへ出す処理を避け、後続のログでもマスクする。PR #18 の [CI 実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/37001772093) で `quality` と `api_e2e` が成功し、Supabase の起動・環境変数設定・Auth を含む API E2E・Supabase の停止がすべて通過した。
 - ローカルの準備、環境変数、一時ユーザーの扱い、CI の流れを [API README](../apps/api/README.md) に記載した。
 
+#### 実施メモ（2026-10-05）
+
+- `feat/phase-2/project-auth-foundation` に、Project の必須 `ownerId`、ProjectMember、`ProjectMemberRole`（`owner` / `member` / `viewer`）の migration を追加し、開発用・E2E 専用 DB に適用した。ProjectMember は `projectId` と `userId` の組み合わせを一意にする。
+- 共通 AuthGuard で Bearer token を検証し、確認済みメールアドレスを持つアプリ側 User を `request.user` に設定する。`GET /api/auth/me` と、Project の一覧・詳細・作成・更新・アーカイブ・解除で利用する。
+- Project 作成時は `request.user.id` を Controller → Service → Repository に渡し、Project と作成者の `role: owner` の ProjectMember を同じ transaction で保存する。owner はクライアントの入力から決めない。
+- Projects E2E は各テストでローカル Supabase の一時ユーザーを作成してログインし、有効な token を取得する。終了時に ProjectMember → Project → User を削除し、Supabase Auth の一時ユーザーも削除する。
+- Projects E2E 34 件が通過。全 6 API の token なし・無効 token の `401`（12 件）、Project と owner membership の保存、認証失敗時に DB が変わらないこと、既存の成功・入力エラー・対象 ID のエラーを確認した。API ごとの 6 つの `describe()` に整理している。
+- E2E の初回実行では 1 件の `beforeEach` が 10 秒でタイムアウトしたが、該当ケースの単独実行と、その後の 34 件の実行は成功した。タイムアウトの原因は未特定で、再発時は準備処理のどの段階で遅延するかを確認する。
+- Swagger に Auth の説明・User レスポンス、全 Project API の Bearer 認証と `401`・`403`、Project レスポンスの `ownerId`（UUID）を記載した。Bruno に Supabase のログイン・パスワード変更、Auth の本人取得、全 Project API の Bearer token 設定と README を用意し、ユーザーによる API の手動確認も完了した。
+- PR 前の最終確認で、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 12 件・Web 28 件）、`pnpm build` が成功した。`pnpm test:e2e` も専用 DB で 38 件（Health 1 件・Auth 3 件・Projects 34 件）が通過した。
+- 本ブランチは PR 作成前。CI は PR 作成後に確認する。タスク 5 全体は、ログイン画面・Project 権限・メンバー管理が残るため対応中とする。
+
 #### 後続作業
 
-- 次の PR で Project API の認証保護、ProjectMember / owner の migration、作成者の owner 登録を進める。続いてログイン画面、参加者だけの閲覧、owner だけの更新、メンバー管理を実装する。
+- 現在の Project 認証保護・owner 登録のブランチを最終確認して PR にし、マージ後は Next.js のログイン・登録画面、全 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
+- その後、参加者だけの一覧・詳細取得、owner だけの更新・アーカイブ・解除を実装する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理も別の PR で進め、権限ごとの成功・失敗を API E2E で確認する。
 - 現在のローカル設定は `[auth.email].enable_confirmations = false` で、Auth E2E は管理 API の `email_confirm: true` を使う。登録画面を実装する際に、Supabase のメール確認設定を「確認済みメールアドレスを使う」というアプリのルールに揃え、登録・メール確認から `/api/auth/me` までの導線を確認する。
 
 #### 完了条件

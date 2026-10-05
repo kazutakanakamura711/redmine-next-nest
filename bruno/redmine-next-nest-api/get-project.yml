@@ -6,7 +6,9 @@ info:
 http:
   method: GET
   url: http://localhost:3001/api/projects/cmua3r1ik00032ed8lasbg1jj
-  auth: inherit
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
 
 settings:
   encodeUrl: true

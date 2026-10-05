@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProjectMemberRole } from '../../generated/prisma/enums.js';
 
 type CreateProjectData = {
+  ownerId: string;
   name: string;
   key: string;
   description?: string;
@@ -31,8 +33,23 @@ export class ProjectsRepository {
   }
 
   create(data: CreateProjectData) {
-    return this.prisma.project.create({
-      data,
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Project を作成する。
+      const project = await tx.project.create({
+        data: data,
+      });
+
+      // 2. 作成者を owner の参加情報として登録する。
+      await tx.projectMember.create({
+        data: {
+          projectId: project.id,
+          userId: data.ownerId,
+          role: ProjectMemberRole.owner,
+        },
+      });
+
+      // 両方成功したら、作成した Project を返す。
+      return project;
     });
   }
 

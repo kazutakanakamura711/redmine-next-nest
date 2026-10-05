@@ -3,8 +3,9 @@ import { Test } from '@nestjs/testing';
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
+import { AuthService } from '../src/modules/auth/auth.service.js';
 import { PrismaService } from '../src/modules/prisma/prisma.service.js';
 
 describe('Auth endpoint', () => {
@@ -21,6 +22,7 @@ describe('Auth endpoint', () => {
   });
 
   afterAll(async () => {
+    vi.restoreAllMocks();
     await app.close();
   });
 
@@ -112,6 +114,9 @@ describe('Auth endpoint', () => {
       expect(accessToken).toEqual(expect.any(String));
       expect(accessToken).toBeTruthy();
 
+      // 実際の Service の処理を使いながら、検証回数を記録する。
+      const getMeSpy = vi.spyOn(app.get(AuthService), 'getMe');
+
       // Authorization ヘッダーに Bearer token を入れ、NestJS の本人確認 API を呼ぶ。
       const response = await request(app.getHttpServer())
         .get('/api/auth/me')
@@ -120,6 +125,8 @@ describe('Auth endpoint', () => {
 
       // API が返すアプリ側の User が、ログインした本人であることを確認する。
       expect(response.body).toMatchObject({ id: authUserId, email });
+      // Guard で検証した後、Controller では同じ検証を繰り返さない。
+      expect(getMeSpy).toHaveBeenCalledTimes(1);
     } finally {
       // 今回の API 呼び出しで作られたアプリ側の User と Auth ユーザーだけを削除する。
       if (authUserId) {

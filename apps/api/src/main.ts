@@ -27,6 +27,15 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('Health')
     .addTag('Projects')
+    .addTag('Auth')
+    // Swagger の Authorize から Supabase の access token を渡せるようにする。
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description:
+        'Supabase Auth から取得した access_token の値を入力してください（Bearer の接頭辞は不要です）。',
+    })
     .build();
   const documentFactory = () =>
     SwaggerModule.createDocument(app, swaggerConfig);
