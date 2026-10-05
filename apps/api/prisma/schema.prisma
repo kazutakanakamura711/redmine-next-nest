@@ -12,6 +12,13 @@ datasource db {
   provider = "postgresql"
 }
 
+// プロジェクト内で選べる役割を3つに限定する。
+enum ProjectMemberRole {
+  owner
+  member
+  viewer
+}
+
 model User {
   id        String   @id @db.Uuid //Supabase AuthのユーザーID
   email     String   @unique // ユーザーのメールアドレス
@@ -19,11 +26,18 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // このユーザーが owner になっているプロジェクト一覧。
+  ownedProjects Project[]
+
+  // このユーザーのプロジェクト参加情報一覧。
+  projectMemberships ProjectMember[]
+
   @@map("users")
 }
 
 model Project {
   id          String   @id @default(cuid()) // プロジェクトのID
+  ownerId     String   @map("owner_id") @db.Uuid // 作成者のUser ID（User.id と同じ UUID 型）
   name        String // プロジェクトの名前
   key         String   @unique // プロジェクトのキー
   description String? // プロジェクトの説明
@@ -31,5 +45,29 @@ model Project {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  // ownerId が User.id を参照し、このプロジェクトの owner を表す。
+  owner User @relation(fields: [ownerId], references: [id])
+
+  // このプロジェクトの参加者と role の一覧。
+  members ProjectMember[]
+
   @@map("projects")
+}
+
+model ProjectMember {
+  id        String            @id @default(cuid()) // プロジェクトメンバーのID
+  projectId String            @map("project_id") // プロジェクトのID
+  userId    String            @map("user_id") @db.Uuid // ユーザーのID（User.id と同じ UUID 型）
+  role      ProjectMemberRole // プロジェクト内での役割(owner・member・viewer)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  // この参加情報が属するプロジェクト。
+  project Project @relation(fields: [projectId], references: [id])
+
+  // この参加情報のユーザー。
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId]) // 同じユーザーが同じプロジェクトに複数回参加できないようにする
+  @@map("project_members")
 }

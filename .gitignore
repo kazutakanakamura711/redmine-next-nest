@@ -6,6 +6,7 @@ coverage/
 .env
 .env.*
 !.env.example
+bruno/redmine-next-nest-api/environments/Local.yml
 *.tsbuildinfo
 playwright-report/
 test-results/

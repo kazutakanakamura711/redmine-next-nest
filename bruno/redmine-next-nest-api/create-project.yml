@@ -14,7 +14,9 @@ http:
         "key": "web2",
         "description": "2件目の確認用プロジェクト"
       }
-  auth: inherit
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
 
 settings:
   encodeUrl: true

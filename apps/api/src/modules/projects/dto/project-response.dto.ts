@@ -9,6 +9,14 @@ export class ProjectResponseDto {
   id: string;
 
   @ApiProperty({
+    description:
+      'プロジェクトの作成者（owner）の User ID。Supabase Auth と同じ UUID',
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+  })
+  ownerId: string;
+
+  @ApiProperty({
     description: 'プロジェクト名',
     example: 'Task Management App',
   })

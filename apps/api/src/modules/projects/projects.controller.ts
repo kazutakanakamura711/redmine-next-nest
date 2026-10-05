@@ -7,6 +7,8 @@ import {
   Param,
   Patch,
   Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -17,18 +19,30 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiBearerAuth,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectResponseDto } from './dto/project-response.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
+import { type AuthenticatedRequest, AuthGuard } from '../auth/auth.guard.js';
 
 @ApiTags('Projects')
+@ApiBearerAuth()
+@ApiUnauthorizedResponse({
+  description: 'Bearer token がない、形式が不正、または token が無効',
+})
+@ApiForbiddenResponse({
+  description: 'メールアドレスが未設定または未確認',
+})
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'プロジェクト一覧を取得する' })
   @ApiOkResponse({
     description: 'プロジェクト一覧を作成日時の新しい順で返す',
@@ -40,6 +54,7 @@ export class ProjectsController {
   }
 
   @Get(':projectId')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'プロジェクト詳細を取得する' })
   @ApiParam({
     name: 'projectId',
@@ -56,6 +71,7 @@ export class ProjectsController {
   }
 
   @Post()
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'プロジェクトを作成する' })
   @ApiCreatedResponse({
     description: 'プロジェクトを作成して返す',
@@ -65,11 +81,12 @@ export class ProjectsController {
   @ApiConflictResponse({
     description: 'プロジェクトキーがすでに使用されている',
   })
-  create(@Body() dto: CreateProjectDto) {
-    return this.projectsService.create(dto);
+  create(@Body() dto: CreateProjectDto, @Req() request: AuthenticatedRequest) {
+    return this.projectsService.create(dto, request.user.id);
   }
 
   @Patch(':projectId')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'プロジェクトを更新する' })
   @ApiParam({
     name: 'projectId',
@@ -90,6 +107,7 @@ export class ProjectsController {
   }
 
   @Post(':projectId/archive')
+  @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'プロジェクトをアーカイブする' })
   @ApiParam({
@@ -108,6 +126,7 @@ export class ProjectsController {
   }
 
   @Post(':projectId/unarchive')
+  @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'プロジェクトのアーカイブを解除する' })
   @ApiParam({

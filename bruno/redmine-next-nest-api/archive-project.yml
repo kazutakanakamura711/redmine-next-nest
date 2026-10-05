@@ -6,7 +6,9 @@ info:
 http:
   method: POST
   url: http://localhost:3001/api/projects/cmu2ipk9r0001tyd8ub21c53s/archive
-  auth: inherit
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
 
 settings:
   encodeUrl: true

@@ -39,7 +39,7 @@ erDiagram
         string id PK
         string project_id FK
         string user_id FK
-        enum role "owner | manager | member | viewer"
+        enum role "owner | member | viewer"
         datetime joined_at
     }
 
@@ -87,4 +87,5 @@ erDiagram
 - `Task.parent_task_id` は `Task.id` を参照する自己参照FKである
 - Mermaid上では可読性を優先し、TaskからTaskへの自己参照線を省略している
 - `ProjectMember` は `(project_id, user_id)` の組み合わせで一意とする
+- `ProjectMember.role` は初期実装では `owner | member | viewer` とする。`manager` は owner と member の間の権限が必要になった時点で追加を検討する
 - `Task` は `(project_id, number)` の組み合わせで一意とする

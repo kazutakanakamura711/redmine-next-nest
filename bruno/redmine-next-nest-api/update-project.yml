@@ -13,7 +13,9 @@ http:
         "name": "更新後のプロジェクト名",
         "description": "PATCH で更新した説明です。"
       }
-  auth: inherit
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
 
 settings:
   encodeUrl: true
