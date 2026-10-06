@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/client';
 import { getErrorMessage, ProjectRequestError } from './api-error';
 
 // プロジェクトアーカイブ解除 API を呼び出す。
@@ -9,10 +10,24 @@ export async function unarchiveProject(projectId: string): Promise<void> {
     throw new Error('NEXT_PUBLIC_API_BASE_URL が設定されていません。');
   }
 
+  // Cookie を扱えるブラウザ用クライアントを作る。
+  const supabase = createClient();
+  // 作ったクライアントを使い、Cookie に保存されたセッションを取得する。
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error || !data.session) {
+    throw new Error('ログインセッションを取得できませんでした。');
+  }
+
+  const accessToken = data.session.access_token;
+
   const response = await fetch(
     `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}/unarchive`,
     {
       method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
   );
 

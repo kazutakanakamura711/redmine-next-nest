@@ -45,10 +45,13 @@ Server Component はレスポンスの Cookie を書けないため、手前の 
 SDK が更新時に渡すキャッシュ制御ヘッダーもレスポンスへ反映します。
 サーバー用クライアントはリクエストごとに作り、ユーザー間でセッションを共有しません。
 
-この段階では接続とセッション更新の土台までです。ログイン・登録画面、API への Bearer token 付与、
-未ログイン時のリダイレクト、ログアウトは後続の段階で追加します。
+`/login` でメールアドレス・パスワードによるログインを行い、NestJS の `/api/auth/me` で本人取得が成功するとプロジェクト一覧へ移動します。
+Project の一覧・詳細はサーバー用クライアント、作成・更新・アーカイブ・解除はブラウザ用クライアントからセッションを取得し、全 6 API に Bearer token を付けます。
 `getSession()` は token を取り出すために使い、本人確認には `getClaims()` / `getUser()` を使います。
 NestJS 側でも受け取った Bearer token を検証します。
+
+登録・メール確認、未ログイン時のリダイレクト、ログアウトは後続の段階で追加します。
+ログインから一覧表示までの流れは [学習メモと図](../../docs/WEB_AUTH_LOGIN_FLOW.md) に記録しています。
 
 SDK の使い方は [Supabase SSR ガイド](https://supabase.com/docs/guides/auth/server-side/creating-a-client) を参照してください。
 

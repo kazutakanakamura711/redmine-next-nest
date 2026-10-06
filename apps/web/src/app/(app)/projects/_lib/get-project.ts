@@ -1,5 +1,6 @@
 import { connection } from 'next/server';
 import type { Project } from './get-projects';
+import { createClient } from '@/lib/supabase/server';
 
 export async function getProject(projectId: string): Promise<Project | null> {
   // 詳細画面もリクエスト時に最新データを取得する。
@@ -11,9 +12,23 @@ export async function getProject(projectId: string): Promise<Project | null> {
     throw new Error('NEXT_PUBLIC_API_BASE_URL が設定されていません。');
   }
 
+  // Cookie を扱えるサーバー用クライアントを作る。
+  const supabase = await createClient();
+  // 作ったクライアントを使い、Cookie に保存されたセッションを取得する。
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error || !data.session) {
+    throw new Error('ログインセッションを取得できませんでした。');
+  }
+
+  const accessToken = data.session.access_token;
+
   const response = await fetch(
     `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}`,
     {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
       cache: 'no-store',
     },
   );

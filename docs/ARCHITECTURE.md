@@ -32,7 +32,10 @@ Next.js の `src/proxy.ts` は認証・Project の画面表示前に `src/lib/su
 Server Component は Cookie を書けないため、Proxy で SDK の `getClaims()` による確認・更新を行い、
 更新した Cookie を後続の画面処理とブラウザの両方へ渡す。SDK が返すキャッシュ制御ヘッダーも維持する。
 
-この基盤の次に、ログイン・登録画面、NestJS API への Bearer token 付与、未ログイン時の導線とログアウトを実装する。
+ログイン画面は `(auth)/login` に置き、Server Component のページと Client Component のフォームに分ける。
+ログイン後は `/api/auth/me` の本人取得を待ってプロジェクト一覧へ移動する。
+Project の一覧・詳細はサーバー用クライアント、それ以外の作成・更新・アーカイブ・解除はブラウザ用クライアントでセッションを取得し、全 6 API に Bearer token を付ける。
+登録・メール確認、未ログイン時の導線とログアウトは後続の段階で実装する。
 NestJS API でも token を検証し、membership・role による認可は既存の実装順に沿って追加する。
 
 ## テスト構成
