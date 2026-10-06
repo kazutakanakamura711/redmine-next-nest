@@ -22,6 +22,19 @@ src/
 - 画面専用の小さな部品は、その route 配下の `_components` に置いてよい。
 - UI 部品は必要に応じて Storybook の story を追加し、画面を開かなくても状態を確認できるようにする。
 
+### Web の認証基盤
+
+Supabase Auth のセッションは `@supabase/ssr` を使って Cookie に保存する。
+`src/lib/supabase/client.ts` はブラウザ用、`server.ts` はリクエストごとの Cookie を参照するサーバー用クライアントを作る。
+共有する接続設定は公開用の URL と Publishable key に限り、`apps/web/.env.local` に設定する。
+
+Next.js の `src/proxy.ts` は認証・Project の画面表示前に `src/lib/supabase/proxy.ts` を呼ぶ。
+Server Component は Cookie を書けないため、Proxy で SDK の `getClaims()` による確認・更新を行い、
+更新した Cookie を後続の画面処理とブラウザの両方へ渡す。SDK が返すキャッシュ制御ヘッダーも維持する。
+
+この基盤の次に、ログイン・登録画面、NestJS API への Bearer token 付与、未ログイン時の導線とログアウトを実装する。
+NestJS API でも token を検証し、membership・role による認可は既存の実装順に沿って追加する。
+
 ## テスト構成
 
 | 対象                      | 主な道具                       | 例                                               |

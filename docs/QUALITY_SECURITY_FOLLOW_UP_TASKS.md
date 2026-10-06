@@ -13,7 +13,7 @@
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
-- `feat/phase-2/project-auth-foundation` で、共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護を実装済み。作業ブランチでの実装・ローカル確認が完了し、PR 作成前。ログイン画面、membership・role による認可、メンバー管理は後続作業である。
+- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤から進める。ログイン画面、membership・role による認可、メンバー管理は後続作業である。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -171,12 +171,12 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（認証基盤は PR #18 を `develop` にマージ済み。全 Project API の認証保護と owner 登録は作業ブランチで実装済み、PR 作成前。ログイン画面・Project 権限・メンバー管理は未実装）
+- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤に着手。ログイン画面・Project 権限・メンバー管理は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
 
-着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。現在の作業ブランチでは全 Project API を AuthGuard で保護している。membership・role による認可は未実装のため、外部公開前に参加者だけの閲覧と owner 専用操作の制限を完成させる必要がある。
+着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。PR #20 のマージ後は全 Project API を AuthGuard で保護している。membership・role による認可は未実装のため、外部公開前に参加者だけの閲覧と owner 専用操作の制限を完成させる必要がある。
 
 #### 作業内容
 
@@ -196,7 +196,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 #### 実装の区切り
 
 1. 認証基盤（PR #18、`develop` にマージ済み）。ローカル・CI の Supabase Auth 設定、テストユーザーの作成・削除、User migration、API の token 検証、`GET /api/auth/me` と API E2E を対象にする。
-2. ProjectMember / owner の migration、Project 作成時の owner 登録、全 Project API の認証保護（`feat/phase-2/project-auth-foundation` で実装済み、PR 作成前）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
+2. ProjectMember / owner の migration、Project 作成時の owner 登録、全 Project API の認証保護（PR #20、`develop` にマージ済み）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
 3. Next.js のログイン・登録画面と、既存 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
 4. Project の一覧・詳細は参加者だけ、設定更新・アーカイブ・解除は owner だけに許可し、API E2E で権限ごとの成功・失敗を確認する。
 5. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
@@ -224,11 +224,20 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - E2E の初回実行では 1 件の `beforeEach` が 10 秒でタイムアウトしたが、該当ケースの単独実行と、その後の 34 件の実行は成功した。タイムアウトの原因は未特定で、再発時は準備処理のどの段階で遅延するかを確認する。
 - Swagger に Auth の説明・User レスポンス、全 Project API の Bearer 認証と `401`・`403`、Project レスポンスの `ownerId`（UUID）を記載した。Bruno に Supabase のログイン・パスワード変更、Auth の本人取得、全 Project API の Bearer token 設定と README を用意し、ユーザーによる API の手動確認も完了した。
 - PR 前の最終確認で、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 12 件・Web 28 件）、`pnpm build` が成功した。`pnpm test:e2e` も専用 DB で 38 件（Health 1 件・Auth 3 件・Projects 34 件）が通過した。
-- 本ブランチは PR 作成前。CI は PR 作成後に確認する。タスク 5 全体は、ログイン画面・Project 権限・メンバー管理が残るため対応中とする。
+- この変更は PR #20 として `develop` にマージ済み。区切り2は完了し、タスク 5 全体はログイン画面・Project 権限・メンバー管理が残るため対応中とする。
+
+#### Web 認証基盤の実施メモ（2026-10-05）
+
+- 最新の `develop`（PR #20 マージ済み）から `feat/phase-2/web-auth` を作成した。区切り3を、Web 認証基盤 → ログイン画面 → 全 Project API への token 付与 → 登録・メール確認 → 未ログイン・ログアウト導線の順に、説明・実装・確認を行いながら進める。
+- Web に `@supabase/supabase-js@2.117.2` と `@supabase/ssr@0.12.7` を固定バージョンで追加した。API と同じ URL・Publishable key を `apps/web/.env.local` で使い、設定例と手順を Web README に用意した。
+- ブラウザ用・リクエストごとのサーバー用クライアントと、Next.js 16 の Proxy を追加した。SDK の `getClaims()` でセッションを確認・更新し、更新 Cookie を後続の画面処理とブラウザへ渡す。複数回の Cookie 書き込みでもキャッシュ制御ヘッダーを保持する。
+- Web の Vitest 37 件（新規のセッション基盤 9 件）、Web lint・typecheck、対象の format check が通過した。Cookie の読み取り専用状態、リクエスト間の分離、更新 Cookie のリクエスト・レスポンスへの反映、複数回の更新時のキャッシュ制御、Proxy の対象 URL を確認した。ローカル Supabase の Auth 設定取得は `200` となり、実 SDK の未ログイン状態も確認できた。
+- 通常の `next build` は Turbopack の内部処理がポート作成時の `Operation not permitted` で停止し、制限外での再実行でも同じエラーになった。検証コマンドを `pnpm --filter @redmine-next-nest/web build --webpack` に変えると、Proxy を含む build が成功した。通常の build スクリプトは変更していない。実ユーザーでのログイン・セッション更新・画面導線は、ログイン画面を実装する段階で確認する。
+- この段階は接続と Cookie セッション更新の土台まで。ログイン・登録画面、API への token 付与、未ログイン時のリダイレクト、ログアウトは未実装。membership・role の認可とメンバー管理は後続 PR で扱う。
 
 #### 後続作業
 
-- 現在の Project 認証保護・owner 登録のブランチを最終確認して PR にし、マージ後は Next.js のログイン・登録画面、全 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
+- Web 認証基盤の確認後、Next.js のログイン画面から `/api/auth/me` での本人取得を確認し、全 Project API 呼び出しへの token 付与、登録・メール確認、未ログイン・ログアウト時の画面導線へ進める。
 - その後、参加者だけの一覧・詳細取得、owner だけの更新・アーカイブ・解除を実装する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理も別の PR で進め、権限ごとの成功・失敗を API E2E で確認する。
 - 現在のローカル設定は `[auth.email].enable_confirmations = false` で、Auth E2E は管理 API の `email_confirm: true` を使う。登録画面を実装する際に、Supabase のメール確認設定を「確認済みメールアドレスを使う」というアプリのルールに揃え、登録・メール確認から `/api/auth/me` までの導線を確認する。
 
