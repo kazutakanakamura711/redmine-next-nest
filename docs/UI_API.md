@@ -20,7 +20,19 @@
 | --- | --- |
 | `/login` | Supabase Auth でログインする |
 | `/register` | ユーザー登録をする |
+| `/confirm` | 確認メールの情報を検証し、確認後にアプリへ移動する Route Handler |
 | `/projects/[projectId]/members` | メンバーの追加・閲覧・role変更をする |
+
+登録画面は名前・メールアドレス・パスワード・確認用パスワードを受け付ける。
+名前とメールアドレスは trim し、パスワードは8文字以上・確認用との一致を検証する。
+Supabase へ送るのはメールアドレス・パスワードと、`user_metadata.name` に保存する名前である。
+メール確認が必要な設定では、登録後に確認メールを開く案内を表示する。
+
+`GET /confirm` は `token_hash` と `type=email` を受け取り、Supabase の `verifyOtp()` で検証する。
+成功時はセッションを Cookie に保存して `/projects` へ `307` で移動する。
+Supabase の検証エラー時は `/login?error=confirmation_failed` へ `307` で移動し、固定の案内を表示する。
+確認情報がない場合や `type` が不正な場合は、Supabase を呼ばず `400` の JSON を返す。
+移動先には `token_hash` や利用者指定のリダイレクト先を引き継がない。
 
 認証済みの Project 操作が使えるようになったら、Playwright でログインと Project の主要導線を確認し、既存の再利用 UI を Storybook に登録する。
 

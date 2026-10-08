@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-05
+最終更新: 2026-10-08
 
 ## 目的
 
@@ -13,7 +13,7 @@
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
-- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤、ログイン画面、全 Project API 呼び出しへの token 付与を実装した。登録・メール確認、未ログイン・ログアウト導線、membership・role による認可、メンバー管理は後続作業である。
+- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログインを実装した。未ログイン・ログアウト導線、membership・role による認可、メンバー管理は後続作業である。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -171,7 +171,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤・ログイン画面・全 Project API 呼び出しへの token 付与を実装。登録・メール確認、未ログイン・ログアウト導線、Project 権限・メンバー管理は未実装）
+- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤・ログイン・登録画面・全 Project API 呼び出しへの token 付与・メール確認を実装。未ログイン・ログアウト導線、Project 権限・メンバー管理は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -245,11 +245,26 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - Web の Vitest 106 件、Web lint・typecheck、対象コードの format check が通過した。ログインの成功・失敗と本人取得待ち、セッションなし・取得失敗時の通信停止、各 Project API の URL・method・Bearer ヘッダー、API エラーを確認した。
 - ログインから一覧表示までの説明と Mermaid の図を [WEB_AUTH_LOGIN_FLOW.md](./WEB_AUTH_LOGIN_FLOW.md) に残した。
 
+#### 登録・メール確認の実施メモ（2026-10-08）
+
+- `(auth)/register` に Server Component のページと Client Component のフォームを追加した。shadcn/ui、Zod、React Hook Form で必須入力・メール形式・パスワード8文字以上・確認用パスワードとの一致を検証し、送信中の状態と成功・失敗の案内を表示する。
+- `signUp()` にメールアドレス・パスワード・`user_metadata.name` を渡す。確認用パスワードは送らず、パスワードを trim しない。名前のアプリ側 User への同期はまだ行っていない。
+- ローカル Supabase の `[auth.email].enable_confirmations` を `true` に変更し、`supabase/templates/confirmation.html` を確認メールのテンプレートとして指定した。Mailpit で日本語の件名・本文を確認した。
+- `(auth)/confirm/route.ts`（URL は `/confirm`）で `token_hash` と `type=email` を読み、`verifyOtp()` で確認する。成功するとサーバー用 SDK が Cookie にセッションを保存し、ログイン画面を経由せず `/projects` へ `307` で移動する。
+- Supabase の検証エラーは `/login?error=confirmation_failed` に移動し、ログイン画面に固定の案内を表示する。確認情報の不足や `type` の不正は、Supabase を呼ばず `400` を返す。
+- リダイレクト先に確認情報や利用者指定の外部 URL を引き継がず、応答に `Cache-Control: private, no-store` と `Referrer-Policy: no-referrer` を付ける。
+- ユーザーによる手動確認で、新規登録の `signup` の `200`、Mailpit の受信、メール確認後の自動ログイン・一覧表示、再読み込み後のセッション維持、ログイン画面の確認失敗メッセージを確認した。
+- 登録フォーム13件と確認 Route Handler 10件を追加した。SDK はモックし、入力検証・送信内容・案内・二重送信防止、検証の成功・失敗、不正入力での通信停止、移動先とヘッダーを確認する。Cookie 保存そのもののブラウザ確認は上記の手動確認による。
+- Web 全体の Vitest 129 件、Web lint・typecheck・build（`--webpack`）が通過した。登録・メール確認の説明と Mermaid の図を [WEB_AUTH_REGISTRATION_FLOW.md](./WEB_AUTH_REGISTRATION_FLOW.md) に残した。
+
 #### 後続作業
 
-- 次は登録画面の見た目、入力検証、Supabase の登録・メール確認を順に実装し、その後に未ログイン・ログアウト時の画面導線へ進める。
+- 次は未ログインで `/projects` を開いた場合のログイン画面への移動、その後にログアウト時の画面導線を、1操作ずつ実装する。
+- Supabase の `user_metadata.name` をアプリ側 User の `name` に反映する方針と、サイドバーの固定プロフィール表示をログインユーザー情報へ置き換える処理を進める。`user_metadata` は認可判断には使わない。
+- 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
+- `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
 - その後、参加者だけの一覧・詳細取得、owner だけの更新・アーカイブ・解除を実装する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理も別の PR で進め、権限ごとの成功・失敗を API E2E で確認する。
-- 現在のローカル設定は `[auth.email].enable_confirmations = false` で、Auth E2E は管理 API の `email_confirm: true` を使う。登録画面を実装する際に、Supabase のメール確認設定を「確認済みメールアドレスを使う」というアプリのルールに揃え、登録・メール確認から `/api/auth/me` までの導線を確認する。
+- 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
 #### 完了条件
 

@@ -1,9 +1,18 @@
 import { ClipboardCheck } from 'lucide-react';
 import Link from 'next/link';
-
 import { LoginForm } from './_components/login-form';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{
+    error?: string | string[];
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { error } = await searchParams;
+  const isConfirmationFailed = error === 'confirmation_failed';
+
   return (
     <main className="flex min-h-svh items-center justify-center bg-slate-50 px-4 py-8 sm:px-6">
       <div className="w-full max-w-104">
@@ -24,6 +33,19 @@ export default function LoginPage() {
             プロジェクトとタスクを一つの場所で管理
           </p>
         </header>
+
+        {isConfirmationFailed && (
+          <Alert
+            variant="destructive"
+            className="mb-4 border-red-200 bg-red-50"
+          >
+            <AlertDescription>
+              メールアドレスを確認できませんでした。
+              リンクが無効か、有効期限が切れている可能性があります。
+              すでに確認済みの場合はログインしてください。
+            </AlertDescription>
+          </Alert>
+        )}
 
         <LoginForm />
 

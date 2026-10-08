@@ -35,7 +35,18 @@ Server Component は Cookie を書けないため、Proxy で SDK の `getClaims
 ログイン画面は `(auth)/login` に置き、Server Component のページと Client Component のフォームに分ける。
 ログイン後は `/api/auth/me` の本人取得を待ってプロジェクト一覧へ移動する。
 Project の一覧・詳細はサーバー用クライアント、それ以外の作成・更新・アーカイブ・解除はブラウザ用クライアントでセッションを取得し、全 6 API に Bearer token を付ける。
-登録・メール確認、未ログイン時の導線とログアウトは後続の段階で実装する。
+登録画面は `(auth)/register` に置き、ページと操作するフォームを分ける。
+フォームは `signUp()` に名前・メールアドレス・パスワードを渡し、メール確認待ちの案内を表示する。
+確認用パスワードは入力検証だけに使い、名前は `user_metadata.name` に保存する。アプリ側 User の `name` との同期は後続作業である。
+
+メール確認の Route Handler は `(auth)/confirm/route.ts` に置く。Route Group の名前は URL に含まれないため、URL は `/confirm` となる。
+サーバー用クライアントの `verifyOtp()` で `token_hash` と `type=email` を検証し、発行されたセッションを Cookie に保存する。
+成功時は `/projects`、検証エラー時は `/login?error=confirmation_failed` にリダイレクトする。
+確認情報がない場合や `type` が不正な場合は、Supabase を呼ばず `400` の JSON を返す。
+リダイレクト先には元の確認情報を引き継がず、応答には `Cache-Control: private, no-store` と `Referrer-Policy: no-referrer` を付ける。
+確認後は Project API の AuthGuard で本人を確認し、アプリ側 User を取得または初回作成する。
+
+未ログイン時の導線、ログアウト、サイドバーのログインユーザー表示は後続の段階で実装する。
 NestJS API でも token を検証し、membership・role による認可は既存の実装順に沿って追加する。
 
 ## テスト構成

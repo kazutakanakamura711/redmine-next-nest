@@ -50,8 +50,33 @@ Project の一覧・詳細はサーバー用クライアント、作成・更新
 `getSession()` は token を取り出すために使い、本人確認には `getClaims()` / `getUser()` を使います。
 NestJS 側でも受け取った Bearer token を検証します。
 
-登録・メール確認、未ログイン時のリダイレクト、ログアウトは後続の段階で追加します。
-ログインから一覧表示までの流れは [学習メモと図](../../docs/WEB_AUTH_LOGIN_FLOW.md) に記録しています。
+`/register` で名前・メールアドレス・パスワードを登録します。確認用パスワードは画面内で一致を検証し、Supabase には送りません。
+名前は Supabase Auth の `user_metadata.name` に保存し、アプリ側 User の `name` への反映は後続作業です。
+確認メールのリンクは `/confirm?token_hash=...&type=email` です。
+`src/app/(auth)/confirm/route.ts` が `verifyOtp()` で検証し、サーバー用 SDK がセッションを Cookie に保存して `/projects` へリダイレクトします。
+検証エラーでは `/login?error=confirmation_failed` へ移動し、ログイン画面に固定の案内を表示します。
+確認情報の不足や `type` の不正は、Supabase を呼ばず `400` を返します。
+
+未ログイン時のリダイレクト、ログアウト、サイドバーのログインユーザー表示は後続作業です。
+処理順と図は [ログインの学習メモ](../../docs/WEB_AUTH_LOGIN_FLOW.md) と
+[登録・メール確認の学習メモ](../../docs/WEB_AUTH_REGISTRATION_FLOW.md) に記録しています。
+
+### ローカルの確認メール
+
+`supabase/config.toml` の `[auth.email].enable_confirmations` は `true` にしています。
+`[auth.email.template.confirmation]` で `supabase/templates/confirmation.html` を指定し、
+`SiteURL` と `TokenHash` を Supabase が埋め込んだメールを送ります。
+設定を変更したときは、リポジトリのルートでローカル Supabase を再起動します。
+
+```bash
+pnpm exec supabase stop
+pnpm exec supabase start
+```
+
+確認メールは [Mailpit](http://localhost:54324) で確認します。実在するメールアドレスは不要です。
+[Supabase Studio](http://localhost:54323) の Authentication / Users では、ユーザーの確認済み状態を確認できます。
+設定変更は新しく送るメールに反映されるため、未登録の検証用メールアドレスで登録から確認します。
+クラウド環境では Supabase Dashboard の Email Templates と URL Configuration を別途設定します。
 
 SDK の使い方は [Supabase SSR ガイド](https://supabase.com/docs/guides/auth/server-side/creating-a-client) を参照してください。
 
