@@ -103,6 +103,11 @@ SDK の使い方は [Supabase SSR ガイド](https://supabase.com/docs/guides/au
 
 ## 確認コマンド
 
+CI の `quality` job は、build step に Supabase の URL と Publishable key のビルド確認用の値を設定します。
+この job は Supabase へ接続せず、この設定で作った成果物はデプロイには使いません。
+実際の認証を確認する `api_e2e` job は、CI 上で起動したローカル Supabase の設定を使います。
+デプロイする Web の build では、接続先の環境に対応した公開設定を用意してください。
+
 ```bash
 pnpm --filter @redmine-next-nest/web typecheck
 pnpm --filter @redmine-next-nest/web lint

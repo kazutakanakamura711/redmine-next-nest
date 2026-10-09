@@ -282,6 +282,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - ユーザーによるブラウザ確認で、PC とスマホ幅のプロジェクト・本人表示、選択時の詳細への遷移と Sheet の閉鎖、スマホ側からのログアウト、ログアウト後に `/projects` を直接開いた時の `/login` への移動を確認した。
 - Web README、構成・画面仕様、ログインと登録の学習メモを更新し、図にも共通の親から Sidebar と Header へデータを渡す流れを反映した。
 - ユーザーが `pnpm --filter @redmine-next-nest/web test` を実行し、この区切りの Web 全体のテストが通過したことを確認した。
+- PR #21 の初回 CI では format・lint・typecheck・単体テスト（Web 161件・API 12件）が通過したが、Web build は Supabase の公開設定2項目が未設定のため失敗した。`quality` の build step にローカル URL とビルド確認専用の Publishable key の値を設定し、CI で確認する。この成果物はデプロイには使わず、認証の結合確認は既存の `api_e2e` job で起動するローカル Supabase を使う。
 
 #### 後続作業
 
