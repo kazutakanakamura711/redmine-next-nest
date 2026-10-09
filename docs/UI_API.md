@@ -20,7 +20,31 @@
 | --- | --- |
 | `/login` | Supabase Auth でログインする |
 | `/register` | ユーザー登録をする |
+| `/confirm` | 確認メールの情報を検証し、確認後にアプリへ移動する Route Handler |
 | `/projects/[projectId]/members` | メンバーの追加・閲覧・role変更をする |
+
+登録画面は名前・メールアドレス・パスワード・確認用パスワードを受け付ける。
+名前とメールアドレスは trim し、パスワードは8文字以上・確認用との一致を検証する。
+Supabase へ送るのはメールアドレス・パスワードと、`user_metadata.name` に保存する名前である。
+メール確認が必要な設定では、登録後に確認メールを開く案内を表示する。
+
+`GET /confirm` は `token_hash` と `type=email` を受け取り、Supabase の `verifyOtp()` で検証する。
+成功時はセッションを Cookie に保存して `/projects` へ `307` で移動する。
+Supabase の検証エラー時は `/login?error=confirmation_failed` へ `307` で移動し、固定の案内を表示する。
+確認情報がない場合や `type` が不正な場合は、Supabase を呼ばず `400` の JSON を返す。
+移動先には `token_hash` や利用者指定のリダイレクト先を引き継がない。
+
+未ログインで `/projects` またはその配下を開くと、Proxy が `/login` へ移動する。
+ログイン画面自体はこのリダイレクトの対象にしない。
+PC 幅ではサイドバー、`lg`（64rem / 通常1024px）未満では高さ48pxのヘッダーを表示する。
+ヘッダーは左にハンバーガーメニュー、中央にロゴと `Redmine Nest`、右に名前の先頭文字のアイコンを置く。
+右のアイコンには操作を持たせず、ハンバーガーメニューから Sheet を開く。
+Sheet はプロジェクト一覧と各プロジェクトへのリンクを表示し、現在の項目を青色にする。
+リンクを選ぶと遷移して Sheet を閉じる。リストはスクロール可能にし、ユーザーメニューを最下部に置く。
+サイドバーと Sheet のユーザーメニューはログインユーザーの名前・メールアドレスを表示し、名前が `null` の場合は「ユーザー」と表示する。
+ユーザーメニューのログアウトは現在のセッションを終了して `/login` へ移動する。
+処理中は二重操作を防ぎ、失敗時はエラーと再試行できる状態を表示する。
+Sheet を閉じてもログアウト処理中の状態とエラーを保持し、PC 幅へ切り替えると Sheet と小メニューを閉じる。
 
 認証済みの Project 操作が使えるようになったら、Playwright でログインと Project の主要導線を確認し、既存の再利用 UI を Storybook に登録する。
 
@@ -125,6 +149,7 @@ DELETE /api/projects/:projectId/members/:memberId
 
 - ログイン・登録そのものは Next.js から Supabase Auth を呼ぶ。
 - NestJS は access token を検証し、アプリ側の User を取得または初回作成する。
+- 共通 AuthGuard で User のメールアドレスと `user_metadata.name` の名前を同期する。名前は trim し、未設定・空白・文字列以外なら `null` にする。既存の名前も更新する。
 - member の追加・削除・role変更は owner のみ許可する。owner 自身の削除・role変更は許可しない。
 
 ### 段階3: Tasks

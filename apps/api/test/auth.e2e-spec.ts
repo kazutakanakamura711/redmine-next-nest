@@ -1,12 +1,28 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
 import { PrismaService } from '../src/modules/prisma/prisma.service.js';
+
+type AuthTestUser = {
+  id: string;
+  email: string;
+  accessToken: string;
+  adminClient: SupabaseClient;
+  prisma: PrismaService;
+};
 
 describe('Auth endpoint', () => {
   let app: INestApplication;
@@ -22,8 +38,11 @@ describe('Auth endpoint', () => {
   });
 
   afterAll(async () => {
-    vi.restoreAllMocks();
     await app.close();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('token がない場合は 401 を返す', async () => {
@@ -37,7 +56,11 @@ describe('Auth endpoint', () => {
       .expect(401);
   });
 
-  it('有効な token を送ると本人の User を返す', async () => {
+  // ケースごとに一時ユーザーを用意し、途中で失敗しても今回のデータだけを片付ける。
+  async function withTestUser(
+    userMetadata: Record<string, unknown>,
+    verify: (user: AuthTestUser) => Promise<void>,
+  ) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const secretKey = process.env.SUPABASE_SECRET_KEY;
     const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -87,11 +110,15 @@ describe('Auth endpoint', () => {
         email,
         password,
         email_confirm: true, // 確認メールを開く操作を省き、確認済みとして作成する。
+        user_metadata: userMetadata,
       });
       // 検証で失敗しても削除できるよう、作成したユーザーの ID を先に記録する。
       authUserId = data.user?.id;
       if (error) {
         throw error;
+      }
+      if (!data.user) {
+        throw new Error('テスト用の Auth ユーザーを取得できませんでした。');
       }
 
       expect(data.user?.id).toEqual(expect.any(String));
@@ -113,20 +140,17 @@ describe('Auth endpoint', () => {
       const accessToken = signInData.session?.access_token;
       expect(accessToken).toEqual(expect.any(String));
       expect(accessToken).toBeTruthy();
+      if (!accessToken) {
+        throw new Error('テスト用の access token を取得できませんでした。');
+      }
 
-      // 実際の Service の処理を使いながら、検証回数を記録する。
-      const getMeSpy = vi.spyOn(app.get(AuthService), 'getMe');
-
-      // Authorization ヘッダーに Bearer token を入れ、NestJS の本人確認 API を呼ぶ。
-      const response = await request(app.getHttpServer())
-        .get('/api/auth/me')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      // API が返すアプリ側の User が、ログインした本人であることを確認する。
-      expect(response.body).toMatchObject({ id: authUserId, email });
-      // Guard で検証した後、Controller では同じ検証を繰り返さない。
-      expect(getMeSpy).toHaveBeenCalledTimes(1);
+      await verify({
+        id: data.user.id,
+        email,
+        accessToken,
+        adminClient,
+        prisma,
+      });
     } finally {
       // 今回の API 呼び出しで作られたアプリ側の User と Auth ユーザーだけを削除する。
       if (authUserId) {
@@ -140,5 +164,134 @@ describe('Auth endpoint', () => {
         }
       }
     }
+  }
+
+  it('有効な token を送ると本人の User と名前を返し、DB に保存する', async () => {
+    await withTestUser(
+      { name: '山田 太郎' },
+      async ({ id, email, accessToken, prisma }) => {
+        // 実際の Service の処理を使いながら、検証回数を記録する。
+        const getMeSpy = vi.spyOn(app.get(AuthService), 'getMe');
+        const response = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        expect(response.body).toMatchObject({ id, email, name: '山田 太郎' });
+        expect(await prisma.user.findUnique({ where: { id } })).toMatchObject({
+          id,
+          email,
+          name: '山田 太郎',
+        });
+        // Guard で検証した後、Controller では同じ検証を繰り返さない。
+        expect(getMeSpy).toHaveBeenCalledTimes(1);
+      },
+    );
+  });
+
+  it('名前の前後の空白を除いて返し、DB に保存する', async () => {
+    await withTestUser(
+      { name: ' \t山田 太郎\u3000\n' },
+      async ({ id, accessToken, prisma }) => {
+        const response = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        expect(response.body.name).toBe('山田 太郎');
+        expect(await prisma.user.findUnique({ where: { id } })).toMatchObject({
+          name: '山田 太郎',
+        });
+      },
+    );
+  });
+
+  it('Supabase の名前が変わると、同じ User の名前も更新する', async () => {
+    await withTestUser(
+      { name: '更新前の名前' },
+      async ({ id, email, accessToken, adminClient, prisma }) => {
+        const initialResponse = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        expect(initialResponse.body.name).toBe('更新前の名前');
+
+        const { error } = await adminClient.auth.admin.updateUserById(id, {
+          user_metadata: { name: ' \t更新後の名前\u3000' },
+        });
+        expect(error).toBeNull();
+
+        // 同じ token でも、getUser() が Supabase の現在の名前を取得する。
+        const response = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        expect(response.body).toMatchObject({
+          id,
+          email,
+          name: '更新後の名前',
+        });
+        expect(response.body.createdAt).toBe(initialResponse.body.createdAt);
+        expect(await prisma.user.findUnique({ where: { id } })).toMatchObject({
+          id,
+          email,
+          name: '更新後の名前',
+        });
+      },
+    );
+  });
+
+  it.each([
+    { caseName: '未設定', metadata: {} },
+    { caseName: '空文字', metadata: { name: '' } },
+    { caseName: '空白のみ', metadata: { name: ' \t\u3000\n' } },
+    { caseName: 'null', metadata: { name: null } },
+    { caseName: '数値', metadata: { name: 123 } },
+    { caseName: 'オブジェクト', metadata: { name: { value: '山田 太郎' } } },
+  ])(
+    '名前が $caseName の場合は null を返し、DB に保存する',
+    async ({ metadata }) => {
+      await withTestUser(metadata, async ({ id, accessToken, prisma }) => {
+        const response = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        expect(response.body.name).toBeNull();
+        expect(await prisma.user.findUnique({ where: { id } })).toMatchObject({
+          name: null,
+        });
+      });
+    },
+  );
+
+  it('Supabase の名前が空白に変わると、既存 User の名前も null に更新する', async () => {
+    await withTestUser(
+      { name: '更新前の名前' },
+      async ({ id, accessToken, adminClient, prisma }) => {
+        const initialResponse = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        expect(initialResponse.body.name).toBe('更新前の名前');
+
+        const { error } = await adminClient.auth.admin.updateUserById(id, {
+          user_metadata: { name: ' \t\u3000' },
+        });
+        expect(error).toBeNull();
+
+        const response = await request(app.getHttpServer())
+          .get('/api/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        expect(response.body.id).toBe(id);
+        expect(response.body.name).toBeNull();
+        expect(await prisma.user.findUnique({ where: { id } })).toMatchObject({
+          name: null,
+        });
+      },
+    );
   });
 });

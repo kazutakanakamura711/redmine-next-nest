@@ -10,6 +10,7 @@ const navigationMocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => navigationMocks.pathname,
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 const project: Project = {
@@ -22,13 +23,18 @@ const project: Project = {
   updatedAt: '2026-09-19T00:00:00.000Z',
 };
 
+const userProps = {
+  userName: '佐藤 花子',
+  userEmail: 'sato@example.com',
+};
+
 describe('ProjectsSidebar', () => {
   beforeEach(() => {
     navigationMocks.pathname = '/projects/project-id';
   });
 
   it('長いプロジェクトキーを省略表示できる要素として描画する', () => {
-    render(<ProjectsSidebar projects={[project]} />);
+    render(<ProjectsSidebar projects={[project]} {...userProps} />);
 
     expect(screen.getByTitle(project.key)).toHaveClass('w-10', 'truncate');
     expect(screen.getByText(project.name)).toHaveClass(
@@ -39,7 +45,7 @@ describe('ProjectsSidebar', () => {
   });
 
   it('プロジェクト詳細へのリンクを表示する', () => {
-    render(<ProjectsSidebar projects={[project]} />);
+    render(<ProjectsSidebar projects={[project]} {...userProps} />);
 
     expect(
       screen.getByRole('link', { name: /とても長いプロジェクト名/ }),
@@ -47,7 +53,7 @@ describe('ProjectsSidebar', () => {
   });
 
   it('現在表示中のプロジェクトを選択状態で表示する', () => {
-    render(<ProjectsSidebar projects={[project]} />);
+    render(<ProjectsSidebar projects={[project]} {...userProps} />);
 
     expect(
       screen.getByRole('link', { name: /とても長いプロジェクト名/ }),
@@ -58,13 +64,18 @@ describe('ProjectsSidebar', () => {
   });
 
   it('アーカイブ済みプロジェクトを補助テキスト付きで表示する', () => {
-    render(<ProjectsSidebar projects={[{ ...project, isArchived: true }]} />);
+    render(
+      <ProjectsSidebar
+        projects={[{ ...project, isArchived: true }]}
+        {...userProps}
+      />,
+    );
 
     expect(screen.getByText('アーカイブ済み')).toBeInTheDocument();
   });
 
   it('空のプロジェクト配列でも壊れず表示できる', () => {
-    render(<ProjectsSidebar projects={[]} />);
+    render(<ProjectsSidebar projects={[]} {...userProps} />);
 
     expect(
       screen.getByRole('navigation', { name: 'メインナビゲーション' }),
@@ -74,10 +85,17 @@ describe('ProjectsSidebar', () => {
   it('アーカイブ済み行が薄く表示される', () => {
     const archivedProject = { ...project, isArchived: true };
 
-    render(<ProjectsSidebar projects={[archivedProject]} />);
+    render(<ProjectsSidebar projects={[archivedProject]} {...userProps} />);
 
     expect(screen.getByText(archivedProject.name).closest('li')).toHaveClass(
       'opacity-50',
     );
+  });
+
+  it('親から受け取ったログインユーザーの名前とメールアドレスを表示する', () => {
+    render(<ProjectsSidebar projects={[]} {...userProps} />);
+
+    expect(screen.getByText(userProps.userName)).toBeInTheDocument();
+    expect(screen.getByText(userProps.userEmail)).toBeInTheDocument();
   });
 });

@@ -69,6 +69,11 @@ jobs:
         run: pnpm test
 
       - name: Build
+        # Web の build に必要な公開設定。quality では Supabase へ接続しない。
+        # ビルド確認専用の値なので、デプロイ用の成果物には使用しない。
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_build_placeholder
         run: pnpm build
 
   # PostgreSQL が必要な結合テストを独立して実行する job。

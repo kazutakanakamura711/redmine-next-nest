@@ -84,7 +84,10 @@ Authorization: Bearer <access_token>
 
 API は `supabase.auth.getUser(token)` で本人を確認し、Supabase Auth のユーザー ID と
 確認済みメールアドレスから、アプリ用 DB の `User` を取得・初回作成します。
-既存の User がある場合はメールアドレスを更新し、`name` は変更しません。
+作成・更新時にメールアドレスと `user_metadata.name` の名前を同期します。
+名前が文字列なら前後の空白を除き、未設定・空白・文字列以外なら `null` にします。
+既存の名前もこの値で更新するため、Supabase の名前が空白になるとアプリ側も `null` になります。
+この同期は共通 AuthGuard を通る Project API でも行います。名前は表示用で、認可判断には使いません。
 
 | 条件                                                 | 応答                                                                      |
 | ---------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -156,17 +159,22 @@ pnpm test:e2e
 Supertest を実行します。`TEST_DATABASE_URL` が未設定、開発用 DB と同じ、または
 DB 名が `_test` で終わらない場合は DB 操作前に停止します。
 
-Auth E2E は実際のローカル Supabase Auth に接続して、次の 3 件を確認します。
+Auth E2E は実際のローカル Supabase Auth と専用テスト DB に接続し、12件で次を確認します。
 
 - token なしで `/api/auth/me` を呼ぶと `401` になる。
 - 無効な token を送ると `401` になる。
-- 一時ユーザーでログインした token を送ると `200` になり、本人の `id` と `email` が返る。
+- 一時ユーザーでログインした token を送ると `200` になり、本人の `id`・`email`・`name` が返り、DB に保存される。
+- 名前の前後の空白が除かれ、API の応答と DB に反映される。
+- Supabase の名前を変更して同じ token で再取得すると、既存 User の名前が更新される。
+- 名前が未設定・空文字・空白のみ・`null`・数値・オブジェクトの場合、API の応答と DB の名前が `null` になる。
+- Supabase の名前を空白に変更すると、既存 User の名前も `null` に更新される。
 
 成功ケースは、実行ごとに異なるメールアドレスとランダムなパスワードを使います。
 Secret key の管理クライアントで `email_confirm: true` のユーザーを作成し、
 Publishable key のクライアントで `auth.signInWithPassword()` を呼びます。
 取得した `session.access_token` を NestJS に送り、`finally` で今回作成した
 アプリ側 User と Supabase Auth のユーザーの削除を試みます。固定のテストユーザーは不要です。
+一時ユーザーの準備・後片付けは `auth.e2e-spec.ts` 内の `withTestUser()` にまとめています。
 
 Projects E2E も実際のローカル Supabase Auth を使い、テストごとに確認済みの一時ユーザーと
 access token を用意します。後片付けは ProjectMember → Project → User の順に行い、

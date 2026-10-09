@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-05
+最終更新: 2026-10-09
 
 ## 目的
 
@@ -13,7 +13,7 @@
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
-- `feat/phase-2/project-auth-foundation` で、共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護を実装済み。作業ブランチでの実装・ローカル確認が完了し、PR 作成前。ログイン画面、membership・role による認可、メンバー管理は後続作業である。
+- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示を実装した。membership・role による認可とメンバー管理は後続 PR で扱う。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -171,12 +171,12 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（認証基盤は PR #18 を `develop` にマージ済み。全 Project API の認証保護と owner 登録は作業ブランチで実装済み、PR 作成前。ログイン画面・Project 権限・メンバー管理は未実装）
+- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤・ログイン・登録画面・全 Project API 呼び出しへの token 付与・メール確認・未ログインとログアウトの導線・名前の同期・PC と狭い画面のナビゲーションと本人表示を実装。Project 権限・メンバー管理は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
 
-着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。現在の作業ブランチでは全 Project API を AuthGuard で保護している。membership・role による認可は未実装のため、外部公開前に参加者だけの閲覧と owner 専用操作の制限を完成させる必要がある。
+着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。PR #20 のマージ後は全 Project API を AuthGuard で保護している。membership・role による認可は未実装のため、外部公開前に参加者だけの閲覧と owner 専用操作の制限を完成させる必要がある。
 
 #### 作業内容
 
@@ -196,7 +196,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 #### 実装の区切り
 
 1. 認証基盤（PR #18、`develop` にマージ済み）。ローカル・CI の Supabase Auth 設定、テストユーザーの作成・削除、User migration、API の token 検証、`GET /api/auth/me` と API E2E を対象にする。
-2. ProjectMember / owner の migration、Project 作成時の owner 登録、全 Project API の認証保護（`feat/phase-2/project-auth-foundation` で実装済み、PR 作成前）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
+2. ProjectMember / owner の migration、Project 作成時の owner 登録、全 Project API の認証保護（PR #20、`develop` にマージ済み）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
 3. Next.js のログイン・登録画面と、既存 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
 4. Project の一覧・詳細は参加者だけ、設定更新・アーカイブ・解除は owner だけに許可し、API E2E で権限ごとの成功・失敗を確認する。
 5. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
@@ -206,7 +206,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 #### 実施メモ（2026-10-02）
 
 - `feat/phase-2/auth-foundation` に、ローカル Supabase の設定と、Supabase Auth の UUID を主キーとするアプリ側 `User` の migration を追加した。Supabase 自身の DB と、Prisma が使うアプリの開発用・テスト用 DB は分離している。
-- NestJS の `AuthController -> AuthService -> AuthRepository -> PrismaService` で `GET /api/auth/me` を実装した。受け取った Bearer token を `supabase.auth.getUser(token)` に渡して本人を確認し、確認済みメールアドレスを持つ User を取得・初回作成する。既存 User のメールアドレスは更新し、任意の `name` は保持する。
+- NestJS の `AuthController -> AuthService -> AuthRepository -> PrismaService` で `GET /api/auth/me` を実装した。受け取った Bearer token を `supabase.auth.getUser(token)` に渡して本人を確認し、確認済みメールアドレスを持つ User を取得・初回作成する。この段階では既存 User のメールアドレスを更新し、任意の `name` は保持した。名前の同期は 2026-10-09 の実施メモを参照する。
 - token なし・無効 token は `401`、有効な token でもメールアドレスが未設定・未確認なら `403` にする。Auth E2E では token なし・無効 token の `401` と、有効な token の `200`・本人の `id` / `email` を確認した。`403` のケースはまだ E2E に追加していない。
 - Auth E2E はローカル Supabase の管理 API で確認済みの一時ユーザーを作成し、Publishable key のクライアントでログインして access token を取得する。実行ごとに異なるメールとランダムなパスワードを使い、`finally` でアプリ側 User と Supabase Auth ユーザーの削除を試みる。HTTP の loopback 接続先だけを許可し、固定ユーザーやクラウドの認証データは使用しない。
 - ローカルの `pnpm test:e2e` は Health 1 件、Projects 22 件、Auth 3 件の合計 26 件が通過した。
@@ -224,13 +224,73 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - E2E の初回実行では 1 件の `beforeEach` が 10 秒でタイムアウトしたが、該当ケースの単独実行と、その後の 34 件の実行は成功した。タイムアウトの原因は未特定で、再発時は準備処理のどの段階で遅延するかを確認する。
 - Swagger に Auth の説明・User レスポンス、全 Project API の Bearer 認証と `401`・`403`、Project レスポンスの `ownerId`（UUID）を記載した。Bruno に Supabase のログイン・パスワード変更、Auth の本人取得、全 Project API の Bearer token 設定と README を用意し、ユーザーによる API の手動確認も完了した。
 - PR 前の最終確認で、`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（API 12 件・Web 28 件）、`pnpm build` が成功した。`pnpm test:e2e` も専用 DB で 38 件（Health 1 件・Auth 3 件・Projects 34 件）が通過した。
-- 本ブランチは PR 作成前。CI は PR 作成後に確認する。タスク 5 全体は、ログイン画面・Project 権限・メンバー管理が残るため対応中とする。
+- この変更は PR #20 として `develop` にマージ済み。区切り2は完了し、タスク 5 全体はログイン画面・Project 権限・メンバー管理が残るため対応中とする。
+
+#### Web 認証基盤の実施メモ（2026-10-05）
+
+- 最新の `develop`（PR #20 マージ済み）から `feat/phase-2/web-auth` を作成した。区切り3を、Web 認証基盤 → ログイン画面 → 全 Project API への token 付与 → 登録・メール確認 → 未ログイン・ログアウト導線の順に、説明・実装・確認を行いながら進める。
+- Web に `@supabase/supabase-js@2.117.2` と `@supabase/ssr@0.12.7` を固定バージョンで追加した。API と同じ URL・Publishable key を `apps/web/.env.local` で使い、設定例と手順を Web README に用意した。
+- ブラウザ用・リクエストごとのサーバー用クライアントと、Next.js 16 の Proxy を追加した。SDK の `getClaims()` でセッションを確認・更新し、更新 Cookie を後続の画面処理とブラウザへ渡す。複数回の Cookie 書き込みでもキャッシュ制御ヘッダーを保持する。
+- Web の Vitest 37 件（新規のセッション基盤 9 件）、Web lint・typecheck、対象の format check が通過した。Cookie の読み取り専用状態、リクエスト間の分離、更新 Cookie のリクエスト・レスポンスへの反映、複数回の更新時のキャッシュ制御、Proxy の対象 URL を確認した。ローカル Supabase の Auth 設定取得は `200` となり、実 SDK の未ログイン状態も確認できた。
+- 通常の `next build` は Turbopack の内部処理がポート作成時の `Operation not permitted` で停止し、制限外での再実行でも同じエラーになった。検証コマンドを `pnpm --filter @redmine-next-nest/web build --webpack` に変えると、Proxy を含む build が成功した。通常の build スクリプトは変更していない。実ユーザーでのログイン・セッション更新・画面導線は、ログイン画面を実装する段階で確認する。
+- この段階は接続と Cookie セッション更新の土台まで。ログイン・登録画面、API への token 付与、未ログイン時のリダイレクト、ログアウトは未実装。membership・role の認可とメンバー管理は後続 PR で扱う。
+
+#### ログイン・Project API への token 付与の実施メモ（2026-10-06）
+
+- `(auth)/login` に Server Component のページと Client Component のフォームを追加した。shadcn/ui、Zod、React Hook Form を使い、入力エラー・認証エラー・送信中の状態とパスワードの表示切り替えを用意した。
+- `signInWithPassword()` が返すセッションから access token を取り出し、NestJS の `GET /api/auth/me` で本人取得が成功した後に `router.replace('/projects')` と `router.refresh()` で一覧を表示する。Cookie の保存はブラウザ用 SDK に任せる。
+- Project の一覧・詳細はサーバー用クライアント、作成・更新・アーカイブ・解除はブラウザ用クライアントから `getSession()` で token を取得し、全 6 API に Bearer ヘッダーを付けた。セッションがない場合や取得に失敗した場合は Project API を呼ばない。token の検証は引き続き NestJS の AuthGuard が行う。
+- `create-project.ts` を `projects/_lib` に移し、作成フォームと既存テストの import・mock パスを更新した。
+- ユーザーによるブラウザ確認で、ログインと `/api/auth/me` の `200`、一覧・詳細表示、作成の `201`、更新・アーカイブ・解除の `200` と Bearer ヘッダーを確認した。
+- Web の Vitest 106 件、Web lint・typecheck、対象コードの format check が通過した。ログインの成功・失敗と本人取得待ち、セッションなし・取得失敗時の通信停止、各 Project API の URL・method・Bearer ヘッダー、API エラーを確認した。
+- ログインから一覧表示までの説明と Mermaid の図を [WEB_AUTH_LOGIN_FLOW.md](./WEB_AUTH_LOGIN_FLOW.md) に残した。
+
+#### 登録・メール確認の実施メモ（2026-10-08）
+
+- `(auth)/register` に Server Component のページと Client Component のフォームを追加した。shadcn/ui、Zod、React Hook Form で必須入力・メール形式・パスワード8文字以上・確認用パスワードとの一致を検証し、送信中の状態と成功・失敗の案内を表示する。
+- `signUp()` にメールアドレス・パスワード・`user_metadata.name` を渡す。確認用パスワードは送らず、パスワードを trim しない。この段階では名前のアプリ側 User への同期はまだ行っていない。
+- ローカル Supabase の `[auth.email].enable_confirmations` を `true` に変更し、`supabase/templates/confirmation.html` を確認メールのテンプレートとして指定した。Mailpit で日本語の件名・本文を確認した。
+- `(auth)/confirm/route.ts`（URL は `/confirm`）で `token_hash` と `type=email` を読み、`verifyOtp()` で確認する。成功するとサーバー用 SDK が Cookie にセッションを保存し、ログイン画面を経由せず `/projects` へ `307` で移動する。
+- Supabase の検証エラーは `/login?error=confirmation_failed` に移動し、ログイン画面に固定の案内を表示する。確認情報の不足や `type` の不正は、Supabase を呼ばず `400` を返す。
+- リダイレクト先に確認情報や利用者指定の外部 URL を引き継がず、応答に `Cache-Control: private, no-store` と `Referrer-Policy: no-referrer` を付ける。
+- ユーザーによる手動確認で、新規登録の `signup` の `200`、Mailpit の受信、メール確認後の自動ログイン・一覧表示、再読み込み後のセッション維持、ログイン画面の確認失敗メッセージを確認した。
+- 登録フォーム13件と確認 Route Handler 10件を追加した。SDK はモックし、入力検証・送信内容・案内・二重送信防止、検証の成功・失敗、不正入力での通信停止、移動先とヘッダーを確認する。Cookie 保存そのもののブラウザ確認は上記の手動確認による。
+- Web 全体の Vitest 129 件、Web lint・typecheck・build（`--webpack`）が通過した。登録・メール確認の説明と Mermaid の図を [WEB_AUTH_REGISTRATION_FLOW.md](./WEB_AUTH_REGISTRATION_FLOW.md) に残した。
+
+#### 未ログイン・ログアウト・本人表示の実施メモ（2026-10-09）
+
+- Proxy の `getClaims()` で検証済みの claims が得られない場合、`/projects` とその配下から `/login` へ `307` で移動する。ログイン画面をこの移動の対象にせず、SDK が更新した Cookie とキャッシュ制御ヘッダーをリダイレクトにも付ける。
+- shadcn/ui の DropdownMenu を追加し、サイドバーに `UserMenu` と `LogoutButton` を配置した。`LogoutButton` が `signOut({ scope: 'local' })` で現在のセッションを終了し、Cookie の更新を SDK に任せ、`router.replace('/login')` と `router.refresh()` で画面を切り替える。
+- ログアウト処理中は二重操作を防ぎ、失敗時は固定のエラーと再試行できる状態を表示する。メニューを閉じて再度開いても処理中の状態・エラーを保持する。`button.test.tsx` でメニューを通した `LogoutButton` の振る舞いを確認する。
+- 本人取得の `get-current-user.ts` とテストをログイン画面の `_lib` から `src/lib/auth` に移し、ログインフォームの import・mock と学習メモのリンクを更新した。
+- Server Component の `ProjectsSidebarContainer` で Cookie のセッションから token を取得し、`getCurrentUser()` で `/api/auth/me` を呼ぶ。名前とメールを `ProjectsSidebar` → `UserMenu` に props で渡し、名前が `null` なら「ユーザー」と表示する。token 自体は表示用 props に渡さない。
+- AuthService が検証済み Supabase ユーザーの `user_metadata.name` を正規化し、AuthRepository が User の作成・更新時にメールと名前を保存する。文字列なら trim し、未設定・空白・文字列以外なら `null` にして既存の名前も更新する。この処理は共通 AuthGuard を通る Project API でも行う。名前は表示用に限り、認可判断には使わない。
+- ユーザーによるブラウザ確認で、未ログインの `/projects`・`/projects/new` からログイン画面への移動とループしないこと、ログアウト後のログイン画面への移動、再度 `/projects` を直接開いた場合のログイン画面への移動、本人のメールと名前の表示を確認した。
+- Web の対象テスト（セッション基盤・Proxy 22件、ログアウト7件、サイドバー7件、共通の本人取得6件）、対象 lint・format、Web typecheck が通過した。ブラウザ全体の自動テストは Playwright 導入時に追加する。
+- Auth E2E を3件から12件に増やし、実際のローカル Supabase と専用 DB で名前の保存・trim・更新、未設定や不正な型の `null`、既存の名前を `null` に更新することを確認した。一時ユーザーの準備・後片付けをファイル内の `withTestUser()` にまとめ、Auth E2E 12件、API typecheck、対象 lint・format が通過した。
+- Swagger、API / Web README、Bruno の説明、認証の学習メモを現在の実装に合わせて更新した。
+- コミット前の確認で、Web の Vitest 149件、API の単体テスト12件、API E2E 47件（Health 1件・Projects 34件・Auth 12件）、API / Web の lint・typecheck、ルートの format check が通過した。
+
+#### 狭い画面のヘッダー・共通ナビゲーションの実施メモ（2026-10-09）
+
+- 2026-10-08 の画面確認で見つかった狭い画面用ヘッダーの欠落に対応した。`lg`（64rem / 通常1024px）未満で `AppHeader` を表示し、左にハンバーガーメニュー、中央にロゴと `Redmine Nest`、右に名前の先頭文字のアイコンを置く。右のアイコンには操作を持たせない。
+- shadcn/ui の Sheet を追加し、一覧・各プロジェクトへのリンク、選択中の青色表示、アーカイブ済みの表示、最下部の `UserMenu` を実装した。リンク選択で Sheet を閉じ、リストだけをスクロール可能にする。背景はぼかさず暗くする。
+- Sheet を `keepMounted` にしてログアウト処理中の状態とエラーを保持する。開閉を管理する `AppHeader` から `UserMenu` の開閉も制御し、Sheet の閉鎖や PC 幅への切り替えで小メニューだけが残ることを防ぐ。ログアウト処理自体は既存の `LogoutButton` を使う。
+- `layout.tsx` の取得処理を Server Component の `ProjectsNavigationContainer` にまとめ、一覧と本人情報を並行して取得する。同じ `navigationProps` を `ProjectsSidebar` と `AppHeader` に渡し、token 自体は表示用 props に含めない。
+- 共通の取得処理を一つの `Suspense` で囲み、サイドバーとヘッダーの fallback を両方渡す。Tailwind CSS で PC と狭い画面の表示を切り替え、取得中もサイドバーの幅・ヘッダーの高さ48pxを確保する。
+- AppHeader 12件・サイドバー7件・ログアウト7件の計26件、対象コードの lint・format、Web typecheck が通過した。Sheet の開閉・キーボード操作・フォーカス復帰・PC 幅への切り替え、選択表示、Sheet を閉じて再び開いた時のログアウト処理中状態の保持と二重送信防止を確認した。共通の親へ整理した後の `layout.tsx` も lint・format・typecheck を確認した。
+- ユーザーによるブラウザ確認で、PC とスマホ幅のプロジェクト・本人表示、選択時の詳細への遷移と Sheet の閉鎖、スマホ側からのログアウト、ログアウト後に `/projects` を直接開いた時の `/login` への移動を確認した。
+- Web README、構成・画面仕様、ログインと登録の学習メモを更新し、図にも共通の親から Sidebar と Header へデータを渡す流れを反映した。
+- ユーザーが `pnpm --filter @redmine-next-nest/web test` を実行し、この区切りの Web 全体のテストが通過したことを確認した。
+- PR #21 の初回 CI では format・lint・typecheck・単体テスト（Web 161件・API 12件）が通過したが、Web build は Supabase の公開設定2項目が未設定のため失敗した。`quality` の build step にローカル URL とビルド確認専用の Publishable key の値を設定し、CI で確認する。この成果物はデプロイには使わず、認証の結合確認は既存の `api_e2e` job で起動するローカル Supabase を使う。
 
 #### 後続作業
 
-- 現在の Project 認証保護・owner 登録のブランチを最終確認して PR にし、マージ後は Next.js のログイン・登録画面、全 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
+- 区切り3の PR 前の最終確認を行い、PR の準備へ進める。
+- 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
+- `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
 - その後、参加者だけの一覧・詳細取得、owner だけの更新・アーカイブ・解除を実装する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理も別の PR で進め、権限ごとの成功・失敗を API E2E で確認する。
-- 現在のローカル設定は `[auth.email].enable_confirmations = false` で、Auth E2E は管理 API の `email_confirm: true` を使う。登録画面を実装する際に、Supabase のメール確認設定を「確認済みメールアドレスを使う」というアプリのルールに揃え、登録・メール確認から `/api/auth/me` までの導線を確認する。
+- 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
 #### 完了条件
 

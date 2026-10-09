@@ -30,6 +30,8 @@ Controller -> Service -> Repository -> Prisma -> PostgreSQL
 
 - [REQUIREMENTS.md](./REQUIREMENTS.md): プロダクトの目的、MVP範囲、到達点
 - [ARCHITECTURE.md](./ARCHITECTURE.md): フロントエンド・バックエンドの責務分担
+- [WEB_AUTH_LOGIN_FLOW.md](./WEB_AUTH_LOGIN_FLOW.md): ログインからプロジェクト一覧表示までの説明と図
+- [WEB_AUTH_REGISTRATION_FLOW.md](./WEB_AUTH_REGISTRATION_FLOW.md): 登録・確認メール・自動ログインの説明と図
 - [DOMAIN_MODEL.md](./DOMAIN_MODEL.md): データの意味と業務ルール
 - [ER.md](./ER.md): 完成形のデータ関係
 - [UI_API.md](./UI_API.md): 画面と REST API の段階的な仕様

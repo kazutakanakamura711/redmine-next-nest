@@ -18,9 +18,10 @@ export class UserResponseDto {
 
   @ApiProperty({
     type: String,
-    description: 'ユーザーの名前（未登録の場合は null）',
+    description:
+      'Supabase Auth から同期した名前（未設定・空白・文字列以外の場合は null）',
     nullable: true,
-    example: null,
+    example: '山田 太郎',
   })
   name: string | null;
 

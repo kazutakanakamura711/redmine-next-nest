@@ -1,16 +1,23 @@
 'use client';
 
-import { Archive, ChevronUp, ClipboardList, Folder } from 'lucide-react';
+import { Archive, ClipboardList, Folder } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import type { Project } from '@/app/(app)/projects/_lib/get-projects';
+import { UserMenu } from './user-menu';
 
 type ProjectsSidebarProps = {
   projects: Project[];
+  userName: string;
+  userEmail: string;
 };
 
-export function ProjectsSidebar({ projects }: ProjectsSidebarProps) {
+export function ProjectsSidebar({
+  projects,
+  userName,
+  userEmail,
+}: ProjectsSidebarProps) {
   const pathname = usePathname();
   const isProjectsListPage = pathname === '/projects';
 
@@ -86,21 +93,7 @@ export function ProjectsSidebar({ projects }: ProjectsSidebarProps) {
       </nav>
 
       <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-700">
-            山
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium">山田 太郎</p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              yamada@example.com
-            </p>
-          </div>
-          <ChevronUp
-            aria-hidden="true"
-            className="size-3.5 text-muted-foreground"
-          />
-        </div>
+        <UserMenu userName={userName} userEmail={userEmail} />
       </div>
     </aside>
   );

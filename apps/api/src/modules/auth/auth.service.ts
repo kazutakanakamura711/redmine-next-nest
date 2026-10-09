@@ -55,7 +55,12 @@ export class AuthService {
       throw new ForbiddenException('確認済みのメールアドレスが必要です。');
     }
 
+    const metadataName = authUser.user_metadata.name;
+    // 名前が文字列なら前後の空白を除き、未設定・空文字なら null にする。
+    const name =
+      typeof metadataName === 'string' ? metadataName.trim() || null : null;
+
     // Supabase Auth の ID を主キーにして、アプリ側の User を作成または更新する。
-    return this.authRepository.upsertUser(authUser.id, authUser.email);
+    return this.authRepository.upsertUser(authUser.id, authUser.email, name);
   }
 }
