@@ -30,6 +30,11 @@ const cacheHeaders = {
   Pragma: 'no-cache',
 };
 
+const authenticatedClaimsResult = {
+  data: { claims: { sub: 'test-user-id' } },
+  error: null,
+};
+
 function getCookieMethods(index = 0): CookieMethodsServer {
   return mocks.serverClient.mock.calls[index][2].cookies;
 }
@@ -38,7 +43,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:54321');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test');
-  mocks.getClaims.mockResolvedValue({ data: null, error: null });
+  mocks.getClaims.mockResolvedValue(authenticatedClaimsResult);
   mocks.serverClient.mockReturnValue({ auth: { getClaims: mocks.getClaims } });
 });
 
@@ -115,6 +120,7 @@ describe('Supabase クライアント', () => {
 
 describe('Supabase セッションの Proxy', () => {
   it('セッションがないアクセスも確認処理を通り、Cookie を追加しない', async () => {
+    mocks.getClaims.mockResolvedValue({ data: null, error: null });
     const request = new NextRequest('http://localhost:3000/');
 
     const response = await updateSession(request);
@@ -144,7 +150,7 @@ describe('Supabase セッションの Proxy', () => {
         ],
         cacheHeaders,
       );
-      return { data: null, error: null };
+      return authenticatedClaimsResult;
     });
 
     const response = await updateSession(request);
@@ -175,7 +181,7 @@ describe('Supabase セッションの Proxy', () => {
         [{ name: 'session.1', value: 'second', options: { path: '/' } }],
         {},
       );
-      return { data: null, error: null };
+      return authenticatedClaimsResult;
     });
 
     const response = await updateSession(request);
@@ -224,7 +230,7 @@ describe('Supabase セッションの Proxy', () => {
         ],
         {},
       );
-      return { data: null, error: null };
+      return authenticatedClaimsResult;
     });
 
     const response = await updateSession(request);
@@ -253,7 +259,7 @@ describe('Supabase セッションの Proxy', () => {
         [{ name: 'session', value: 'user-a', options: { path: '/' } }],
         cacheHeaders,
       );
-      return { data: null, error: null };
+      return authenticatedClaimsResult;
     });
     await updateSession(new NextRequest('http://localhost:3000/projects'));
 
@@ -292,5 +298,138 @@ describe('Supabase セッションの Proxy', () => {
     ]) {
       expect(matches(url)).toBe(false);
     }
+  });
+});
+
+describe('Project 画面の未ログイン導線', () => {
+  it.each([
+    '/projects',
+    '/projects/new',
+    '/projects/123',
+    '/projects/123/settings',
+  ])(
+    '未ログインで %s を開いたら、画面処理を進めずログイン画面へ移動する',
+    async (pathname) => {
+      mocks.getClaims.mockResolvedValue({ data: null, error: null });
+      const request = new NextRequest(`http://localhost:3000${pathname}`);
+
+      const response = await updateSession(request);
+
+      expect(mocks.getClaims).toHaveBeenCalledOnce();
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe(
+        'http://localhost:3000/login',
+      );
+      expect(response.headers.get('x-middleware-next')).toBeNull();
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(response.cookies.getAll()).toEqual([]);
+    },
+  );
+
+  it.each(['/projects', '/projects/123'])(
+    '検証済みのトークン情報があれば %s の画面処理を続ける',
+    async (pathname) => {
+      const request = new NextRequest(`http://localhost:3000${pathname}`, {
+        headers: { cookie: 'session=signed-in' },
+      });
+
+      const response = await updateSession(request);
+
+      expect(mocks.getClaims).toHaveBeenCalledOnce();
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-middleware-next')).toBe('1');
+      expect(response.headers.get('location')).toBeNull();
+    },
+  );
+
+  it.each(['/login', '/register', '/projects-other'])(
+    '未ログインでも %s は処理を続け、ログイン画面へのループやパスの誤判定を防ぐ',
+    async (pathname) => {
+      mocks.getClaims.mockResolvedValue({ data: null, error: null });
+      const request = new NextRequest(`http://localhost:3000${pathname}`);
+
+      const response = await updateSession(request);
+
+      expect(mocks.getClaims).toHaveBeenCalledOnce();
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-middleware-next')).toBe('1');
+      expect(response.headers.get('location')).toBeNull();
+    },
+  );
+
+  it('Cookie があってもトークンの検証に失敗したらログイン画面へ移動する', async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: null,
+      error: { code: 'bad_jwt', message: 'Invalid JWT' },
+    });
+    const request = new NextRequest('http://localhost:3000/projects', {
+      headers: { cookie: 'session=invalid-token' },
+    });
+
+    const response = await updateSession(request);
+
+    expect(mocks.getClaims).toHaveBeenCalledOnce();
+    expect(getCookieMethods().getAll!()).toEqual([
+      { name: 'session', value: 'invalid-token' },
+    ]);
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      'http://localhost:3000/login',
+    );
+    expect(response.headers.get('x-middleware-next')).toBeNull();
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+  });
+
+  it('セッション更新に失敗しても、削除する Cookie とキャッシュ制御をリダイレクト応答に付ける', async () => {
+    const request = new NextRequest('http://localhost:3000/projects', {
+      headers: { cookie: 'session=expired; session.0=expired-chunk' },
+    });
+    mocks.getClaims.mockImplementation(async () => {
+      await getCookieMethods().setAll!(
+        [{ name: 'session', value: '', options: { path: '/', maxAge: 0 } }],
+        cacheHeaders,
+      );
+      await getCookieMethods().setAll!(
+        [{ name: 'session.0', value: '', options: { path: '/', maxAge: 0 } }],
+        {},
+      );
+      return { data: null, error: { code: 'refresh_token_not_found' } };
+    });
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      'http://localhost:3000/login',
+    );
+    expect(response.cookies.get('session')).toMatchObject({
+      value: '',
+      path: '/',
+      maxAge: 0,
+    });
+    expect(response.cookies.get('session.0')).toMatchObject({
+      value: '',
+      path: '/',
+      maxAge: 0,
+    });
+    expect(response.cookies.getAll()).toHaveLength(2);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('expires')).toBe('0');
+    expect(response.headers.get('pragma')).toBe('no-cache');
+  });
+
+  it('移動先に元のクエリや外部 URL を引き継がず、同じドメインのログイン画面へ移動する', async () => {
+    mocks.getClaims.mockResolvedValue({ data: null, error: null });
+    const requestUrl = new URL('https://app.example.com/projects');
+    requestUrl.searchParams.set('next', 'https://external.example.com');
+    requestUrl.searchParams.set('access_token', 'test-access-token');
+
+    const response = await updateSession(new NextRequest(requestUrl));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      'https://app.example.com/login',
+    );
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
 });

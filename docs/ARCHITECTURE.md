@@ -31,13 +31,18 @@ Supabase Auth のセッションは `@supabase/ssr` を使って Cookie に保�
 Next.js の `src/proxy.ts` は認証・Project の画面表示前に `src/lib/supabase/proxy.ts` を呼ぶ。
 Server Component は Cookie を書けないため、Proxy で SDK の `getClaims()` による確認・更新を行い、
 更新した Cookie を後続の画面処理とブラウザの両方へ渡す。SDK が返すキャッシュ制御ヘッダーも維持する。
+未ログインの `/projects` とその配下へのリクエストは `/login` にリダイレクトする。
+ログイン画面をリダイレクト対象にせず、更新 Cookie とキャッシュ制御ヘッダーをどちらの応答にも付ける。
 
 ログイン画面は `(auth)/login` に置き、Server Component のページと Client Component のフォームに分ける。
 ログイン後は `/api/auth/me` の本人取得を待ってプロジェクト一覧へ移動する。
 Project の一覧・詳細はサーバー用クライアント、それ以外の作成・更新・アーカイブ・解除はブラウザ用クライアントでセッションを取得し、全 6 API に Bearer token を付ける。
 登録画面は `(auth)/register` に置き、ページと操作するフォームを分ける。
 フォームは `signUp()` に名前・メールアドレス・パスワードを渡し、メール確認待ちの案内を表示する。
-確認用パスワードは入力検証だけに使い、名前は `user_metadata.name` に保存する。アプリ側 User の `name` との同期は後続作業である。
+確認用パスワードは入力検証だけに使い、名前は `user_metadata.name` に保存する。
+API の共通 AuthGuard が `getUser(token)` で本人を確認した後、AuthService が名前を正規化して AuthRepository に渡す。
+アプリ側 User の作成・更新時にメールと名前を同期し、名前が未設定・空白・文字列以外なら `null` にする。
+`user_metadata` は表示用の名前にだけ使い、認可判断には使わない。
 
 メール確認の Route Handler は `(auth)/confirm/route.ts` に置く。Route Group の名前は URL に含まれないため、URL は `/confirm` となる。
 サーバー用クライアントの `verifyOtp()` で `token_hash` と `type=email` を検証し、発行されたセッションを Cookie に保存する。
@@ -46,7 +51,15 @@ Project の一覧・詳細はサーバー用クライアント、それ以外の
 リダイレクト先には元の確認情報を引き継がず、応答には `Cache-Control: private, no-store` と `Referrer-Policy: no-referrer` を付ける。
 確認後は Project API の AuthGuard で本人を確認し、アプリ側 User を取得または初回作成する。
 
-未ログイン時の導線、ログアウト、サイドバーのログインユーザー表示は後続の段階で実装する。
+`(app)/layout.tsx` の Server Component `ProjectsSidebarContainer` が Cookie のセッションから token を取得し、
+共通の `src/lib/auth/get-current-user.ts` で本人情報を取得する。Project 一覧と本人情報は並行して取得する。
+名前とメールを `ProjectsSidebar` → `UserMenu` に props で渡し、名前が `null` なら「ユーザー」と表示する。
+token はサーバーから表示用の Client Component に渡さない。
+
+`UserMenu` は表示用 props とメニューの UI を扱い、`LogoutButton` はログアウト処理・処理中の状態・エラー表示を持つ。
+`signOut({ scope: 'local' })` で現在のセッションを終了し、SDK が Cookie を更新した後、`/login` へ移動・画面情報を更新する。
+`LogoutButton` をメニューの開閉でアンマウントさせず、再び開いた場合も処理中の状態とエラーを保持する。
+`lg` 未満ではサイドバーが隠れるため、狭い画面用のヘッダー・ナビゲーション・ユーザーメニューは後続の段階で実装する。
 NestJS API でも token を検証し、membership・role による認可は既存の実装順に沿って追加する。
 
 ## テスト構成
@@ -146,8 +159,8 @@ Repository を通じて Service とデータアクセスの責務を分離する
 
 - 用語とルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) に揃える。Project、owner、member、viewer の意味を文書・コード・テストで統一する。
 - 現在の Controller / Service / Repository で、処理順、認証・認可、DB 保存、transaction を実装・確認する。
-- 次の対象は、Project 作成時の owner 登録と、既存 Project API の認証保護である。Project と owner membership は同じ transaction で保存する。
-- 現在の実装はこの段階にある。Project 権限・ログイン画面などの機能の実装順は、既存の要件とフォローアップタスクに従う。
+- Project 作成時の owner 登録と、既存 Project API の認証保護は実装済みである。Project と owner membership は同じ transaction で保存する。次は membership・role による認可とメンバー管理を進める。
+- 現在の実装はこの段階にある。Project 権限・メンバー管理などの機能の実装順は、既存の要件とフォローアップタスクに従う。
 
 ### 段階2: 一部の操作にドメインモデルを導入する
 

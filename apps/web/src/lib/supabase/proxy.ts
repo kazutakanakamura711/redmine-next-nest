@@ -32,12 +32,36 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // 署名・有効期限を確認し、必要なら SDK がセッションを更新する。
-  // ログイン必須の判定と画面遷移は、ログイン画面を実装する段階で追加する。
-  await supabase.auth.getClaims();
+  // getClaims がCookieから現在のセッションの access_token の署名・有効期限を確認しトークン内の情報を返す、必要なら SDK がセッションを更新する。
+  const { data, error } = await supabase.auth.getClaims();
 
-  // 更新後の request で一度だけ作り、ブラウザにも更新した Cookie を返す。
-  const response = NextResponse.next({ request, headers: cacheHeaders });
+  // URL のパス部分を取り出す。
+  const pathname = request.nextUrl.pathname;
+
+  // プロジェクト一覧と、その配下の画面を対象にする。
+  const isProjectRoute =
+    pathname === '/projects' || pathname.startsWith('/projects/');
+
+  // エラーがなく、検証済みのトークン情報があるか確認する。
+  const isAuthenticated = !error && Boolean(data?.claims);
+  const shouldRedirectToLogin = isProjectRoute && !isAuthenticated;
+
+  if (shouldRedirectToLogin) {
+    // ログイン状態によって変わる移動先をキャッシュさせない。
+    cacheHeaders.set('Cache-Control', 'private, no-store');
+  }
+
+  // 必要な応答を一度だけ作る。
+  const response = shouldRedirectToLogin
+    ? NextResponse.redirect(new URL('/login', request.url), {
+        headers: cacheHeaders,
+      })
+    : NextResponse.next({
+        request, // 更新した Cookie を含むリクエストヘッダーを、後続の Next.js 処理へ渡します。
+        headers: cacheHeaders, // ブラウザへ返す応答に、キャッシュ制御ヘッダーを付けます。
+      });
+
+  // どちらの応答にも、SDK が更新した Cookie を付ける。
   responseCookies.forEach(({ name, value, options }) =>
     response.cookies.set(name, value, options),
   );

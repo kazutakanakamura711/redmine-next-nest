@@ -1,12 +1,34 @@
 import { Suspense, type ReactNode } from 'react';
 
+import { getCurrentUser } from '@/lib/auth/get-current-user';
+import { createClient } from '@/lib/supabase/server';
+
 import { ProjectsSidebar } from './_components/projects-sidebar';
 import { getProjects } from './projects/_lib/get-projects';
 
 async function ProjectsSidebarContainer() {
-  const projects = await getProjects().catch(() => []);
+  // Cookie を参照できるサーバー用クライアントで、セッションを取得する。
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
 
-  return <ProjectsSidebar projects={projects} />;
+  if (error || !accessToken) {
+    throw new Error('ログインセッションを取得できませんでした。');
+  }
+
+  // token は NestJS で検証する。セッション内の user をそのまま表示には使わない。
+  const [projects, currentUser] = await Promise.all([
+    getProjects().catch(() => []),
+    getCurrentUser(accessToken),
+  ]);
+
+  return (
+    <ProjectsSidebar
+      projects={projects}
+      userName={currentUser.name ?? 'ユーザー'}
+      userEmail={currentUser.email}
+    />
+  );
 }
 
 function ProjectsSidebarFallback() {

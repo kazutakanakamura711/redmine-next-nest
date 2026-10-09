@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { getCurrentUser } from '../_lib/get-current-user';
+import { getCurrentUser } from '../../../../lib/auth/get-current-user';
 
 // ログインでは形式・必須項目を検証し、パスワードの照合は Supabase に任せる。
 const loginSchema = z.object({

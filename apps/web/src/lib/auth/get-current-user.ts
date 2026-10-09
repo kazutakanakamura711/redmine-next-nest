@@ -7,7 +7,7 @@ export type CurrentUser = {
   updatedAt: string;
 };
 
-// ログイン時に取得した token を NestJS に渡し、本人のユーザー情報を取得する。
+// セッションの token を NestJS に渡し、本人のユーザー情報を取得する。
 export async function getCurrentUser(
   accessToken: string,
 ): Promise<CurrentUser> {

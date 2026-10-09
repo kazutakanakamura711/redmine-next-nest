@@ -1,6 +1,6 @@
 # 登録・メール確認から自動ログインまでの流れ
 
-2026-10-08 時点の実装をもとにした学習メモ。
+2026-10-09 時点の実装をもとにした学習メモ。
 確認メールのリンクを開いたら、メールアドレスを確認し、ログイン済みの状態でプロジェクト一覧へ進む。
 メール・パスワードでログインする場合は [ログインの学習メモ](./WEB_AUTH_LOGIN_FLOW.md) を参照する。
 
@@ -26,10 +26,15 @@ sequenceDiagram
         N-->>B: 307 /projects ＋ Set-Cookie
         B->>N: GET /projects ＋ Cookie
         Note over N: Proxy → セッション取得
-        N->>A: GET /api/projects ＋ Bearer token
-        Note over A: token を検証してアプリ側 User を取得・初回作成
-        A-->>N: プロジェクト一覧の JSON
-        N-->>B: 一覧画面の描画情報
+        par プロジェクト一覧
+            N->>A: GET /api/projects ＋ Bearer token
+            Note over A: token を検証し、User のメール・名前を同期
+            A-->>N: プロジェクト一覧の JSON
+        and サイドバーのユーザー情報
+            N->>A: GET /api/auth/me ＋ Bearer token
+            A-->>N: アプリ側のユーザー情報
+        end
+        N-->>B: 一覧とサイドバーの描画情報
     else 確認情報が期限切れ・使用済みなど
         S-->>N: 検証エラー
         N-->>B: 307 /login?error=confirmation_failed
@@ -55,7 +60,7 @@ sequenceDiagram
 
    メール確認が必要な設定では、登録時の `data.session` は `null` になる。
    フォームには、確認メールのリンクを開くと自動的にアプリへ進む案内を表示する。
-   アプリ側 User の `name` への反映は後続作業である。
+   この時点ではアプリ側 User を作成しない。メール確認後に認証済み API を呼ぶ際に名前を同期する。
 
 3. **確認メールのリンクを開く**
 
@@ -87,6 +92,13 @@ sequenceDiagram
    一覧取得の `getSession()` が access token を取り出し、NestJS の Project API に Bearer ヘッダーで渡す。
    この流れはログインフォームを通らないため、フォーム内の `/api/auth/me` は呼ばない。
    Project API の AuthGuard が本人を確認し、アプリ側 User を取得または初回作成する。
+   共通 AuthGuard はメールと `user_metadata.name` の名前を同期する。
+   名前が文字列なら trim し、未設定・空白・文字列以外なら `null` にして、既存 User の名前も更新する。
+
+   [layout.tsx](<../apps/web/src/app/(app)/layout.tsx>) のサイドバー用処理も、
+   Cookie のセッションから token を取得して `/api/auth/me` を呼ぶ。
+   返された名前とメールを props で `UserMenu` に渡し、名前が `null` なら「ユーザー」と表示する。
+   このサーバー側の本人取得と Project 一覧の取得は並行して行う。
 
 6. **検証エラーの場合は案内を表示する**
 
@@ -137,9 +149,11 @@ pnpm exec supabase start
 
 - ユーザーによる手動確認で、新規登録、Mailpit の受信、確認後の一覧表示、再読み込み後のログイン状態維持を確認した。
 - ログイン画面の確認失敗メッセージも、目印付きの URL で手動確認した。
-- 登録フォーム13件と確認 Route Handler 10件のテストを追加し、Web 全体の129件、lint、typecheck、build（`--webpack`）が通過した。
+- 登録・メール確認を追加した時点（2026-10-08）では、登録フォーム13件と確認 Route Handler 10件を含む Web 全体の129件、lint、typecheck、build（`--webpack`）が通過した。
 - SDK をモックする単体テストでは、Cookie が実際のブラウザへ保存されることまでは検証しない。ブラウザ全体の自動テストは Playwright 導入時に追加する。
-- 未ログイン時の移動、ログアウト、名前の同期とサイドバー表示、membership・role の認可は後続作業である。
+- 2026-10-09 までに未ログイン時の移動、ログアウト、名前の同期とサイドバー表示を実装・確認した。処理順と図は [ログイン・ログアウトの学習メモ](./WEB_AUTH_LOGIN_FLOW.md) を参照する。
+- Auth E2E 12件で、実際のローカル Supabase と専用 DB を使って名前の保存・trim・更新、未設定や不正な型を `null` にする処理を確認した。
+- 狭い画面用のヘッダー、membership・role の認可は後続作業である。
 
 実装順は [フォローアップタスク5](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#5-supabase-auth-と-project-権限を実装する) を参照する。
 SDK とテンプレートの詳細は [Supabase の Next.js 実装例](https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#creating-a-confirmation-endpoint) と

@@ -24,7 +24,8 @@ export class AuthController {
     description:
       'Supabase Auth の access token を検証し、確認済みメールアドレスを持つ本人のアプリ側 User を返す。' +
       'User が未登録なら、Supabase Auth のユーザー ID を使って初回作成する。' +
-      '登録済みの場合はメールアドレスを更新し、name は保持する。',
+      '作成・更新時にメールアドレスと user_metadata.name を同期する。' +
+      '名前は文字列なら前後の空白を除き、未設定・空白・文字列以外の場合は null にする。',
   })
   @ApiOkResponse({
     description: '認証済みユーザーのアプリ側 User を返す',

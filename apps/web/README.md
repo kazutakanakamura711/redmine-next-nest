@@ -38,7 +38,7 @@ pnpm dev:web
 | ---------------------------- | ----------------------------------------------------------------------------------------------- |
 | `src/lib/supabase/client.ts` | Client Component で使うブラウザ用クライアント                                                   |
 | `src/lib/supabase/server.ts` | Server Component / Server Action / Route Handler で、そのリクエストの Cookie を使うクライアント |
-| `src/lib/supabase/proxy.ts`  | セッションを確認・更新し、更新後の Cookie を後続の画面処理とブラウザの両方へ渡す                |
+| `src/lib/supabase/proxy.ts`  | セッションの確認・更新と、未ログイン時の Project 画面からログイン画面への移動を行う             |
 | `src/proxy.ts`               | Next.js がページ表示前に呼ぶ入口。画像・静的ファイルは対象外                                    |
 
 Server Component はレスポンスの Cookie を書けないため、手前の Proxy で更新します。
@@ -51,14 +51,29 @@ Project の一覧・詳細はサーバー用クライアント、作成・更新
 NestJS 側でも受け取った Bearer token を検証します。
 
 `/register` で名前・メールアドレス・パスワードを登録します。確認用パスワードは画面内で一致を検証し、Supabase には送りません。
-名前は Supabase Auth の `user_metadata.name` に保存し、アプリ側 User の `name` への反映は後続作業です。
+名前は Supabase Auth の `user_metadata.name` に保存し、認証済み API の共通 AuthGuard を通る際にアプリ側 User の `name` へ同期します。
 確認メールのリンクは `/confirm?token_hash=...&type=email` です。
 `src/app/(auth)/confirm/route.ts` が `verifyOtp()` で検証し、サーバー用 SDK がセッションを Cookie に保存して `/projects` へリダイレクトします。
 検証エラーでは `/login?error=confirmation_failed` へ移動し、ログイン画面に固定の案内を表示します。
 確認情報の不足や `type` の不正は、Supabase を呼ばず `400` を返します。
 
-未ログイン時のリダイレクト、ログアウト、サイドバーのログインユーザー表示は後続作業です。
-処理順と図は [ログインの学習メモ](../../docs/WEB_AUTH_LOGIN_FLOW.md) と
+未ログインで `/projects` またはその配下を開くと、Proxy が `/login` へリダイレクトします。
+ログイン画面はこのリダイレクトの対象外なので、移動を繰り返しません。
+SDK が更新した Cookie とキャッシュ制御ヘッダーをリダイレクトにも引き継ぎます。
+
+`src/app/(app)/layout.tsx` の `ProjectsSidebarContainer` は Cookie のセッションから token を取り出し、
+`src/lib/auth/get-current-user.ts` の `getCurrentUser()` で `/api/auth/me` を呼びます。
+取得した名前とメールアドレスを `ProjectsSidebar` → `UserMenu` に props で渡します。
+名前が `null` の場合は「ユーザー」と表示し、token 自体は表示用 props に渡しません。
+
+サイドバーのユーザーメニューからログアウトできます。
+`LogoutButton` が `signOut({ scope: 'local' })` で現在のセッションを終了し、
+Cookie の更新を SDK に任せて `/login` へ移動・画面情報を更新します。
+処理中は二重操作を防ぎ、失敗時は固定のエラーを表示して再試行できます。
+ログアウト後に `/projects` を開くと、未ログイン時と同じく `/login` へ移動します。
+
+`lg` 未満の画面ではサイドバーが隠れるため、代わりのヘッダー・ナビゲーション・ユーザーメニューが次の対応対象です。
+処理順と図は [ログイン・ログアウトの学習メモ](../../docs/WEB_AUTH_LOGIN_FLOW.md) と
 [登録・メール確認の学習メモ](../../docs/WEB_AUTH_REGISTRATION_FLOW.md) に記録しています。
 
 ### ローカルの確認メール

@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CurrentUser } from '../_lib/get-current-user';
+import type { CurrentUser } from '@/lib/auth/get-current-user';
 import { LoginForm } from './login-form';
 
 const mocks = vi.hoisted(() => ({
@@ -31,7 +31,7 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 // 本人取得の成功・失敗を再現し、テスト中は実際の API に通信しない。
-vi.mock('../_lib/get-current-user', () => ({
+vi.mock('@/lib/auth/get-current-user', () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 

@@ -34,6 +34,13 @@ Supabase の検証エラー時は `/login?error=confirmation_failed` へ `307` �
 確認情報がない場合や `type` が不正な場合は、Supabase を呼ばず `400` の JSON を返す。
 移動先には `token_hash` や利用者指定のリダイレクト先を引き継がない。
 
+未ログインで `/projects` またはその配下を開くと、Proxy が `/login` へ移動する。
+ログイン画面自体はこのリダイレクトの対象にしない。
+サイドバーはログインユーザーの名前・メールアドレスを表示し、名前が `null` の場合は「ユーザー」と表示する。
+ユーザーメニューのログアウトは現在のセッションを終了して `/login` へ移動する。
+処理中は二重操作を防ぎ、失敗時はエラーと再試行できる状態を表示する。
+狭い画面用のヘッダーとユーザーメニューは未実装である。
+
 認証済みの Project 操作が使えるようになったら、Playwright でログインと Project の主要導線を確認し、既存の再利用 UI を Storybook に登録する。
 
 ### 段階3: タスク管理
@@ -137,6 +144,7 @@ DELETE /api/projects/:projectId/members/:memberId
 
 - ログイン・登録そのものは Next.js から Supabase Auth を呼ぶ。
 - NestJS は access token を検証し、アプリ側の User を取得または初回作成する。
+- 共通 AuthGuard で User のメールアドレスと `user_metadata.name` の名前を同期する。名前は trim し、未設定・空白・文字列以外なら `null` にする。既存の名前も更新する。
 - member の追加・削除・role変更は owner のみ許可する。owner 自身の削除・role変更は許可しない。
 
 ### 段階3: Tasks

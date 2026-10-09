@@ -94,7 +94,9 @@ Send すると、Bruno が `Authorization: Bearer <access_token>` を付けて�
 | `403 Forbidden`    | token は有効だがメールアドレスが未設定・未確認                               |
 
 `id` と `email` が Supabase のログインユーザーと一致することを確認します。
-未登録なら User を初回作成し、登録済みならメールアドレスを更新します。`name` は保持します。
+未登録なら User を初回作成し、登録済みならメールアドレスと `user_metadata.name` の名前を更新します。
+名前は前後の空白を除き、未設定・空白・文字列以外の場合は `null` にします。
+既存の名前も同期するため、Supabase の名前が空白になるとアプリ側も `null` になります。
 
 続けて `create-project` を Send すると、`201 Created` と `ownerId` が返ります。
 Body の `key` は未使用の値にしてください。作成者の ProjectMember も `role: owner` で保存されます。

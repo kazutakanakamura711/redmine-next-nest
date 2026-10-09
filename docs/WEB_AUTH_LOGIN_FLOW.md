@@ -1,6 +1,6 @@
-# ログインからプロジェクト一覧表示までの流れ
+# ログイン・ユーザー表示・ログアウトの流れ
 
-2026-10-06 時点の実装をもとにした学習メモ。
+2026-10-09 時点の実装をもとにした学習メモ。
 ログインはブラウザで行い、プロジェクト一覧の取得は Next.js サーバーで行う。
 登録・メール確認後に自動ログインする流れは [登録・メール確認の学習メモ](./WEB_AUTH_REGISTRATION_FLOW.md) を参照する。
 
@@ -21,10 +21,15 @@ sequenceDiagram
     A-->>B: アプリ側のユーザー情報
     B->>N: /projects へ移動 ＋ Cookie
     Note over N: Proxy → セッション取得
-    N->>A: GET /api/projects ＋ Bearer token
-    Note over A: 再び token を検証して一覧を取得
-    A-->>N: プロジェクト一覧の JSON
-    N-->>B: 一覧画面の描画情報
+    par プロジェクト一覧
+        N->>A: GET /api/projects ＋ Bearer token
+        Note over A: 再び token を検証して一覧を取得
+        A-->>N: プロジェクト一覧の JSON
+    and サイドバーのユーザー情報
+        N->>A: GET /api/auth/me ＋ Bearer token
+        A-->>N: アプリ側のユーザー情報
+    end
+    N-->>B: 一覧とサイドバーの描画情報
 ```
 
 ## コードに沿った処理順
@@ -40,7 +45,7 @@ sequenceDiagram
 2. **ブラウザから NestJS で本人を確認する**
 
    `data.session.access_token` を取り出し、
-   [get-current-user.ts](<../apps/web/src/app/(auth)/login/_lib/get-current-user.ts>) の
+   [get-current-user.ts](<../apps/web/src/lib/auth/get-current-user.ts>) の
    `getCurrentUser(accessToken)` を呼ぶ。
    この関数が Bearer ヘッダーを付けて `GET /api/auth/me` にアクセスする。
 
@@ -48,10 +53,13 @@ sequenceDiagram
    [AuthService](../apps/api/src/modules/auth/auth.service.ts) を通して Supabase Auth に token を検証してもらい、
    メールアドレスが確認済みであることを確認する。
    アプリ側の User を取得し、未登録なら初回作成して、ユーザー情報を返す。
+   作成・更新時にメールアドレスと `user_metadata.name` を同期する。
+   名前は文字列なら trim し、未設定・空白・文字列以外なら `null` にする。名前は認可判断に使わない。
 
    フォーム側では `await getCurrentUser(accessToken)` で成功を待つ。
    失敗すると `catch` でエラーを表示し、画面遷移を止める。
-   現在は取得成功を確認する目的なので、返り値を変数に保存せず `await` している。
+   ログインフォームでは取得成功を確認する目的なので、返り値を変数に保存せず `await` している。
+   サイドバーの表示用データは、遷移後に Next.js サーバーで取得する。
 
 3. **プロジェクト一覧へ移動する**
 
@@ -68,7 +76,7 @@ sequenceDiagram
    `getClaims()` で token を確認し、必要ならセッションを更新する。
    更新した Cookie は、後続の Server Component が読むリクエストと、
    ブラウザへ返すレスポンスの両方に反映する。
-   その後、`page.tsx`・`layout.tsx` の処理に進む。
+   未ログインの場合は `/login` へ移動し、認証済みの場合は `page.tsx`・`layout.tsx` の処理に進む。
 
 5. **Next.js サーバーが一覧 API を呼ぶ**
 
@@ -116,6 +124,48 @@ sequenceDiagram
 
    [layout.tsx](<../apps/web/src/app/(app)/layout.tsx>) 内のサイドバー用処理も、
    同じ `getProjects()` を使い、取得したデータを `ProjectsSidebar` に渡している。
+   `ProjectsSidebarContainer` は Cookie のセッションから token を取得し、
+   共通の `getCurrentUser(accessToken)` で本人情報も取得する。一覧と本人情報は並行して取得する。
+   名前とメールを `ProjectsSidebar` → `UserMenu` に props で渡し、名前が `null` なら「ユーザー」と表示する。
+   サーバー側で取得した token 自体は、表示用の Client Component に渡さない。
+
+## 未ログイン時の移動
+
+Proxy は `/projects` と `/projects/` で始まるパスで、検証済みの claims があるか確認する。
+セッションがない、token が無効などの理由で確認できない場合は、同じサイトの `/login` へ `307` で移動する。
+ログイン画面自体をこのリダイレクトの対象にしないため、移動を繰り返さない。
+移動先に元のクエリや外部 URL を引き継がず、SDK の更新 Cookie とキャッシュ制御ヘッダーを応答に付ける。
+未ログインのリダイレクトには `Cache-Control: private, no-store` を指定する。
+
+## ログアウトの流れ
+
+```mermaid
+sequenceDiagram
+    participant B as ブラウザ
+    participant S as Supabase Auth
+    participant N as Next.js サーバー
+
+    Note over B: UserMenu からログアウトを選ぶ
+    B->>S: signOut（scope: local）
+    alt 成功
+        S-->>B: 現在のセッションを終了
+        Note over B: SDK が Cookie を更新
+        B->>N: /login へ移動し、画面情報を更新
+        N-->>B: ログイン画面
+        B->>N: /projects を直接開く（セッションなし）
+        N-->>B: Proxy が 307 /login を返す
+    else 失敗
+        S-->>B: エラー
+        Note over B: エラー表示と再試行できる状態を表示
+    end
+```
+
+[UserMenu](<../apps/web/src/app/(app)/_components/user-menu.tsx>) は名前・メールを props で受け取り、メニューを表示する。
+[LogoutButton](<../apps/web/src/app/(app)/_components/logout-button.tsx>) がログアウト処理と処理中の状態・エラー表示を持つ。
+`signOut({ scope: 'local' })` で現在のセッションを終了し、Cookie の更新はブラウザ用 SDK に任せる。
+成功すると `router.replace('/login')` と `router.refresh()` で移動・画面情報の更新を行う。
+処理中は二重操作を防ぎ、失敗時は固定のエラーを表示して再試行できる状態に戻す。
+メニューを閉じて再び開いても、処理中の状態とエラーを保持する。
 
 ## 通信ごとに渡す認証情報
 
@@ -125,11 +175,13 @@ sequenceDiagram
 | ブラウザ → NestJS（本人取得）        | `Authorization: Bearer <access_token>` |
 | ブラウザ → Next.js（画面取得）       | Cookie                                 |
 | Next.js → NestJS（一覧取得）         | `Authorization: Bearer <access_token>` |
+| Next.js → NestJS（サイドバーの本人取得） | `Authorization: Bearer <access_token>` |
 
 ブラウザ → Next.js の Cookie により、サーバー側でも同じログインセッションを参照できる。
 NestJS API に送る際は、そのセッションの access token を取り出して Bearer ヘッダーに付ける。
 
-このメモの対象は、ログイン・本人取得・プロジェクト一覧取得である。
+このメモの対象は、ログイン・本人取得・プロジェクト一覧取得・未ログインとログアウトの導線である。
+`lg` 未満の画面に表示するヘッダー・ナビゲーション・ユーザーメニューは後続作業である。
 membership・role による認可は後続 PR で扱う。
 後続作業は [QUALITY_SECURITY_FOLLOW_UP_TASKS.md のタスク5](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#5-supabase-auth-と-project-権限を実装する) を参照する。
 
