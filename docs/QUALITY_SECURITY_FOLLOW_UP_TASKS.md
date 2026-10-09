@@ -13,7 +13,7 @@
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
-- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期とサイドバーの本人表示を実装した。狭い画面用のヘッダー、membership・role による認可、メンバー管理は後続作業である。
+- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示を実装した。membership・role による認可とメンバー管理は後続 PR で扱う。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -171,7 +171,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤・ログイン・登録画面・全 Project API 呼び出しへの token 付与・メール確認・未ログインとログアウトの導線・名前の同期と本人表示を実装。狭い画面用のヘッダー、Project 権限・メンバー管理は未実装）
+- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤・ログイン・登録画面・全 Project API 呼び出しへの token 付与・メール確認・未ログインとログアウトの導線・名前の同期・PC と狭い画面のナビゲーションと本人表示を実装。Project 権限・メンバー管理は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -271,9 +271,21 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - Swagger、API / Web README、Bruno の説明、認証の学習メモを現在の実装に合わせて更新した。
 - コミット前の確認で、Web の Vitest 149件、API の単体テスト12件、API E2E 47件（Health 1件・Projects 34件・Auth 12件）、API / Web の lint・typecheck、ルートの format check が通過した。
 
+#### 狭い画面のヘッダー・共通ナビゲーションの実施メモ（2026-10-09）
+
+- 2026-10-08 の画面確認で見つかった狭い画面用ヘッダーの欠落に対応した。`lg`（64rem / 通常1024px）未満で `AppHeader` を表示し、左にハンバーガーメニュー、中央にロゴと `Redmine Nest`、右に名前の先頭文字のアイコンを置く。右のアイコンには操作を持たせない。
+- shadcn/ui の Sheet を追加し、一覧・各プロジェクトへのリンク、選択中の青色表示、アーカイブ済みの表示、最下部の `UserMenu` を実装した。リンク選択で Sheet を閉じ、リストだけをスクロール可能にする。背景はぼかさず暗くする。
+- Sheet を `keepMounted` にしてログアウト処理中の状態とエラーを保持する。開閉を管理する `AppHeader` から `UserMenu` の開閉も制御し、Sheet の閉鎖や PC 幅への切り替えで小メニューだけが残ることを防ぐ。ログアウト処理自体は既存の `LogoutButton` を使う。
+- `layout.tsx` の取得処理を Server Component の `ProjectsNavigationContainer` にまとめ、一覧と本人情報を並行して取得する。同じ `navigationProps` を `ProjectsSidebar` と `AppHeader` に渡し、token 自体は表示用 props に含めない。
+- 共通の取得処理を一つの `Suspense` で囲み、サイドバーとヘッダーの fallback を両方渡す。Tailwind CSS で PC と狭い画面の表示を切り替え、取得中もサイドバーの幅・ヘッダーの高さ48pxを確保する。
+- AppHeader 12件・サイドバー7件・ログアウト7件の計26件、対象コードの lint・format、Web typecheck が通過した。Sheet の開閉・キーボード操作・フォーカス復帰・PC 幅への切り替え、選択表示、Sheet を閉じて再び開いた時のログアウト処理中状態の保持と二重送信防止を確認した。共通の親へ整理した後の `layout.tsx` も lint・format・typecheck を確認した。
+- ユーザーによるブラウザ確認で、PC とスマホ幅のプロジェクト・本人表示、選択時の詳細への遷移と Sheet の閉鎖、スマホ側からのログアウト、ログアウト後に `/projects` を直接開いた時の `/login` への移動を確認した。
+- Web README、構成・画面仕様、ログインと登録の学習メモを更新し、図にも共通の親から Sidebar と Header へデータを渡す流れを反映した。
+- ユーザーが `pnpm --filter @redmine-next-nest/web test` を実行し、この区切りの Web 全体のテストが通過したことを確認した。
+
 #### 後続作業
 
-- 次は、2026-10-08 の画面確認で見つかった狭い画面用のヘッダーに対応する。`lg` 未満ではサイドバーが隠れる一方、代わりのヘッダーが未実装である。Figma Make に合わせ、左にハンバーガーメニュー、中央にロゴと `Redmine Nest`、右にユーザーアイコンを配置し、狭い画面でもナビゲーションとログアウトを使えるようにする。
+- 区切り3の PR 前の最終確認を行い、PR の準備へ進める。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
 - その後、参加者だけの一覧・詳細取得、owner だけの更新・アーカイブ・解除を実装する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理も別の PR で進め、権限ごとの成功・失敗を API E2E で確認する。

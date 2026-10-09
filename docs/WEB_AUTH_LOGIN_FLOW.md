@@ -25,11 +25,12 @@ sequenceDiagram
         N->>A: GET /api/projects ＋ Bearer token
         Note over A: 再び token を検証して一覧を取得
         A-->>N: プロジェクト一覧の JSON
-    and サイドバーのユーザー情報
+    and ナビゲーションのユーザー情報
         N->>A: GET /api/auth/me ＋ Bearer token
         A-->>N: アプリ側のユーザー情報
     end
-    N-->>B: 一覧とサイドバーの描画情報
+    Note over N: 共通の親から Sidebar と Header に同じ表示用 props を渡す
+    N-->>B: 一覧とナビゲーションの描画情報
 ```
 
 ## コードに沿った処理順
@@ -59,7 +60,7 @@ sequenceDiagram
    フォーム側では `await getCurrentUser(accessToken)` で成功を待つ。
    失敗すると `catch` でエラーを表示し、画面遷移を止める。
    ログインフォームでは取得成功を確認する目的なので、返り値を変数に保存せず `await` している。
-   サイドバーの表示用データは、遷移後に Next.js サーバーで取得する。
+   サイドバーと狭い画面のヘッダーの表示用データは、遷移後に Next.js サーバーで取得する。
 
 3. **プロジェクト一覧へ移動する**
 
@@ -122,12 +123,29 @@ sequenceDiagram
    `await getProjects()` で受け取ったプロジェクトを `ProjectsTable` に渡す。
    Next.js が画面の描画情報をブラウザに返し、一覧が表示される。
 
-   [layout.tsx](<../apps/web/src/app/(app)/layout.tsx>) 内のサイドバー用処理も、
-   同じ `getProjects()` を使い、取得したデータを `ProjectsSidebar` に渡している。
-   `ProjectsSidebarContainer` は Cookie のセッションから token を取得し、
-   共通の `getCurrentUser(accessToken)` で本人情報も取得する。一覧と本人情報は並行して取得する。
-   名前とメールを `ProjectsSidebar` → `UserMenu` に props で渡し、名前が `null` なら「ユーザー」と表示する。
+   [layout.tsx](<../apps/web/src/app/(app)/layout.tsx>) 内の `ProjectsNavigationContainer` も、
+   同じ `getProjects()` を使ってナビゲーション用の一覧を取得する。
+   Cookie のセッションから token を取得し、共通の `getCurrentUser(accessToken)` で本人情報も取得する。
+   ナビゲーション用の一覧と本人情報は `Promise.all()` で並行して取得する。
+   取得処理は共通の親にまとめ、同じ `navigationProps` を `ProjectsSidebar` と `AppHeader` に渡す。
+   各コンポーネントから `UserMenu` に名前とメールを渡し、名前が `null` なら「ユーザー」と表示する。
    サーバー側で取得した token 自体は、表示用の Client Component に渡さない。
+
+## 画面幅に応じたナビゲーション
+
+`ProjectsNavigationContainer` は `Suspense` の内側でデータを取得する。
+取得中は `ProjectsSidebarFallback` と `ProjectsAppHeaderFallback` を両方描画し、通常表示と同じ領域を確保する。
+どちらを見せるかは Tailwind CSS のクラスで切り替える。
+
+| 画面幅 | 表示するもの | fallback のクラス |
+| --- | --- | --- |
+| `lg`（64rem / 通常1024px）以上 | サイドバー | `hidden lg:block` |
+| `lg` 未満 | 高さ48pxのヘッダー | `grid lg:hidden` |
+
+[AppHeader](<../apps/web/src/app/(app)/_components/app-header.tsx>) の左ボタンから Sheet を開くと、
+プロジェクトのリンクと最下部の `UserMenu` を表示する。右のユーザーアイコンは名前の先頭文字を表示し、操作は持たない。
+現在の項目は `usePathname()` で判定して青色にし、リンクを選ぶと Sheet を閉じる。
+リストだけをスクロール可能にして、ユーザーメニューがリストの長さで押し出されないようにする。
 
 ## 未ログイン時の移動
 
@@ -166,6 +184,8 @@ sequenceDiagram
 成功すると `router.replace('/login')` と `router.refresh()` で移動・画面情報の更新を行う。
 処理中は二重操作を防ぎ、失敗時は固定のエラーを表示して再試行できる状態に戻す。
 メニューを閉じて再び開いても、処理中の状態とエラーを保持する。
+狭い画面では Sheet の最下部から同じ `UserMenu` と `LogoutButton` を使う。
+Sheet の `keepMounted` でログアウト処理中の状態を保持し、Sheet を閉じる時や PC 幅への切り替え時は小メニューも閉じる。
 
 ## 通信ごとに渡す認証情報
 
@@ -175,13 +195,20 @@ sequenceDiagram
 | ブラウザ → NestJS（本人取得）        | `Authorization: Bearer <access_token>` |
 | ブラウザ → Next.js（画面取得）       | Cookie                                 |
 | Next.js → NestJS（一覧取得）         | `Authorization: Bearer <access_token>` |
-| Next.js → NestJS（サイドバーの本人取得） | `Authorization: Bearer <access_token>` |
+| Next.js → NestJS（ナビゲーションの本人取得） | `Authorization: Bearer <access_token>` |
 
 ブラウザ → Next.js の Cookie により、サーバー側でも同じログインセッションを参照できる。
 NestJS API に送る際は、そのセッションの access token を取り出して Bearer ヘッダーに付ける。
 
-このメモの対象は、ログイン・本人取得・プロジェクト一覧取得・未ログインとログアウトの導線である。
-`lg` 未満の画面に表示するヘッダー・ナビゲーション・ユーザーメニューは後続作業である。
+## 確認結果と後続作業
+
+- AppHeader 12件・サイドバー7件・ログアウト7件の計26件が通過した。Sheet の開閉・キーボード操作・フォーカス復帰・PC 幅への切り替え、選択表示、ログアウト処理中の状態保持を確認した。
+- 対象コードの lint・format、Web typecheck が通過した。共通の Server Component にまとめた後の `layout.tsx` も確認した。
+- ユーザーが `pnpm --filter @redmine-next-nest/web test` を実行し、Web 全体のテストが通過したことを確認した。
+- ユーザーによるブラウザ確認で、PC とスマホ幅の本人表示・プロジェクト表示、選択時の遷移と Sheet の閉鎖、スマホ側からのログアウト、ログアウト後に `/projects` を直接開いた時の `/login` への移動を確認した。
+- 上記のブラウザ確認は手動であり、ブラウザ全体の自動テストは Playwright 導入時に追加する。
+
+このメモの対象は、ログイン・本人取得・プロジェクト一覧取得・PC と狭い画面のナビゲーション・未ログインとログアウトの導線である。
 membership・role による認可は後続 PR で扱う。
 後続作業は [QUALITY_SECURITY_FOLLOW_UP_TASKS.md のタスク5](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#5-supabase-auth-と-project-権限を実装する) を参照する。
 

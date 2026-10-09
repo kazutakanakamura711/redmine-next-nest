@@ -61,18 +61,24 @@ NestJS 側でも受け取った Bearer token を検証します。
 ログイン画面はこのリダイレクトの対象外なので、移動を繰り返しません。
 SDK が更新した Cookie とキャッシュ制御ヘッダーをリダイレクトにも引き継ぎます。
 
-`src/app/(app)/layout.tsx` の `ProjectsSidebarContainer` は Cookie のセッションから token を取り出し、
+`src/app/(app)/layout.tsx` の `ProjectsNavigationContainer` は Cookie のセッションから token を取り出し、
 `src/lib/auth/get-current-user.ts` の `getCurrentUser()` で `/api/auth/me` を呼びます。
-取得した名前とメールアドレスを `ProjectsSidebar` → `UserMenu` に props で渡します。
+ナビゲーション用の Project 一覧と本人情報を並行して取得し、同じ `navigationProps` を `ProjectsSidebar` と `AppHeader` に渡します。
+各コンポーネントから名前とメールアドレスを `UserMenu` に props で渡します。
 名前が `null` の場合は「ユーザー」と表示し、token 自体は表示用 props に渡しません。
+共通の取得処理を `Suspense` で囲み、取得中はサイドバーとヘッダーの fallback で表示領域を確保します。
 
-サイドバーのユーザーメニューからログアウトできます。
+サイドバーと狭い画面の Sheet 内のユーザーメニューからログアウトできます。
 `LogoutButton` が `signOut({ scope: 'local' })` で現在のセッションを終了し、
 Cookie の更新を SDK に任せて `/login` へ移動・画面情報を更新します。
 処理中は二重操作を防ぎ、失敗時は固定のエラーを表示して再試行できます。
 ログアウト後に `/projects` を開くと、未ログイン時と同じく `/login` へ移動します。
 
-`lg` 未満の画面ではサイドバーが隠れるため、代わりのヘッダー・ナビゲーション・ユーザーメニューが次の対応対象です。
+`lg`（64rem / 通常1024px）以上はサイドバー、`lg` 未満は高さ48pxの `AppHeader` を表示します。
+ヘッダーにはハンバーガーメニュー、ロゴと `Redmine Nest`、名前の先頭文字のアイコンを配置します。
+右のアイコンには操作を持たせず、ハンバーガーメニューから shadcn/ui の Sheet を開きます。
+Sheet では現在の項目を青色にし、リンク選択時に閉じます。リストだけをスクロール可能にして、`UserMenu` を最下部に置きます。
+Sheet は `keepMounted` でログアウトの処理中状態・エラーを保持し、閉じる際や PC 幅への切り替え時は小メニューも閉じます。
 処理順と図は [ログイン・ログアウトの学習メモ](../../docs/WEB_AUTH_LOGIN_FLOW.md) と
 [登録・メール確認の学習メモ](../../docs/WEB_AUTH_REGISTRATION_FLOW.md) に記録しています。
 

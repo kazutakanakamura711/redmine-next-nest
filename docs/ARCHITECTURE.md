@@ -51,15 +51,26 @@ API の共通 AuthGuard が `getUser(token)` で本人を確認した後、AuthS
 リダイレクト先には元の確認情報を引き継がず、応答には `Cache-Control: private, no-store` と `Referrer-Policy: no-referrer` を付ける。
 確認後は Project API の AuthGuard で本人を確認し、アプリ側 User を取得または初回作成する。
 
-`(app)/layout.tsx` の Server Component `ProjectsSidebarContainer` が Cookie のセッションから token を取得し、
-共通の `src/lib/auth/get-current-user.ts` で本人情報を取得する。Project 一覧と本人情報は並行して取得する。
-名前とメールを `ProjectsSidebar` → `UserMenu` に props で渡し、名前が `null` なら「ユーザー」と表示する。
+`(app)/layout.tsx` の Server Component `ProjectsNavigationContainer` が Cookie のセッションから token を取得し、
+共通の `src/lib/auth/get-current-user.ts` で本人情報を取得する。ナビゲーション用の Project 一覧と本人情報は並行して取得する。
+取得した一覧・名前・メールを同じ `navigationProps` で `ProjectsSidebar` と `AppHeader` に渡す。
+各コンポーネントから `UserMenu` に名前とメールを渡し、名前が `null` なら「ユーザー」と表示する。
 token はサーバーから表示用の Client Component に渡さない。
 
+共通の取得処理を `Suspense` で囲み、取得中は `ProjectsSidebarFallback` と `ProjectsAppHeaderFallback` を描画する。
+通常表示と fallback の両方で Tailwind CSS の `lg`（64rem / 通常1024px）を境界に表示を切り替える。
+`lg` 以上はサイドバー、`lg` 未満は高さ48pxのヘッダーを表示し、fallback も同じ領域を確保する。
+
+Client Component の `AppHeader` は、左にハンバーガーメニュー、中央にロゴと `Redmine Nest`、右に名前の先頭文字のアイコンを表示する。
+右のアイコンには操作を持たせず、ハンバーガーメニューから shadcn/ui の Sheet を開く。
+Sheet はプロジェクト一覧・詳細へのリンクを表示し、現在の項目を青色にして `aria-current="page"` を付ける。
+リンク選択時は Sheet を閉じ、リストだけをスクロール可能にして `UserMenu` を最下部に置く。
+
 `UserMenu` は表示用 props とメニューの UI を扱い、`LogoutButton` はログアウト処理・処理中の状態・エラー表示を持つ。
+`AppHeader` は Sheet とその中のユーザーメニューの開閉を管理し、Sheet を閉じる時や PC 幅への切り替え時に小メニューも閉じる。
 `signOut({ scope: 'local' })` で現在のセッションを終了し、SDK が Cookie を更新した後、`/login` へ移動・画面情報を更新する。
-`LogoutButton` をメニューの開閉でアンマウントさせず、再び開いた場合も処理中の状態とエラーを保持する。
-`lg` 未満ではサイドバーが隠れるため、狭い画面用のヘッダー・ナビゲーション・ユーザーメニューは後続の段階で実装する。
+`LogoutButton` をメニューの開閉でアンマウントさせず、Sheet も `keepMounted` で状態を保持する。
+再び開いた場合もログアウト処理中の状態とエラーを保持する。
 NestJS API でも token を検証し、membership・role による認可は既存の実装順に沿って追加する。
 
 ## テスト構成

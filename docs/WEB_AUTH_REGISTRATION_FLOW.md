@@ -30,11 +30,12 @@ sequenceDiagram
             N->>A: GET /api/projects ＋ Bearer token
             Note over A: token を検証し、User のメール・名前を同期
             A-->>N: プロジェクト一覧の JSON
-        and サイドバーのユーザー情報
+        and ナビゲーションのユーザー情報
             N->>A: GET /api/auth/me ＋ Bearer token
             A-->>N: アプリ側のユーザー情報
         end
-        N-->>B: 一覧とサイドバーの描画情報
+        Note over N: 共通の親から Sidebar と Header に同じ表示用 props を渡す
+        N-->>B: 一覧とナビゲーションの描画情報
     else 確認情報が期限切れ・使用済みなど
         S-->>N: 検証エラー
         N-->>B: 307 /login?error=confirmation_failed
@@ -95,10 +96,12 @@ sequenceDiagram
    共通 AuthGuard はメールと `user_metadata.name` の名前を同期する。
    名前が文字列なら trim し、未設定・空白・文字列以外なら `null` にして、既存 User の名前も更新する。
 
-   [layout.tsx](<../apps/web/src/app/(app)/layout.tsx>) のサイドバー用処理も、
+   [layout.tsx](<../apps/web/src/app/(app)/layout.tsx>) の `ProjectsNavigationContainer` も、
    Cookie のセッションから token を取得して `/api/auth/me` を呼ぶ。
-   返された名前とメールを props で `UserMenu` に渡し、名前が `null` なら「ユーザー」と表示する。
-   このサーバー側の本人取得と Project 一覧の取得は並行して行う。
+   このサーバー側の本人取得とナビゲーション用の Project 一覧の取得は並行して行う。
+   共通の取得処理から同じ props を `ProjectsSidebar` と `AppHeader` に渡し、
+   各コンポーネントの `UserMenu` に名前とメールを表示する。名前が `null` なら「ユーザー」と表示する。
+   PC 幅ではサイドバー、狭い画面ではヘッダーから開く Sheet で本人表示とプロジェクト選択・ログアウトを使える。
 
 6. **検証エラーの場合は案内を表示する**
 
@@ -153,7 +156,8 @@ pnpm exec supabase start
 - SDK をモックする単体テストでは、Cookie が実際のブラウザへ保存されることまでは検証しない。ブラウザ全体の自動テストは Playwright 導入時に追加する。
 - 2026-10-09 までに未ログイン時の移動、ログアウト、名前の同期とサイドバー表示を実装・確認した。処理順と図は [ログイン・ログアウトの学習メモ](./WEB_AUTH_LOGIN_FLOW.md) を参照する。
 - Auth E2E 12件で、実際のローカル Supabase と専用 DB を使って名前の保存・trim・更新、未設定や不正な型を `null` にする処理を確認した。
-- 狭い画面用のヘッダー、membership・role の認可は後続作業である。
+- 狭い画面用のヘッダーと Sheet、共通の Server Component による Sidebar・Header へのデータ受け渡しも実装・確認した。AppHeader 12件を含む関連テスト26件とユーザーによるブラウザ確認の詳細は [ログイン・ログアウトの学習メモ](./WEB_AUTH_LOGIN_FLOW.md#確認結果と後続作業) を参照する。
+- membership・role の認可とメンバー管理は後続 PR で扱う。
 
 実装順は [フォローアップタスク5](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#5-supabase-auth-と-project-権限を実装する) を参照する。
 SDK とテンプレートの詳細は [Supabase の Next.js 実装例](https://supabase.com/docs/guides/getting-started/tutorials/with-nextjs#creating-a-confirmation-endpoint) と

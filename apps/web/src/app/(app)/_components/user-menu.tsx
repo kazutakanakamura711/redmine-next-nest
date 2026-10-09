@@ -13,11 +13,18 @@ import { LogoutButton } from './logout-button';
 type UserMenuProps = {
   userName: string;
   userEmail: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
-export function UserMenu({ userName, userEmail }: UserMenuProps) {
+export function UserMenu({
+  userName,
+  userEmail,
+  open,
+  onOpenChange,
+}: UserMenuProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
         aria-label="ユーザーメニュー"
         render={
