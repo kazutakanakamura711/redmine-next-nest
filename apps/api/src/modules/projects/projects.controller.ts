@@ -28,6 +28,7 @@ import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectResponseDto } from './dto/project-response.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { type AuthenticatedRequest, AuthGuard } from '../auth/auth.guard.js';
+import { ProjectMemberResponseDto } from './dto/project-member-response.dto.js';
 
 @ApiTags('Projects')
 @ApiBearerAuth()
@@ -74,6 +75,34 @@ export class ProjectsController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.projectsService.findOneForMember(projectId, request.user.id);
+  }
+
+  @Get(':projectId/members')
+  @UseGuards(AuthGuard)
+  @ApiOperation({
+    summary: 'プロジェクトのメンバー一覧を取得する（owner のみ）',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: '取得するプロジェクトの ID',
+  })
+  @ApiOkResponse({
+    description: 'プロジェクトのメンバー一覧を返す',
+    type: ProjectMemberResponseDto,
+    isArray: true,
+  })
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
+  })
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない、または参加していない',
+  })
+  findProjectMembers(
+    @Param('projectId') projectId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.findProjectMembers(projectId, request.user.id);
   }
 
   @Post()

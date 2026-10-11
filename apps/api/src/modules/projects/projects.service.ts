@@ -39,6 +39,26 @@ export class ProjectsService {
     return project;
   }
 
+  async findProjectMembers(projectId: string, userId: string) {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      projectId,
+      userId,
+    );
+
+    // 参加情報がなければ404を返す。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+    // role が owner 以外なら403を返す。
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException(
+        'プロジェクトのメンバー一覧を取得する権限がありません',
+      );
+    }
+
+    return await this.projectsRepository.findProjectMembers(projectId);
+  }
+
   async create(dto: CreateProjectDto, ownerId: string) {
     try {
       return await this.projectsRepository.create({

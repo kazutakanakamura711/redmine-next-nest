@@ -537,6 +537,323 @@ describe('Projects endpoint', () => {
     });
   });
 
+  describe('メンバー一覧取得: GET /api/projects/:projectId/members', () => {
+    it.each([
+      ['token なし', undefined],
+      ['Bearer 形式ではないヘッダー', 'Basic'],
+      ['無効な token', 'Bearer invalid-token'],
+    ])(
+      'メンバー一覧取得時に%sを401で拒否し、Projectと参加情報を変更しない',
+      async (_caseName, authorization) => {
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Project Members',
+            key: projectKey,
+            projectMembers: { create: { userId, role: 'owner' } },
+          },
+          include: { projectMembers: true },
+        });
+
+        const listRequest = request(app.getHttpServer()).get(
+          `/api/projects/${project.id}/members`,
+        );
+        if (authorization) {
+          // 有効な token でも、Bearer 以外の形式なら拒否される。
+          listRequest.set(
+            'Authorization',
+            authorization === 'Basic' ? `Basic ${accessToken}` : authorization,
+          );
+        }
+
+        await listRequest.expect(401);
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: true },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it('ownerは本人を含む全roleのメンバー一覧を合意した項目だけで取得でき、未設定の名前はnullで返す', async () => {
+      const prisma = app.get(PrismaService);
+      const owner = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      const otherUser = await createOtherUser();
+      // 他の参加者の表示情報は、アプリ側 User に保存した値を返す。
+      const member = await prisma.user.update({
+        where: { id: otherUser.id },
+        data: { name: '山田太郎' },
+      });
+      const viewer = await createOtherUser();
+      const project = await prisma.project.create({
+        data: { ownerId: userId, name: 'Project Members', key: projectKey },
+      });
+      const ownerMembership = await prisma.projectMember.create({
+        data: { projectId: project.id, userId, role: 'owner' },
+      });
+      const memberMembership = await prisma.projectMember.create({
+        data: { projectId: project.id, userId: member.id, role: 'member' },
+      });
+      const viewerMembership = await prisma.projectMember.create({
+        data: { projectId: project.id, userId: viewer.id, role: 'viewer' },
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/members`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      // toEqual で、projectId・updatedAt や User の内部情報も含まれないことを確認する。
+      expect(response.body).toEqual([
+        {
+          id: ownerMembership.id,
+          userId,
+          role: 'owner',
+          createdAt: ownerMembership.createdAt.toISOString(),
+          user: { name: null, email: owner.email },
+        },
+        {
+          id: memberMembership.id,
+          userId: member.id,
+          role: 'member',
+          createdAt: memberMembership.createdAt.toISOString(),
+          user: { name: '山田太郎', email: member.email },
+        },
+        {
+          id: viewerMembership.id,
+          userId: viewer.id,
+          role: 'viewer',
+          createdAt: viewerMembership.createdAt.toISOString(),
+          user: { name: null, email: viewer.email },
+        },
+      ]);
+    });
+
+    it('owner→member→viewer、同じroleは参加日時の古い順、日時も同じならIDの昇順で返す', async () => {
+      const prisma = app.get(PrismaService);
+      const viewer = await createOtherUser();
+      const newerMember = await createOtherUser();
+      const sameDateMemberZ = await createOtherUser();
+      const sameDateMemberA = await createOtherUser();
+      const project = await prisma.project.create({
+        data: { ownerId: userId, name: 'Sorted Members', key: projectKey },
+      });
+      const idPrefix = projectKey.toLowerCase();
+
+      // 登録順・ID順・日時順だけでは、期待する並びにならないデータを用意する。
+      // owner は最新、viewer は最古でも、role の順序が優先される。
+      await prisma.projectMember.createMany({
+        data: [
+          {
+            id: `${idPrefix}-viewer`,
+            projectId: project.id,
+            userId: viewer.id,
+            role: 'viewer',
+            createdAt: new Date('2026-10-01T10:00:00.000Z'),
+          },
+          {
+            id: `${idPrefix}-member-0`,
+            projectId: project.id,
+            userId: newerMember.id,
+            role: 'member',
+            createdAt: new Date('2026-10-03T10:00:00.000Z'),
+          },
+          {
+            id: `${idPrefix}-member-z`,
+            projectId: project.id,
+            userId: sameDateMemberZ.id,
+            role: 'member',
+            createdAt: new Date('2026-10-02T10:00:00.000Z'),
+          },
+          {
+            id: `${idPrefix}-owner`,
+            projectId: project.id,
+            userId,
+            role: 'owner',
+            createdAt: new Date('2026-10-04T10:00:00.000Z'),
+          },
+          {
+            id: `${idPrefix}-member-a`,
+            projectId: project.id,
+            userId: sameDateMemberA.id,
+            role: 'member',
+            createdAt: new Date('2026-10-02T10:00:00.000Z'),
+          },
+        ],
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/members`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body.map((member: { id: string }) => member.id)).toEqual([
+        `${idPrefix}-owner`,
+        `${idPrefix}-member-a`,
+        `${idPrefix}-member-z`,
+        `${idPrefix}-member-0`,
+        `${idPrefix}-viewer`,
+      ]);
+    });
+
+    it('同じownerの別Projectの参加情報をメンバー一覧に含めない', async () => {
+      const prisma = app.get(PrismaService);
+      const otherUser = await createOtherUser();
+      const otherProjectKey = projectKey.replace('E2E', 'OTH');
+      projectKeys.push(otherProjectKey);
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Project Members',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+      await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Other Project Members',
+          key: otherProjectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: otherUser.id, role: 'member' },
+            ],
+          },
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/members`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0]).toMatchObject({
+        id: project.projectMembers[0].id,
+        userId,
+        role: 'owner',
+      });
+    });
+
+    it.each(['member', 'viewer'] as const)(
+      '%sのメンバー一覧取得を403で拒否し、Projectと参加情報を変更しない',
+      async (role) => {
+        const otherUser = await createOtherUser();
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: otherUser.id,
+            name: 'Project Members',
+            key: projectKey,
+            projectMembers: {
+              create: [
+                { userId: otherUser.id, role: 'owner' },
+                { userId, role },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+
+        await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/members`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(403)
+          .expect({
+            message: 'プロジェクトのメンバー一覧を取得する権限がありません',
+            error: 'Forbidden',
+            statusCode: 403,
+          });
+
+        // AuthGuard による User の同期とは別に、値と更新日時を比較する。
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it('別Projectのownerでも非参加のProjectは存在しないIDと同じ404で拒否し、両Projectと参加情報を変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const otherUser = await createOtherUser();
+      const otherProjectKey = projectKey.replace('E2E', 'OTH');
+      projectKeys.push(otherProjectKey);
+      const joinedProject = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Joined Project',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+      const otherProject = await prisma.project.create({
+        data: {
+          ownerId: otherUser.id,
+          name: 'Other Project',
+          key: otherProjectKey,
+          projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+
+      // 存在しない ID と非参加 Project のどちらも、同じ本文で拒否する。
+      for (const projectId of ['not-found', otherProject.id]) {
+        await request(app.getHttpServer())
+          .get(`/api/projects/${projectId}/members`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect({
+            message: 'プロジェクトが見つかりません',
+            error: 'Not Found',
+            statusCode: 404,
+          });
+
+        for (const before of [joinedProject, otherProject]) {
+          expect(
+            await prisma.project.findUnique({
+              where: { id: before.id },
+              include: { projectMembers: true },
+            }),
+          ).toEqual(before);
+        }
+      }
+    });
+
+    it('ownerIdが本人でも参加情報がなければ404で拒否し、Projectを変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
+        data: { ownerId: userId, name: 'No Membership', key: projectKey },
+        include: { projectMembers: true },
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/members`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404)
+        .expect({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual(project);
+    });
+  });
+
   describe('作成: POST /api/projects', () => {
     it.each([
       ['token なし', undefined],

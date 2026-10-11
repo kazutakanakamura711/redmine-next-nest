@@ -13,7 +13,8 @@
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
-- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4は、参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除を実装し、API E2E で確認した。メンバー管理は区切り5で扱う。
+- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
+- 区切り5は `feat/phase-2/project-members-list` で、owner によるメンバー一覧 API を実装し、API E2E で確認済み。メンバーの追加・role変更・削除は後続の PR で扱う。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -171,7 +172,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（区切り1〜3は PR #18・#20・#21 を `develop` にマージ済み。区切り4の既存 Project API の membership・role 認可は実装・API E2E・ローカル全体確認済み。区切り5のメンバー管理は未実装）
+- 状態: 対応中（区切り1〜4は PR #18・#20・#21・#22 を `develop` にマージ済み。区切り5は owner によるメンバー一覧 API を実装・API E2E 確認済み。メンバーの追加・role変更・削除は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -339,13 +340,30 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - Prisma schema の `validate`・Client の `generate` と、`develop` の schema に対する `migrate diff --script --exit-code` を再確認した。差分は空の migration（exit code 0）で、DB のテーブル・カラム・外部キーを変えず、migration の追加は不要である。
 - 認証済みの ID と対象 Project の membership・role を使う呼び出し経路、非参加者の404と参加者の権限不足の403、拒否時の Project・ProjectMember の不変性をレビューし、修正が必要な指摘はなかった。`git diff --check` も通過した。テストのファイル分割は合意どおり後続の整理 PR で扱う。
 
+#### Project メンバー一覧の実施メモ（2026-10-11）
+
+- PR #22 マージ済みの `develop` から作成したブランチを `feat/phase-2/project-members-list` に変更し、区切り5の最初の endpoint として `GET /api/projects/:projectId/members` を実装した。Repository → Service → DTO → Controller の順に確認し、API 契約を `UI_API.md` に記録した。
+- Controller は AuthGuard が確認した `request.user.id` を Service に渡す。Service は対象 Project の本人の参加情報を取得し、非参加者・存在しない Project は同じ404本文、参加者の member・viewer は403で拒否する。owner だけが本人を含むメンバー一覧を取得できる。`ownerId` や表示用の名前だけで許可しない。
+- Repository は対象 `projectId` に限定して、ProjectMember の `id`・`userId`・`role`・`createdAt` と、アプリ側 User の `name`・`email` を取得する。role は既存の PostgreSQL enum の定義順で owner → member → viewer、同じ role は参加日時の古い順、日時も同じなら ProjectMember ID の昇順で返す。未設定の名前は `null` とする。
+- `ProjectMemberResponseDto` と、内側の User 表示情報を表す `ProjectMemberUserResponseDto` を追加した。role は生成済みの `ProjectMemberRole` を使い、Controller の Swagger はメンバー DTO の配列と、Bearer 認証・401・403・404を説明する。
+- メンバー一覧の API E2E を10件追加し、全 role を含む owner の200、返却項目・名前の `null`、3段階の並び順、別 Project の参加情報の除外、member・viewer の403を確認した。token なし・形式不正・無効の401、別 Project の owner による非参加 Project と存在しない ID の同じ404、`ownerId` が本人でも参加情報がなければ404になることも確認した。
+- 拒否された操作では Project と ProjectMember の値・更新日時を比較し、対象 Project と参加情報が変わらないことを確認した。認証済みリクエストの AuthGuard による User のプロフィール同期は、この比較に含めない。
+- メンバー一覧の10件と、通常の `pnpm test:e2e` の全89件（Projects 76件・Auth 12件・Health 1件）が通過した。対象テストの lint・format、API typecheck、`git diff --check` も通過した。DB schema・migration・依存関係・Web は変更していない。
+
+#### Project メンバー一覧の PR 前の全体確認（2026-10-11）
+
+- インストール済み CLI でルートの Prettier（`--check --ignore-unknown .`）、Web の ESLint・API の `oxlint src/ test/`、Web・API の `tsc --noEmit`、Vitest（API 12件・Web 161件）が通過した。docs は既存の Prettier 除外設定に従い、差分を直接確認した。
+- CI と同じ公開用のローカル URL・ダミーキーを指定した `pnpm build` は、Web・API ともに通過した。
+- API build 後の Controller から Swagger を生成し、メンバー DTO の配列、role の enum、日時・UUID の形式、User の名前の nullable、Bearer 認証・401・403・404を確認した。ドキュメント生成だけの確認として、DB と Supabase Auth へ接続しない構成で実行した。
+- 認証済みユーザーの ID、対象 Project の membership・owner role、Project ごとの絞り込み、返却項目と並び順、拒否時の DB 不変性を最終レビューし、修正が必要な指摘はなかった。API 実装・テストは直前の全89件成功時から変更していないため、その API E2E の結果を使用した。`git diff --check` も通過した。
+
 #### 後続作業
 
-- 区切り3は PR #21 の CI（Quality checks・API E2E）とローカル確認を通過し、`develop` にマージ済み。区切り4の Project 認可を endpoint ごとに進める。
+- 区切り1〜4は `develop` にマージ済み。区切り5のメンバー一覧 API の PR を確認し、その後に追加・role変更・削除を endpoint ごとに進める。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- 区切り4の既存 Project API の認可は実装・API E2E・ローカル全体確認済みで、Swagger の条件説明も実装に揃えた。CI とレビューを経て `develop` へのマージを確認する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理は区切り5の別 PR で進め、権限ごとの成功・失敗を API E2E で確認する。
-- Projects API E2E のファイル分割は今回の認可 PR の後、別の小さな整理 PR で行う。endpoint ごとのファイルと準備・後片付けの共通 helper に分け、テストデータの独立性と全 API E2E の成功を確認する。
+- メンバーの追加・role変更・削除と、owner 自身の削除・role変更を防ぐ処理は、区切り5の後続 PR で進める。各操作の権限と拒否時の DB 不変性を API E2E で確認する。
+- Projects API E2E のファイル分割・共通 helper の導入は、ユーザーがテスト構成を理解してから再検討する。現在は整理 PR を保留し、既存ファイルの構成を維持して機能追加を進める。
 - 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
 #### 完了条件

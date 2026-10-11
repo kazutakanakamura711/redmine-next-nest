@@ -155,6 +155,62 @@ DELETE /api/projects/:projectId/members/:memberId
 - 共通 AuthGuard で User のメールアドレスと `user_metadata.name` の名前を同期する。名前は trim し、未設定・空白・文字列以外なら `null` にする。既存の名前も更新する。
 - member の追加・削除・role変更は owner のみ許可する。owner 自身の削除・role変更は許可しない。
 
+#### メンバー一覧: GET /api/projects/:projectId/members
+
+指定した Project の owner に、owner 自身を含むメンバー一覧を返す。
+認可には検証済み token で特定した User の ID と、対象 Project の ProjectMember の role を使う。
+表示用の名前は認可判断に使わない。
+
+成功時は `200` と次の形式の配列を返す。
+
+```json
+[
+  {
+    "id": "cmua3r1ik00032ed8lasbg1jj",
+    "userId": "11111111-1111-4111-8111-111111111111",
+    "role": "owner",
+    "createdAt": "2026-10-11T10:00:00.000Z",
+    "user": {
+      "name": "中村",
+      "email": "owner@example.test"
+    }
+  }
+]
+```
+
+| 項目 | 意味 |
+| --- | --- |
+| `id` | ProjectMember の ID。後続の role 変更・削除 API の `memberId` に使う |
+| `userId` | 参加している User の ID（UUID） |
+| `role` | `owner`・`member`・`viewer` |
+| `createdAt` | 参加日時（ProjectMember の作成日時）。ISO 8601 形式の文字列 |
+| `user.name` | アプリ側 User に保存された表示名。未設定は `null` |
+| `user.email` | アプリ側 User に保存されたメールアドレス |
+
+並び順は次の優先順位とする。
+
+1. role は `owner` → `member` → `viewer`。
+2. 同じ role では、参加日時の古い順。
+3. 参加日時も同じなら、ProjectMember の ID の昇順。
+
+| 条件 | 応答 |
+| --- | --- |
+| 有効な token・確認済みメールアドレスを持つ owner | `200`・メンバー一覧 |
+| token なし・形式不正・無効 | `401` |
+| token は有効だがメールアドレスが未設定・未確認 | `403` |
+| 参加者の role が member・viewer | `403` |
+| 存在しない Project、または非参加者 | 同じ `404` 本文 |
+
+存在しない Project と非参加者には、既存 Project API と同じ次の本文を返す。
+
+```json
+{
+  "message": "プロジェクトが見つかりません",
+  "error": "Not Found",
+  "statusCode": 404
+}
+```
+
 ### 段階3: Tasks
 
 ```text

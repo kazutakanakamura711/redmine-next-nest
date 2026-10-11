@@ -59,6 +59,25 @@ export class ProjectsRepository {
     });
   }
 
+  findProjectMembers(projectId: string) {
+    return this.prisma.projectMember.findMany({
+      where: { projectId },
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        createdAt: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   create(data: CreateProjectData) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Project を作成する。
