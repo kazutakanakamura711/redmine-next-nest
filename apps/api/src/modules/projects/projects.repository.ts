@@ -18,8 +18,13 @@ type UpdateProjectData = {
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  findAll(userId: string) {
     return this.prisma.project.findMany({
+      where: {
+        projectMembers: {
+          some: { userId },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -29,6 +34,28 @@ export class ProjectsRepository {
   findById(id: string) {
     return this.prisma.project.findUnique({
       where: { id },
+    });
+  }
+
+  findByIdForMember(id: string, userId: string) {
+    return this.prisma.project.findUnique({
+      where: {
+        id,
+        projectMembers: {
+          some: { userId },
+        },
+      },
+    });
+  }
+
+  findProjectMember(projectId: string, userId: string) {
+    return this.prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId,
+        },
+      },
     });
   }
 

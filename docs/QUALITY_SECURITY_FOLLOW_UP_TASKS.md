@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-09
+最終更新: 2026-10-11
 
 ## 目的
 
@@ -13,7 +13,7 @@
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
-- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。`feat/phase-2/web-auth` で区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示を実装した。membership・role による認可とメンバー管理は後続 PR で扱う。
+- 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4は、参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除を実装し、API E2E で確認した。メンバー管理は区切り5で扱う。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -171,12 +171,12 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（API 認証基盤は PR #18、全 Project API の認証保護と owner 登録は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤・ログイン・登録画面・全 Project API 呼び出しへの token 付与・メール確認・未ログインとログアウトの導線・名前の同期・PC と狭い画面のナビゲーションと本人表示を実装。Project 権限・メンバー管理は未実装）
+- 状態: 対応中（区切り1〜3は PR #18・#20・#21 を `develop` にマージ済み。区切り4の既存 Project API の membership・role 認可は実装・API E2E・ローカル全体確認済み。区切り5のメンバー管理は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
 
-着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。PR #20 のマージ後は全 Project API を AuthGuard で保護している。membership・role による認可は未実装のため、外部公開前に参加者だけの閲覧と owner 専用操作の制限を完成させる必要がある。
+着手時の Projects API には認証 guard と Project membership の認可チェックがなく、認証なしでプロジェクトを閲覧・変更できた。PR #20 のマージ後は全 Project API を AuthGuard で保護している。現在は参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除を実装し、API E2E で確認済みである。
 
 #### 作業内容
 
@@ -197,7 +197,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 1. 認証基盤（PR #18、`develop` にマージ済み）。ローカル・CI の Supabase Auth 設定、テストユーザーの作成・削除、User migration、API の token 検証、`GET /api/auth/me` と API E2E を対象にする。
 2. ProjectMember / owner の migration、Project 作成時の owner 登録、全 Project API の認証保護（PR #20、`develop` にマージ済み）。Project と owner membership は同じ transaction で作る。開発用 DB の既存 Project は削除済みのため、所有者を推測して割り当てる処理は入れない。
-3. Next.js のログイン・登録画面と、既存 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線を実装する。
+3. Next.js のログイン・登録画面と、既存 Project API 呼び出しへの token 付与、未ログイン・ログアウト時の画面導線（PR #21、`develop` にマージ済み）。
 4. Project の一覧・詳細は参加者だけ、設定更新・アーカイブ・解除は owner だけに許可し、API E2E で権限ごとの成功・失敗を確認する。
 5. メンバーの追加・閲覧・role変更・削除を owner 権限で実装する。
 
@@ -284,12 +284,68 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - ユーザーが `pnpm --filter @redmine-next-nest/web test` を実行し、この区切りの Web 全体のテストが通過したことを確認した。
 - PR #21 の初回 CI では format・lint・typecheck・単体テスト（Web 161件・API 12件）が通過したが、Web build は Supabase の公開設定2項目が未設定のため失敗した。`quality` の build step にローカル URL とビルド確認専用の Publishable key の値を設定し、CI で確認する。この成果物はデプロイには使わず、認証の結合確認は既存の `api_e2e` job で起動するローカル Supabase を使う。
 
+#### Project 一覧の参加者による絞り込みの実施メモ（2026-10-09）
+
+- PR #21 マージ済みの `develop`（`6f80cbb`）から `feat/phase-2/project-authorization` を作成した。区切り4は一覧 → 詳細 → 設定更新 → アーカイブ → 解除の順に、1 endpoint ずつ説明・相談・実装・確認・テストを行う。
+- `GET /api/projects` の Controller で検証済みの `request.user.id` を取得し、Service → Repository に渡す。Repository の `projectMembers.some.userId`（2026-10-11 に関連名を変更）で、本人が ProjectMember として参加している Project だけを取得する。owner・member・viewer を対象にし、既存の作成日時降順とアーカイブ済み Project の表示を維持する。参加 Project がなければ `200` と空配列を返す。
+- 詳細・変更操作は、存在しない Project と非参加者に同じ `404` 応答を返し、Project の存在を知らせない方針で合意した。参加者である member・viewer の設定更新・アーカイブ・解除は `403` にする。正式な API 契約を `UI_API.md` に記載したが、これらの endpoint の認可は次の実装対象である。
+- 一覧の API E2E を10件に増やし、3 role の取得、非参加 Project の除外、参加ゼロの空配列、`ownerId` が本人でも参加情報がなければ取得できないこと、アーカイブ済み・並び順・既存の `401` を確認した。別ユーザーはローカル Supabase の一時ユーザーとして用意し、後片付けは ProjectMember → Project → User → Supabase Auth の順に行う。
+- API E2E 52件（Projects 39件・Auth 12件・Health 1件）、API lint・typecheck、変更コードと API README の format check、`git diff --check` が通過した。DB schema・migration・依存関係・Web は変更していない。詳細・設定更新・アーカイブ・解除の認可は未実装である。
+- 後続の拒否操作のテストでは、Project と ProjectMember の値・更新日時が変わらないことを確認する。既存 AuthGuard は認可より前に User のプロフィールを同期するため、認証済みの拒否操作でも User の更新日時は変わり得る。
+
+#### Prisma の関連フィールドの命名変更（2026-10-11）
+
+- `Project.members` と `User.projectMemberships` を、参照するモデルが分かる `projectMembers` に揃えた。所有者の ID と関連を表す `Project.ownerId` / `Project.owner`、所有する Project 一覧を表す `User.ownedProjects` は維持した。
+- Repository の一覧絞り込みと、既存 API E2E の参加情報の作成・取得・保存結果の確認を新しい関連名に揃えた。Prisma Client を再生成した。
+- Prisma schema の検証が成功し、変更前後の `prisma migrate diff --script --exit-code` は空の migration（exit code 0）となった。DB のテーブル・カラム・外部キーと既存データは変更せず、新しい migration は作成していない。
+- API の `oxlint src/ test/`、`tsc --noEmit`、Repository と API E2E ファイルの `prettier --check` が通過した。Prisma はインストール済みの CLI で `format`・`validate`・`generate` を実行した。
+- 通常の `pnpm test:e2e` は51件成功・1件失敗となった。既存の「更新時に無効な token を401で拒否し、DBを変更しない」で、期待した401に対して404が返った。該当ケースの単独実行は成功し、その後の `vitest run --config vitest.config.e2e.ts --no-file-parallelism` は全52件が通過した。初回の404の原因は未特定であり、並列実行が原因だとは断定しない。認証・テスト設定の修正は行わず、再発時は応答内容と実行条件を確認する。
+
+#### Project 詳細の参加者による認可の実施メモ（2026-10-11）
+
+- ユーザーが Repository → Service → Controller の順に実装し、各段階でコードレビューを行った。Repository の `findByIdForMember()` は ID と本人の `projectMembers.some.userId` を同時に検索条件にし、Service の `findOneForMember()` は取得できなければ既存と同じメッセージの `NotFoundException` を返す。
+- Controller の `GET /api/projects/:projectId` は、AuthGuard が確認した `request.user.id` を認可付き Service に渡す。同じ GET ルートが2件ある状態をレビューで指摘し、ユーザーが旧ハンドラーを削除した。Service の既存 `findOne()` は、後続で扱う更新・アーカイブ・解除の存在確認のため維持している。
+- 詳細の API E2E を4件から9件に更新した。owner・member・viewer の取得、viewer によるアーカイブ済み Project の取得、参加情報がなければ `ownerId` が本人でも404になること、既存の token なし・無効 token の401を確認する。
+- 別 Project に参加していても対象 Project に参加していなければ取得できず、存在しない ID と同じ404本文を返すことを確認する。拒否の前後で対象 Project と ProjectMember の値・更新日時も比較する。User のプロフィール同期はこの不変性の確認対象に含めない。
+- 別ユーザーを作る既存の `createOtherUser()` を、一覧・詳細のテストで共有できるよう同じファイルの親 `describe()` に移した。テスト終了時のローカル Supabase と専用 DB の後片付けは維持した。
+- 詳細取得の API E2E 9件、通常の `pnpm test:e2e` の全57件（Projects 44件・Auth 12件・Health 1件）が通過した。Project の Controller / Service / Repository と API E2E の対象 lint・format、API typecheck、API README の format、`git diff --check` も通過した。Prisma の関連名変更時に記録した予想外の404は、今回の通常実行では再現しなかった。
+
+#### Project 設定更新の owner による認可の実施メモ（2026-10-11）
+
+- Repository → Service → Controller を段階的に実装・確認した。Repository の `findProjectMember(projectId, userId)` は複合 unique 条件で本人の参加情報を取得する。Controller は AuthGuard が確認した `request.user.id` を Service の `update()` に渡す。
+- Service は参加情報がなければ既存と同じ404本文を返し、参加者である member・viewer は403で拒否する。owner の場合だけ更新項目を確認して保存する。本文が `{}` の場合も先に認可を行い、owner には400、member・viewer には403、非参加者・存在しない ID には404を返す。
+- 更新の API E2E を8件から13件に更新した。既存の成功・入力エラーの準備に owner の ProjectMember を追加し、owner の更新・DB 保存、アーカイブ済み Project の設定更新、member・viewer の403を確認する。
+- 別 Project の owner でも非参加 Project は更新できず、存在しない ID と同じ404本文を返すこと、`ownerId` が本人でも参加情報がなければ404になることを確認する。401・403・404と既存の400の拒否では、対象の Project と ProjectMember の値・更新日時が変わらないことも比較する。認証済みの拒否操作で行われる User のプロフィール同期は、この不変性の確認対象に含めない。
+- 更新の API E2E 13件、通常の `pnpm test:e2e` の全62件（Projects 49件・Auth 12件・Health 1件）が通過した。対象テストの lint・format、API typecheck、API README の format、`git diff --check` も通過した。今回のテスト更新では、API 実装・Prisma schema・migration・依存関係・Web は変更していない。
+
+#### Project アーカイブ・解除の owner による認可の実施メモ（2026-10-11）
+
+- ユーザーが Service と Controller を実装し、コードレビューで確認した。Controller は AuthGuard が確認した `request.user.id` を渡し、Service の `archive()` / `unarchive()` は本人の参加情報を取得する。参加情報がなければ同じ404本文、member・viewer なら操作に応じたメッセージの403を返し、owner の場合だけ Repository に保存を依頼する。
+- アーカイブの API E2E を5件から13件、解除を4件から13件に更新した。既存の成功ケースに owner の ProjectMember を追加し、owner の成功・DB 保存と参加情報の維持、アーカイブ済みの再アーカイブ・解除済みの再解除の成功を確認する。
+- member・viewer の403、別 Project の owner による非参加 Project の操作が存在しない ID と同じ404になること、`ownerId` が本人でも参加情報がなければ404になることを追加した。アーカイブ状態が `true`・`false` のどちらでも認可を確認し、同じ状態への再操作でも権限不足を見逃さない。
+- 401・403・404で拒否された操作では、Project と ProjectMember の値・更新日時を操作前後で比較する。別 Project に参加しているケースでは本人の参加先も変わらないことを確認する。AuthGuard による User のプロフィール同期はこの比較に含めない。
+- 対象 Vitest のアーカイブ13件・解除13件と、通常の `pnpm test:e2e` の全79件（Projects 66件・Auth 12件・Health 1件）が通過した。対象テストの lint・format、API typecheck、API README の format、`git diff --check` も通過した。今回のテスト更新では、API 実装・Prisma schema・migration・依存関係・Web は変更していない。
+
+#### Project 認可の Swagger 説明の更新（2026-10-11）
+
+- 設定更新・アーカイブ・解除の `ApiOperation` に owner のみと明記した。各操作の `ApiForbiddenResponse` は、AuthGuard のメール未設定・未確認と参加者の role が owner 以外の場合を説明する。詳細取得を含む4 API の `ApiNotFoundResponse` は、Project が存在しない場合と非参加者の場合を説明する。
+- API build 後の Controller から `SwaggerModule.createDocument()` で実際にドキュメントを生成し、3 API の概要・403、4 API の404、全6 API の Bearer 認証・401を確認した。生成確認は Controller のみを用意して行い、DB と Supabase Auth は使用していない。
+- 対象 Controller の lint・format、API typecheck・build、API README の format、`git diff --check` が通過した。今回は説明用の注釈と docs を更新し、API E2E は再実行していない。直前の認可確認では全79件が通過している。PR 前の全体確認は後続で行う。
+
+#### Project 認可の PR 前の全体確認（2026-10-11）
+
+- `pnpm format:check`・`pnpm lint`・`pnpm typecheck`、`pnpm test`（API 12件・Web 161件）、`pnpm test:e2e`（Projects 66件・Auth 12件・Health 1件の全79件）が通過した。API E2E は通常のファイル並列設定で実行し、過去に記録した無効 token に対する予想外の404は再現しなかった。
+- `pnpm build` は Web・API ともに通過した。Web は CI と同じローカル URL と公開用のダミー設定で確認し、Supabase へ接続する画面操作は行っていない。`pnpm test` は sandbox のレジストリ接続制限で初回起動が停止し、制限外で再実行して成功した。
+- Prisma schema の `validate`・Client の `generate` と、`develop` の schema に対する `migrate diff --script --exit-code` を再確認した。差分は空の migration（exit code 0）で、DB のテーブル・カラム・外部キーを変えず、migration の追加は不要である。
+- 認証済みの ID と対象 Project の membership・role を使う呼び出し経路、非参加者の404と参加者の権限不足の403、拒否時の Project・ProjectMember の不変性をレビューし、修正が必要な指摘はなかった。`git diff --check` も通過した。テストのファイル分割は合意どおり後続の整理 PR で扱う。
+
 #### 後続作業
 
-- 区切り3の PR 前の最終確認を行い、PR の準備へ進める。
+- 区切り3は PR #21 の CI（Quality checks・API E2E）とローカル確認を通過し、`develop` にマージ済み。区切り4の Project 認可を endpoint ごとに進める。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- その後、参加者だけの一覧・詳細取得、owner だけの更新・アーカイブ・解除を実装する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理も別の PR で進め、権限ごとの成功・失敗を API E2E で確認する。
+- 区切り4の既存 Project API の認可は実装・API E2E・ローカル全体確認済みで、Swagger の条件説明も実装に揃えた。CI とレビューを経て `develop` へのマージを確認する。メンバー管理と、owner 自身の削除・role変更を防ぐ処理は区切り5の別 PR で進め、権限ごとの成功・失敗を API E2E で確認する。
+- Projects API E2E のファイル分割は今回の認可 PR の後、別の小さな整理 PR で行う。endpoint ごとのファイルと準備・後片付けの共通 helper に分け、テストデータの独立性と全 API E2E の成功を確認する。
 - 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
 #### 完了条件
