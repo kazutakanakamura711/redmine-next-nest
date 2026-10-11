@@ -104,6 +104,8 @@ Bruno でのテストユーザー作成、ログイン、token 保存、パス�
 `GET /api/auth/me` の概要、初回 User 作成の説明、User のレスポンスと `401`・`403` の条件を記載しています。
 Projects の全 API にも Bearer 認証と `401`・`403` を設定し、Project のレスポンスには
 作成者の UUID である `ownerId` を含めています。
+設定更新・アーカイブ・解除の概要には owner のみと明記し、`403` はメール未設定・未確認と role の権限不足を説明しています。
+詳細取得・設定更新・アーカイブ・解除の `404` は、Project が存在しない場合と非参加者の場合を説明しています。
 **Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
 `Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
 
@@ -130,10 +132,17 @@ NestJS の Swagger には含めず、Bruno のリクエストと README に手�
 Project の `ownerId` と、作成者の `ProjectMember`（`role: owner`）は同じ transaction で保存します。
 Project のレスポンスには `ownerId` を含めます。
 
-現在は全 Project API の本人確認まで実装しています。membership による閲覧制限、
-owner のみの更新・アーカイブ・解除、メンバー管理は後続の実装対象です。
-Next.js のログイン・登録画面と API 呼び出しへの token 付与も後続のため、
-現在の Web 画面から token なしで呼ぶ Project API は `401` になります。
+一覧取得は、本人が ProjectMember として参加している Project だけを返します。
+owner・member・viewer のすべてを対象にし、作成日時の新しい順でアーカイブ済みも含めます。
+参加 Project がなければ `200` と空配列を返します。
+詳細取得も owner・member・viewer として参加している Project だけを許可します。
+存在しない Project と非参加者には、同じメッセージ・本文の `404` を返します。
+設定更新・アーカイブ・解除は owner のみ許可します。存在しない Project と非参加者には同じ `404`、
+参加者である member・viewer には `403` を返します。
+`ownerId` が本人でも、ProjectMember がなければ操作できません。
+メンバー管理は後続の実装対象です。
+
+Next.js のログイン・登録画面と、全 Project API 呼び出しへの token 付与は PR #21 で実装済みです。
 
 ## 確認コマンド
 
@@ -180,15 +189,29 @@ Projects E2E も実際のローカル Supabase Auth を使い、テストごと�
 access token を用意します。後片付けは ProjectMember → Project → User の順に行い、
 Supabase Auth の一時ユーザーも削除します。
 
-Projects E2E の 34 件には、次の確認を含めています。
+Projects E2E には、次の確認を含めています。
 
 - 全 6 API の token なし・無効な token の `401`（計 12 件）。
+- owner・member・viewer として参加している Project だけが一覧に含まれ、非参加 Project は含まれないこと。
+- 参加 Project がない場合の空配列、参加情報がない場合に `ownerId` だけでは取得できないこと。
+- 一覧の作成日時降順とアーカイブ済み Project の表示。
+- 詳細取得の3 role の成功、アーカイブ済み Project の viewer による取得。
+- 詳細取得で、別 Project に参加していても非参加 Project は取得できず、存在しない ID と同じ `404` になること。
+- 詳細取得を拒否した場合に、対象の Project と ProjectMember の値・更新日時が変わらないこと。
+- 設定更新の owner による成功・DB 保存、アーカイブ済み Project の設定更新。
+- 設定更新で、member・viewer は `403`、別 Project の owner でも非参加 Project は存在しない ID と同じ `404` になること。本文が `{}` の場合も同じ認可を行うこと。
+- 設定更新で、参加情報がなければ `ownerId` が本人でも `404` になること。
+- 設定更新を拒否した場合に、Project と ProjectMember の値・更新日時が変わらないこと。
+- アーカイブ・解除の owner による成功・DB 保存と、同じ状態への再操作の成功。
+- アーカイブ・解除で、member・viewer は `403`、別 Project の owner でも非参加 Project は存在しない ID と同じ `404` になること。アーカイブ状態が `true`・`false` のどちらでも同じ認可を行うこと。
+- アーカイブ・解除で、参加情報がなければ `ownerId` が本人でも `404` になること。
+- アーカイブ・解除を拒否した場合に、Project と ProjectMember の値・更新日時が変わらないこと。
 - 作成者の `ownerId` と `role: owner` の ProjectMember が DB に保存されること。
 - 認証失敗時に Project が作成されず、更新・アーカイブ・解除でも DB が変わらないこと。
 - 有効な token を使う既存の成功ケースと、入力・対象 ID に応じた `400`・`404`・`409`。
 
 テストは一覧・詳細・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
-membership・role による認可のテストは、対応する API の権限制御と合わせて追加します。
+一覧・詳細・設定更新・アーカイブ・解除の membership・role による認可を API E2E で確認しています。
 
 ユーザーを作成・削除するため、Auth E2E の成功ケースと Projects E2E の接続先は
 HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。

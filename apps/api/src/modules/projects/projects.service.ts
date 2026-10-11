@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import { ProjectMemberRole } from '../../generated/prisma/enums.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
@@ -13,12 +15,22 @@ import { UpdateProjectDto } from './dto/update-project.dto.js';
 export class ProjectsService {
   constructor(private readonly projectsRepository: ProjectsRepository) {}
 
-  async findAll() {
-    return await this.projectsRepository.findAll();
+  async findAll(userId: string) {
+    return await this.projectsRepository.findAll(userId);
   }
 
   async findOne(id: string) {
     const project = await this.projectsRepository.findById(id);
+
+    if (!project) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    return project;
+  }
+
+  async findOneForMember(id: string, userId: string) {
+    const project = await this.projectsRepository.findByIdForMember(id, userId);
 
     if (!project) {
       throw new NotFoundException('プロジェクトが見つかりません');
@@ -47,14 +59,25 @@ export class ProjectsService {
     }
   }
 
-  async update(id: string, dto: UpdateProjectDto) {
+  async update(id: string, dto: UpdateProjectDto, userId: string) {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      id,
+      userId,
+    );
+
+    // 参加情報がなければ404を返す。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+    // role が owner 以外なら403を返す。
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException('プロジェクトを更新する権限がありません');
+    }
+
     // PATCH の本文が {} の場合は、更新内容がないので拒否する
     if (dto.name === undefined && dto.description === undefined) {
       throw new BadRequestException('更新する項目を指定してください');
     }
-
-    // 存在しないプロジェクトなら 404 を返す
-    await this.findOne(id);
 
     return await this.projectsRepository.update(id, {
       // undefined の項目は更新データに含めない
@@ -69,16 +92,42 @@ export class ProjectsService {
     });
   }
 
-  async archive(id: string) {
-    // 存在しないプロジェクトなら 404 を返す
-    await this.findOne(id);
+  async archive(id: string, userId: string) {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      id,
+      userId,
+    );
+
+    // 参加情報がなければ404を返す。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+    // role が owner 以外なら403を返す。
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException(
+        'プロジェクトをアーカイブする権限がありません',
+      );
+    }
 
     return await this.projectsRepository.archive(id);
   }
 
-  async unarchive(id: string) {
-    // 存在しないプロジェクトなら 404 を返す
-    await this.findOne(id);
+  async unarchive(id: string, userId: string) {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      id,
+      userId,
+    );
+
+    // 参加情報がなければ404を返す。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+    // role が owner 以外なら403を返す。
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException(
+        'プロジェクトのアーカイブを解除する権限がありません',
+      );
+    }
 
     return await this.projectsRepository.unarchive(id);
   }

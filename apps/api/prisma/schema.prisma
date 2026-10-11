@@ -30,7 +30,7 @@ model User {
   ownedProjects Project[]
 
   // このユーザーのプロジェクト参加情報一覧。
-  projectMemberships ProjectMember[]
+  projectMembers ProjectMember[]
 
   @@map("users")
 }
@@ -49,7 +49,7 @@ model Project {
   owner User @relation(fields: [ownerId], references: [id])
 
   // このプロジェクトの参加者と role の一覧。
-  members ProjectMember[]
+  projectMembers ProjectMember[]
 
   @@map("projects")
 }

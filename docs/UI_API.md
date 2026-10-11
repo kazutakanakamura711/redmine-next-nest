@@ -135,7 +135,10 @@ POST   /api/projects/:projectId/unarchive
 - `DELETE /api/projects/:projectId` は将来の物理削除用とし、現時点では未実装
 - 段階2から、作成は認証済みユーザーに限定し、作成者を owner にする
 - 段階2から、一覧・詳細は ProjectMember に限定する
+- 一覧は owner・member・viewer として参加している Project を作成日時の新しい順で返す。アーカイブ済みも含み、参加 Project がなければ `200` と空配列を返す
 - 段階2から、更新・アーカイブ・解除は owner のみ許可する
+- 存在しない Project と非参加者による詳細・更新・アーカイブ・解除は、同じ `404` 応答で扱い、Project の存在を知らせない
+- 参加者の member・viewer による更新・アーカイブ・解除は `403` を返す
 
 ### 段階2: Auth と Members
 

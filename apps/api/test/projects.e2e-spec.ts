@@ -17,6 +17,7 @@ describe('Projects endpoint', () => {
   // テスト用の Project の ownerId と Authorization ヘッダーで使う。
   let userId: string;
   let accessToken: string;
+  let otherUserIds: string[];
 
   // beforeEach は各テストの前に実行され、新しいNestJSアプリを用意する。
   beforeEach(async () => {
@@ -25,6 +26,7 @@ describe('Projects endpoint', () => {
     projectKeys = [];
     userId = '';
     accessToken = '';
+    otherUserIds = [];
 
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
@@ -134,14 +136,22 @@ describe('Projects endpoint', () => {
       });
     } finally {
       try {
-        if (userId) {
+        const userIds = [userId, ...otherUserIds].filter(Boolean);
+        if (userIds.length > 0) {
           try {
             // User 作成前に準備が失敗していた場合も、deleteMany なら実行できる。
-            await prisma.user.deleteMany({ where: { id: userId } });
+            await prisma.user.deleteMany({ where: { id: { in: userIds } } });
           } finally {
             // アプリ側の削除が失敗した場合も、Supabase 側の削除を試みる。
-            const { error } = await adminClient.auth.admin.deleteUser(userId);
-            expect(error, 'テストユーザーの削除に失敗しました。').toBeNull();
+            const results = await Promise.allSettled(
+              userIds.map((id) => adminClient.auth.admin.deleteUser(id)),
+            );
+            for (const result of results) {
+              expect(
+                result,
+                'テストユーザーの削除に失敗しました。',
+              ).toMatchObject({ status: 'fulfilled', value: { error: null } });
+            }
           }
         }
       } finally {
@@ -149,6 +159,30 @@ describe('Projects endpoint', () => {
       }
     }
   });
+
+  // member・viewer の参加先と非参加 Project の作成者。
+  async function createOtherUser() {
+    const email = `projects-e2e-${randomUUID()}@example.test`;
+    const { data, error } = await adminClient.auth.admin.createUser({
+      email,
+      password: `E2e!${randomBytes(24).toString('hex')}`,
+      email_confirm: true,
+    });
+    // DB 保存に失敗しても、Supabase のユーザーを後片付けできるよう記録する。
+    if (data.user) {
+      otherUserIds.push(data.user.id);
+    }
+    if (error) {
+      throw error;
+    }
+    if (!data.user) {
+      throw new Error('テストユーザーを作成できませんでした。');
+    }
+
+    return app.get(PrismaService).user.create({
+      data: { id: data.user.id, email },
+    });
+  }
 
   describe('一覧取得: GET /api/projects', () => {
     it.each([
@@ -168,12 +202,99 @@ describe('Projects endpoint', () => {
       await listRequest.expect(401);
     });
 
-    it('プロジェクトを取得する', async () => {
+    it.each(['owner', 'member', 'viewer'] as const)(
+      '%sとして参加しているプロジェクトを取得する',
+      async (role) => {
+        const ownerId =
+          role === 'owner' ? userId : (await createOtherUser()).id;
+        const project = await app.get(PrismaService).project.create({
+          data: {
+            ownerId,
+            name: 'Joined Project',
+            key: projectKey,
+            projectMembers: {
+              create:
+                role === 'owner'
+                  ? [{ userId, role }]
+                  : [
+                      { userId: ownerId, role: 'owner' },
+                      { userId, role },
+                    ],
+            },
+          },
+        });
+
+        const response = await request(app.getHttpServer())
+          .get('/api/projects')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        expect(response.body).toEqual([
+          expect.objectContaining({ id: project.id, ownerId, key: projectKey }),
+        ]);
+      },
+    );
+
+    it('参加していないプロジェクトは一覧に含めない', async () => {
+      const otherUser = await createOtherUser();
+      const otherProjectKey = projectKey.replace('E2E', 'OTH');
+      projectKeys.push(otherProjectKey);
+
+      const prisma = app.get(PrismaService);
+      const joinedProject = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Joined Project',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+      });
+      await prisma.project.create({
+        data: {
+          ownerId: otherUser.id,
+          name: 'Other Project',
+          key: otherProjectKey,
+          projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+        },
+      });
+
       const response = await request(app.getHttpServer())
         .get('/api/projects')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
-      expect(response.body).toEqual(expect.any(Array));
+      expect(response.body).toEqual([
+        expect.objectContaining({ id: joinedProject.id }),
+      ]);
+    });
+
+    it('参加プロジェクトがなければ200と空配列を返す', async () => {
+      const otherUser = await createOtherUser();
+      await app.get(PrismaService).project.create({
+        data: {
+          ownerId: otherUser.id,
+          name: 'Other Project',
+          key: projectKey,
+          projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .get('/api/projects')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+      expect(response.body).toEqual([]);
+    });
+
+    it('ownerIdが本人でも参加情報がなければ一覧に含めない', async () => {
+      // ownerId だけで許可せず、ProjectMember を認可の根拠にする。
+      await app.get(PrismaService).project.create({
+        data: { ownerId: userId, name: 'No Membership', key: projectKey },
+      });
+
+      const response = await request(app.getHttpServer())
+        .get('/api/projects')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+      expect(response.body).toEqual([]);
     });
 
     it('アーカイブ済みのプロジェクトも取得する', async () => {
@@ -187,6 +308,7 @@ describe('Projects endpoint', () => {
           name: 'Archived Project',
           key: archivedProjectKey,
           isArchived: true,
+          projectMembers: { create: { userId, role: 'owner' } },
         },
       });
 
@@ -217,6 +339,7 @@ describe('Projects endpoint', () => {
           name: 'Older Project',
           key: olderProjectKey,
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          projectMembers: { create: { userId, role: 'owner' } },
         },
       });
       await app.get(PrismaService).project.create({
@@ -225,6 +348,7 @@ describe('Projects endpoint', () => {
           name: 'Newer Project',
           key: newerProjectKey,
           createdAt: new Date('2026-01-02T00:00:00.000Z'),
+          projectMembers: { create: { userId, role: 'owner' } },
         },
       });
 
@@ -265,13 +389,125 @@ describe('Projects endpoint', () => {
       await detailRequest.expect(401);
     });
 
-    it('IDを指定してプロジェクトを取得する', async () => {
-      const project = await app.get(PrismaService).project.create({
-        data: {
-          ownerId: userId,
+    it.each(['owner', 'member', 'viewer'] as const)(
+      'IDを指定して%sとして参加しているプロジェクトを取得する',
+      async (role) => {
+        const ownerId =
+          role === 'owner' ? userId : (await createOtherUser()).id;
+        const project = await app.get(PrismaService).project.create({
+          data: {
+            ownerId,
+            name: 'Project Detail',
+            key: projectKey,
+            description: '詳細取得用のテストデータ',
+            projectMembers: {
+              create:
+                role === 'owner'
+                  ? [{ userId, role }]
+                  : [
+                      { userId: ownerId, role: 'owner' },
+                      { userId, role },
+                    ],
+            },
+          },
+        });
+
+        const response = await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+
+        expect(response.body).toMatchObject({
+          id: project.id,
+          ownerId,
           name: 'Project Detail',
           key: projectKey,
           description: '詳細取得用のテストデータ',
+          isArchived: false,
+        });
+      },
+    );
+
+    it('別Projectに参加していても非参加のProjectは存在しないIDと同じ404で拒否し、Projectと参加情報を変更しない', async () => {
+      const otherUser = await createOtherUser();
+      const otherProjectKey = projectKey.replace('E2E', 'OTH');
+      projectKeys.push(otherProjectKey);
+
+      const prisma = app.get(PrismaService);
+      await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Joined Project',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+      });
+      const otherProject = await prisma.project.create({
+        data: {
+          ownerId: otherUser.id,
+          name: 'Other Project',
+          key: otherProjectKey,
+          description: '非参加者に公開しない説明',
+          projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+
+      const notFoundResponse = await request(app.getHttpServer())
+        .get('/api/projects/not-found')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404);
+      const response = await request(app.getHttpServer())
+        .get(`/api/projects/${otherProject.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404);
+
+      // 存在の有無を、status やエラー本文から区別できないことを確認する。
+      expect(response.body).toEqual(notFoundResponse.body);
+      expect(response.body).toEqual({
+        message: 'プロジェクトが見つかりません',
+        error: 'Not Found',
+        statusCode: 404,
+      });
+      // AuthGuard による User の同期とは別に、対象の値・更新日時は変わらない。
+      expect(
+        await prisma.project.findUnique({
+          where: { id: otherProject.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual(otherProject);
+    });
+
+    it('ownerIdが本人でも参加情報がなければ404で拒否する', async () => {
+      const project = await app.get(PrismaService).project.create({
+        data: { ownerId: userId, name: 'No Membership', key: projectKey },
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404)
+        .expect({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+    });
+
+    it('viewerも参加しているアーカイブ済みProjectの詳細を取得できる', async () => {
+      const otherUser = await createOtherUser();
+      const project = await app.get(PrismaService).project.create({
+        data: {
+          ownerId: otherUser.id,
+          name: 'Archived Project Detail',
+          key: projectKey,
+          isArchived: true,
+          projectMembers: {
+            create: [
+              { userId: otherUser.id, role: 'owner' },
+              { userId, role: 'viewer' },
+            ],
+          },
         },
       });
 
@@ -282,10 +518,9 @@ describe('Projects endpoint', () => {
 
       expect(response.body).toMatchObject({
         id: project.id,
-        name: 'Project Detail',
+        ownerId: otherUser.id,
         key: projectKey,
-        description: '詳細取得用のテストデータ',
-        isArchived: false,
+        isArchived: true,
       });
     });
 
@@ -350,11 +585,11 @@ describe('Projects endpoint', () => {
       // レスポンスだけでなく、Project と owner の参加情報が DB に保存されたことを確認する。
       const savedProject = await app.get(PrismaService).project.findUnique({
         where: { id: response.body.id },
-        include: { members: true },
+        include: { projectMembers: true },
       });
       expect(savedProject).toMatchObject({
         ownerId: userId,
-        members: [
+        projectMembers: [
           {
             projectId: response.body.id,
             userId,
@@ -430,7 +665,9 @@ describe('Projects endpoint', () => {
           name: 'Before Update',
           key: projectKey,
           description: '更新前の説明',
+          projectMembers: { create: { userId, role: 'owner' } },
         },
+        include: { projectMembers: true },
       });
 
       const updateRequest = request(app.getHttpServer()).patch(
@@ -446,18 +683,24 @@ describe('Projects endpoint', () => {
         .expect(401);
 
       expect(
-        await prisma.project.findUnique({ where: { id: project.id } }),
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
       ).toEqual(project);
     });
 
-    it('プロジェクト名と説明を更新できる', async () => {
-      const project = await app.get(PrismaService).project.create({
+    it('ownerはプロジェクト名と説明を更新でき、参加情報を変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Before Update',
           key: projectKey,
           description: '更新前の説明',
+          projectMembers: { create: { userId, role: 'owner' } },
         },
+        include: { projectMembers: true },
       });
 
       const response = await request(app.getHttpServer())
@@ -471,16 +714,211 @@ describe('Projects endpoint', () => {
 
       expect(response.body).toMatchObject({
         id: project.id,
+        ownerId: userId,
         name: 'After Update',
         key: projectKey,
         description: '更新後の説明',
         isArchived: false,
       });
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toMatchObject({
+        id: project.id,
+        ownerId: userId,
+        name: 'After Update',
+        key: projectKey,
+        description: '更新後の説明',
+        isArchived: false,
+        createdAt: project.createdAt,
+        projectMembers: project.projectMembers,
+      });
+    });
+
+    it.each(['member', 'viewer'] as const)(
+      '%sの更新を403で拒否し、Projectと参加情報を変更しない',
+      async (role) => {
+        const otherUser = await createOtherUser();
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: otherUser.id,
+            name: 'Before Update',
+            key: projectKey,
+            description: '更新前の説明',
+            projectMembers: {
+              create: [
+                { userId: otherUser.id, role: 'owner' },
+                { userId, role },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+
+        // 有効な更新内容でも、本文が空でも、owner 以外は更新できない。
+        for (const body of [
+          { name: 'After Update', description: '更新後の説明' },
+          {},
+        ]) {
+          await request(app.getHttpServer())
+            .patch(`/api/projects/${project.id}`)
+            .set('Authorization', `Bearer ${accessToken}`)
+            .send(body)
+            .expect(403)
+            .expect({
+              message: 'プロジェクトを更新する権限がありません',
+              error: 'Forbidden',
+              statusCode: 403,
+            });
+
+          // Project と ProjectMember の値・更新日時を、拒否のたびに比較する。
+          expect(
+            await prisma.project.findUnique({
+              where: { id: project.id },
+              include: { projectMembers: { orderBy: { id: 'asc' } } },
+            }),
+          ).toEqual(project);
+        }
+      },
+    );
+
+    it('別Projectのownerでも非参加のProjectは存在しないIDと同じ404で拒否し、Projectと参加情報を変更しない', async () => {
+      const otherUser = await createOtherUser();
+      const otherProjectKey = projectKey.replace('E2E', 'OTH');
+      projectKeys.push(otherProjectKey);
+
+      const prisma = app.get(PrismaService);
+      const joinedProject = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Joined Project',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+      const otherProject = await prisma.project.create({
+        data: {
+          ownerId: otherUser.id,
+          name: 'Other Project',
+          key: otherProjectKey,
+          description: '更新前の説明',
+          projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+
+      for (const body of [
+        { name: 'After Update', description: '更新後の説明' },
+        {},
+      ]) {
+        const notFoundResponse = await request(app.getHttpServer())
+          .patch('/api/projects/not-found')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send(body)
+          .expect(404);
+        const response = await request(app.getHttpServer())
+          .patch(`/api/projects/${otherProject.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send(body)
+          .expect(404);
+
+        expect(response.body).toEqual(notFoundResponse.body);
+        expect(response.body).toEqual({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+        for (const project of [joinedProject, otherProject]) {
+          expect(
+            await prisma.project.findUnique({
+              where: { id: project.id },
+              include: { projectMembers: true },
+            }),
+          ).toEqual(project);
+        }
+      }
+    });
+
+    it('ownerIdが本人でも参加情報がなければ404で拒否し、DBを変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'No Membership',
+          key: projectKey,
+          description: '更新前の説明',
+        },
+        include: { projectMembers: true },
+      });
+
+      await request(app.getHttpServer())
+        .patch(`/api/projects/${project.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ name: 'After Update', description: '更新後の説明' })
+        .expect(404)
+        .expect({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual(project);
+    });
+
+    it('ownerはアーカイブ済みProjectの設定も更新できる', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Archived Project',
+          key: projectKey,
+          isArchived: true,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+
+      const response = await request(app.getHttpServer())
+        .patch(`/api/projects/${project.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ name: 'Updated Archived Project' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: project.id,
+        name: 'Updated Archived Project',
+        isArchived: true,
+      });
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toMatchObject({
+        name: 'Updated Archived Project',
+        isArchived: true,
+        projectMembers: project.projectMembers,
+      });
     });
 
     it('更新時にプロジェクト名をtrimして保存し、trim後の制約を検証する', async () => {
-      const project = await app.get(PrismaService).project.create({
-        data: { ownerId: userId, name: '更新前', key: projectKey },
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: '更新前',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
       });
 
       const response = await request(app.getHttpServer())
@@ -491,26 +929,37 @@ describe('Projects endpoint', () => {
 
       expect(response.body.name).toBe('更新後');
 
-      await request(app.getHttpServer())
-        .patch(`/api/projects/${project.id}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({ name: '   ' })
-        .expect(400);
+      const updatedProject = await prisma.project.findUnique({
+        where: { id: project.id },
+        include: { projectMembers: true },
+      });
+      expect(updatedProject?.name).toBe('更新後');
 
-      await request(app.getHttpServer())
-        .patch(`/api/projects/${project.id}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({ name: ` ${'a'.repeat(101)} ` })
-        .expect(400);
+      for (const name of ['   ', ` ${'a'.repeat(101)} `]) {
+        await request(app.getHttpServer())
+          .patch(`/api/projects/${project.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ name })
+          .expect(400);
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: true },
+          }),
+        ).toEqual(updatedProject);
+      }
     });
 
     it('descriptionをnullにして説明を削除できる', async () => {
-      const project = await app.get(PrismaService).project.create({
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Project With Description',
           key: projectKey,
           description: '削除する説明',
+          projectMembers: { create: { userId, role: 'owner' } },
         },
       });
 
@@ -525,15 +974,20 @@ describe('Projects endpoint', () => {
         name: 'Project With Description',
         description: null,
       });
+      expect(
+        await prisma.project.findUnique({ where: { id: project.id } }),
+      ).toMatchObject({ description: null });
     });
 
     it('空文字のdescriptionはnullとして保存する', async () => {
-      const project = await app.get(PrismaService).project.create({
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Project With Description',
           key: projectKey,
           description: '削除する説明',
+          projectMembers: { create: { userId, role: 'owner' } },
         },
       });
 
@@ -544,15 +998,21 @@ describe('Projects endpoint', () => {
         .expect(200);
 
       expect(response.body.description).toBeNull();
+      expect(
+        await prisma.project.findUnique({ where: { id: project.id } }),
+      ).toMatchObject({ description: null });
     });
 
     it('更新する項目がない場合は400を返す', async () => {
-      const project = await app.get(PrismaService).project.create({
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Project For Empty Update',
           key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
         },
+        include: { projectMembers: true },
       });
 
       await request(app.getHttpServer())
@@ -565,6 +1025,13 @@ describe('Projects endpoint', () => {
           error: 'Bad Request',
           statusCode: 400,
         });
+
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual(project);
     });
 
     it('存在しないIDを更新しようとすると404を返す', async () => {
@@ -595,7 +1062,9 @@ describe('Projects endpoint', () => {
             name: 'Project To Archive',
             key: projectKey,
             isArchived: false,
+            projectMembers: { create: { userId, role: 'owner' } },
           },
+          include: { projectMembers: true },
         });
 
         const archiveRequest = request(app.getHttpServer()).post(
@@ -609,19 +1078,25 @@ describe('Projects endpoint', () => {
 
         // 拒否された場合は、アーカイブ状態や更新日時も変わらない。
         expect(
-          await prisma.project.findUnique({ where: { id: project.id } }),
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: true },
+          }),
         ).toEqual(project);
       },
     );
 
-    it('プロジェクトをアーカイブできる', async () => {
-      const project = await app.get(PrismaService).project.create({
+    it('ownerはプロジェクトをアーカイブでき、参加情報を変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Project To Archive',
           key: projectKey,
           isArchived: false,
+          projectMembers: { create: { userId, role: 'owner' } },
         },
+        include: { projectMembers: true },
       });
 
       const response = await request(app.getHttpServer())
@@ -631,16 +1106,159 @@ describe('Projects endpoint', () => {
 
       expect(response.body).toMatchObject({
         id: project.id,
+        ownerId: userId,
         name: 'Project To Archive',
         key: projectKey,
         isArchived: true,
       });
 
-      const archivedProject = await app
-        .get(PrismaService)
-        .project.findUnique({ where: { id: project.id } });
-      expect(archivedProject?.isArchived).toBe(true);
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual({
+        ...project,
+        isArchived: true,
+        updatedAt: expect.any(Date),
+      });
     });
+
+    it.each([
+      ['member', false],
+      ['viewer', false],
+      ['member', true],
+      ['viewer', true],
+    ] as const)(
+      '%sによるアーカイブはisArchived=%sでも403で拒否し、Projectと参加情報を変更しない',
+      async (role, isArchived) => {
+        const otherUser = await createOtherUser();
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: otherUser.id,
+            name: 'Project For Forbidden Archive',
+            key: projectKey,
+            description: 'アーカイブ前の説明',
+            isArchived,
+            projectMembers: {
+              create: [
+                { userId: otherUser.id, role: 'owner' },
+                { userId, role },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+
+        // アーカイブ済みでも、owner 以外に成功を返さない。
+        await request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/archive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(403)
+          .expect({
+            message: 'プロジェクトをアーカイブする権限がありません',
+            error: 'Forbidden',
+            statusCode: 403,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it.each([false, true])(
+      'isArchived=%sでも別Projectのownerによる非参加Projectのアーカイブは存在しないIDと同じ404で拒否し、DBを変更しない',
+      async (isArchived) => {
+        const otherUser = await createOtherUser();
+        const otherProjectKey = projectKey.replace('E2E', 'OTH');
+        projectKeys.push(otherProjectKey);
+
+        const prisma = app.get(PrismaService);
+        const joinedProject = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Joined Project',
+            key: projectKey,
+            projectMembers: { create: { userId, role: 'owner' } },
+          },
+          include: { projectMembers: true },
+        });
+        const otherProject = await prisma.project.create({
+          data: {
+            ownerId: otherUser.id,
+            name: 'Other Project To Archive',
+            key: otherProjectKey,
+            description: 'アーカイブ前の説明',
+            isArchived,
+            projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+          },
+          include: { projectMembers: true },
+        });
+
+        const notFoundResponse = await request(app.getHttpServer())
+          .post('/api/projects/not-found/archive')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404);
+        const response = await request(app.getHttpServer())
+          .post(`/api/projects/${otherProject.id}/archive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404);
+
+        expect(response.body).toEqual(notFoundResponse.body);
+        expect(response.body).toEqual({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+        // 操作対象と本人の参加先のどちらも、値・更新日時が変わらない。
+        for (const project of [joinedProject, otherProject]) {
+          expect(
+            await prisma.project.findUnique({
+              where: { id: project.id },
+              include: { projectMembers: true },
+            }),
+          ).toEqual(project);
+        }
+      },
+    );
+
+    it.each([false, true])(
+      'isArchived=%sでownerIdが本人でも参加情報がなければアーカイブを404で拒否し、DBを変更しない',
+      async (isArchived) => {
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'No Membership To Archive',
+            key: projectKey,
+            isArchived,
+          },
+          include: { projectMembers: true },
+        });
+
+        await request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/archive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect({
+            message: 'プロジェクトが見つかりません',
+            error: 'Not Found',
+            statusCode: 404,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: true },
+          }),
+        ).toEqual(project);
+      },
+    );
 
     it('存在しないIDをアーカイブしようとすると404を返す', async () => {
       await request(app.getHttpServer())
@@ -654,14 +1272,17 @@ describe('Projects endpoint', () => {
         });
     });
 
-    it('アーカイブ済みのプロジェクトを再度アーカイブしても成功する', async () => {
-      const project = await app.get(PrismaService).project.create({
+    it('ownerはアーカイブ済みのプロジェクトを再度アーカイブしても成功する', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Already Archived Project',
           key: projectKey,
           isArchived: true,
+          projectMembers: { create: { userId, role: 'owner' } },
         },
+        include: { projectMembers: true },
       });
 
       const response = await request(app.getHttpServer())
@@ -673,6 +1294,12 @@ describe('Projects endpoint', () => {
         id: project.id,
         isArchived: true,
       });
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual({ ...project, updatedAt: expect.any(Date) });
     });
   });
 
@@ -690,7 +1317,9 @@ describe('Projects endpoint', () => {
             name: 'Project To Unarchive',
             key: projectKey,
             isArchived: true,
+            projectMembers: { create: { userId, role: 'owner' } },
           },
+          include: { projectMembers: true },
         });
 
         const unarchiveRequest = request(app.getHttpServer()).post(
@@ -703,19 +1332,25 @@ describe('Projects endpoint', () => {
         await unarchiveRequest.expect(401);
 
         expect(
-          await prisma.project.findUnique({ where: { id: project.id } }),
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: true },
+          }),
         ).toEqual(project);
       },
     );
 
-    it('アーカイブ済みのプロジェクトを解除できる', async () => {
-      const project = await app.get(PrismaService).project.create({
+    it('ownerはアーカイブ済みのプロジェクトを解除でき、参加情報を変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
         data: {
           ownerId: userId,
           name: 'Project To Unarchive',
           key: projectKey,
           isArchived: true,
+          projectMembers: { create: { userId, role: 'owner' } },
         },
+        include: { projectMembers: true },
       });
 
       const response = await request(app.getHttpServer())
@@ -725,15 +1360,187 @@ describe('Projects endpoint', () => {
 
       expect(response.body).toMatchObject({
         id: project.id,
+        ownerId: userId,
         name: 'Project To Unarchive',
         key: projectKey,
         isArchived: false,
       });
 
-      const unarchivedProject = await app
-        .get(PrismaService)
-        .project.findUnique({ where: { id: project.id } });
-      expect(unarchivedProject?.isArchived).toBe(false);
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual({
+        ...project,
+        isArchived: false,
+        updatedAt: expect.any(Date),
+      });
+    });
+
+    it.each([
+      ['member', true],
+      ['viewer', true],
+      ['member', false],
+      ['viewer', false],
+    ] as const)(
+      '%sによるアーカイブ解除はisArchived=%sでも403で拒否し、Projectと参加情報を変更しない',
+      async (role, isArchived) => {
+        const otherUser = await createOtherUser();
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: otherUser.id,
+            name: 'Project For Forbidden Unarchive',
+            key: projectKey,
+            description: '解除前の説明',
+            isArchived,
+            projectMembers: {
+              create: [
+                { userId: otherUser.id, role: 'owner' },
+                { userId, role },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+
+        // 解除済みでも、owner 以外に成功を返さない。
+        await request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/unarchive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(403)
+          .expect({
+            message: 'プロジェクトのアーカイブを解除する権限がありません',
+            error: 'Forbidden',
+            statusCode: 403,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it.each([true, false])(
+      'isArchived=%sでも別Projectのownerによる非参加Projectのアーカイブ解除は存在しないIDと同じ404で拒否し、DBを変更しない',
+      async (isArchived) => {
+        const otherUser = await createOtherUser();
+        const otherProjectKey = projectKey.replace('E2E', 'OTH');
+        projectKeys.push(otherProjectKey);
+
+        const prisma = app.get(PrismaService);
+        const joinedProject = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Joined Project',
+            key: projectKey,
+            projectMembers: { create: { userId, role: 'owner' } },
+          },
+          include: { projectMembers: true },
+        });
+        const otherProject = await prisma.project.create({
+          data: {
+            ownerId: otherUser.id,
+            name: 'Other Project To Unarchive',
+            key: otherProjectKey,
+            description: '解除前の説明',
+            isArchived,
+            projectMembers: { create: { userId: otherUser.id, role: 'owner' } },
+          },
+          include: { projectMembers: true },
+        });
+
+        const notFoundResponse = await request(app.getHttpServer())
+          .post('/api/projects/not-found/unarchive')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404);
+        const response = await request(app.getHttpServer())
+          .post(`/api/projects/${otherProject.id}/unarchive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404);
+
+        expect(response.body).toEqual(notFoundResponse.body);
+        expect(response.body).toEqual({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+        for (const project of [joinedProject, otherProject]) {
+          expect(
+            await prisma.project.findUnique({
+              where: { id: project.id },
+              include: { projectMembers: true },
+            }),
+          ).toEqual(project);
+        }
+      },
+    );
+
+    it.each([true, false])(
+      'isArchived=%sでownerIdが本人でも参加情報がなければアーカイブ解除を404で拒否し、DBを変更しない',
+      async (isArchived) => {
+        const prisma = app.get(PrismaService);
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'No Membership To Unarchive',
+            key: projectKey,
+            isArchived,
+          },
+          include: { projectMembers: true },
+        });
+
+        await request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/unarchive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect({
+            message: 'プロジェクトが見つかりません',
+            error: 'Not Found',
+            statusCode: 404,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: true },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it('ownerは解除済みのプロジェクトを再度解除しても成功する', async () => {
+      const prisma = app.get(PrismaService);
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Already Unarchived Project',
+          key: projectKey,
+          isArchived: false,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+        include: { projectMembers: true },
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/projects/${project.id}/unarchive`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: project.id,
+        isArchived: false,
+      });
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: true },
+        }),
+      ).toEqual({ ...project, updatedAt: expect.any(Date) });
     });
 
     it('存在しないIDのアーカイブを解除しようとすると404を返す', async () => {

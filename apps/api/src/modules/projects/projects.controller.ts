@@ -43,19 +43,20 @@ export class ProjectsController {
 
   @Get()
   @UseGuards(AuthGuard)
-  @ApiOperation({ summary: 'プロジェクト一覧を取得する' })
+  @ApiOperation({ summary: '参加しているプロジェクト一覧を取得する' })
   @ApiOkResponse({
-    description: 'プロジェクト一覧を作成日時の新しい順で返す',
+    description:
+      '参加しているプロジェクトを作成日時の新しい順で返す。アーカイブ済みも含み、参加していなければ空配列を返す',
     type: ProjectResponseDto,
     isArray: true,
   })
-  findAll() {
-    return this.projectsService.findAll();
+  findAll(@Req() request: AuthenticatedRequest) {
+    return this.projectsService.findAll(request.user.id);
   }
 
   @Get(':projectId')
   @UseGuards(AuthGuard)
-  @ApiOperation({ summary: 'プロジェクト詳細を取得する' })
+  @ApiOperation({ summary: '参加しているプロジェクト詳細を取得する' })
   @ApiParam({
     name: 'projectId',
     description: '取得するプロジェクトの ID',
@@ -65,9 +66,14 @@ export class ProjectsController {
     description: 'プロジェクト詳細を返す',
     type: ProjectResponseDto,
   })
-  @ApiNotFoundResponse({ description: '指定したプロジェクトが存在しない' })
-  findOne(@Param('projectId') projectId: string) {
-    return this.projectsService.findOne(projectId);
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない、または参加していない',
+  })
+  findOneForMember(
+    @Param('projectId') projectId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.findOneForMember(projectId, request.user.id);
   }
 
   @Post()
@@ -87,7 +93,7 @@ export class ProjectsController {
 
   @Patch(':projectId')
   @UseGuards(AuthGuard)
-  @ApiOperation({ summary: 'プロジェクトを更新する' })
+  @ApiOperation({ summary: 'プロジェクトを更新する（owner のみ）' })
   @ApiParam({
     name: 'projectId',
     description: '更新するプロジェクトの ID',
@@ -99,17 +105,25 @@ export class ProjectsController {
   @ApiBadRequestResponse({
     description: 'リクエスト本文が不正、または更新項目が指定されていない',
   })
-  @ApiNotFoundResponse({
-    description: '指定したプロジェクトが存在しない',
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
   })
-  update(@Param('projectId') projectId: string, @Body() dto: UpdateProjectDto) {
-    return this.projectsService.update(projectId, dto);
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない、または参加していない',
+  })
+  update(
+    @Param('projectId') projectId: string,
+    @Body() dto: UpdateProjectDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.update(projectId, dto, request.user.id);
   }
 
   @Post(':projectId/archive')
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'プロジェクトをアーカイブする' })
+  @ApiOperation({ summary: 'プロジェクトをアーカイブする（owner のみ）' })
   @ApiParam({
     name: 'projectId',
     description: 'アーカイブするプロジェクトの ID',
@@ -118,17 +132,26 @@ export class ProjectsController {
     description: 'プロジェクトをアーカイブして返す',
     type: ProjectResponseDto,
   })
-  @ApiNotFoundResponse({
-    description: '指定したプロジェクトが存在しない',
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
   })
-  archive(@Param('projectId') projectId: string) {
-    return this.projectsService.archive(projectId);
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない、または参加していない',
+  })
+  archive(
+    @Param('projectId') projectId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.archive(projectId, request.user.id);
   }
 
   @Post(':projectId/unarchive')
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'プロジェクトのアーカイブを解除する' })
+  @ApiOperation({
+    summary: 'プロジェクトのアーカイブを解除する（owner のみ）',
+  })
   @ApiParam({
     name: 'projectId',
     description: 'アーカイブを解除するプロジェクトの ID',
@@ -137,10 +160,17 @@ export class ProjectsController {
     description: 'プロジェクトのアーカイブを解除して返す',
     type: ProjectResponseDto,
   })
-  @ApiNotFoundResponse({
-    description: '指定したプロジェクトが存在しない',
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
   })
-  unarchive(@Param('projectId') projectId: string) {
-    return this.projectsService.unarchive(projectId);
+  @ApiNotFoundResponse({
+    description: '指定したプロジェクトが存在しない、または参加していない',
+  })
+  unarchive(
+    @Param('projectId') projectId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.unarchive(projectId, request.user.id);
   }
 }
