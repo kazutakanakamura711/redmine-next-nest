@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-11
+最終更新: 2026-10-15
 
 ## 目的
 
@@ -14,7 +14,7 @@
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
-- 区切り5は `feat/phase-2/project-members-list` で、owner によるメンバー一覧 API を実装し、API E2E で確認済み。メンバーの追加・role変更・削除は後続の PR で扱う。
+- 区切り5の owner によるメンバー一覧 API は PR #23 を `develop` にマージ済み。メンバー追加 API は `feat/phase-2/project-members-add` で実装し、PR 前のレビューで見つかった追加とアーカイブの競合も修正済み。回帰テスト2件を含むローカル API E2E 全130件と、修正後の PR 前レビュー・品質確認・標準 build の再確認が通過した。PR の CI と `develop` へのマージは後続で確認する。role 変更・削除 API とメンバー管理 Web UI は未実装。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -172,7 +172,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（区切り1〜4は PR #18・#20・#21・#22 を `develop` にマージ済み。区切り5は owner によるメンバー一覧 API を実装・API E2E 確認済み。メンバーの追加・role変更・削除は未実装）
+- 状態: 対応中（区切り1〜4と区切り5のメンバー一覧は PR #18・#20・#21・#22・#23 を `develop` にマージ済み。メンバー追加 API は作業ブランチで競合修正・回帰テストを含め実装し、ローカル API E2E 全130件確認済み。role 変更・削除 API とメンバー管理 Web UI は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -357,12 +357,44 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - API build 後の Controller から Swagger を生成し、メンバー DTO の配列、role の enum、日時・UUID の形式、User の名前の nullable、Bearer 認証・401・403・404を確認した。ドキュメント生成だけの確認として、DB と Supabase Auth へ接続しない構成で実行した。
 - 認証済みユーザーの ID、対象 Project の membership・owner role、Project ごとの絞り込み、返却項目と並び順、拒否時の DB 不変性を最終レビューし、修正が必要な指摘はなかった。API 実装・テストは直前の全89件成功時から変更していないため、その API E2E の結果を使用した。`git diff --check` も通過した。
 
+#### Project メンバー追加の実施メモ（2026-10-13）
+
+- PR #23 マージ済みの `develop`（`84c94be`）から `feat/phase-2/project-members-add` を作成し、`POST /api/projects/:projectId/members` を Repository → Service → DTO → Controller → API E2E の順に実装・確認した。構成は既存の Controller → Service → Repository → PrismaService を維持している。
+- 追加対象は email で指定する。文字列の前後の空白だけを除き、大文字・小文字を変換せず、アプリ側 User.email と完全一致で検索する。Supabase Auth の登録とアプリ側 User の作成は別であり、アプリ側 User が存在する人だけを対象にする。追加処理で対象 User を作成・同期しない。
+- 追加可能な role は member・viewer に限定した。Repository の入力型には `Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>`、DTO の実行時検証には `IsIn` を使う。email の Transform は文字列のときだけ trim し、null・数値などは `IsEmail` で400にする。
+- Controller は AuthGuard が確認した実行者の `request.user.id` と DTO の email・role を Service に渡す。Service は本人の membership・owner role を確認し、非参加者・存在しない Project は同じ404本文、member・viewer は403にする。認可後にアーカイブ状態と追加対象を確認し、アーカイブ済みなら409、対象 User が存在しなければ404、参加済みなら409にする。
+- 保存には追加対象 User の ID を使い、実行者の ID と区別する。同じ Project と User の複合 unique 制約を維持し、保存時の `P2002` も409へ変換する。追加 API で既存参加者の role を変更しない。成功時は201と、既存の `ProjectMemberResponseDto` による単一メンバーを返す。
+- API build 後の Controller から Swagger を生成し、POST の route、AuthGuard・入力 DTO の関連付け、email の形式、member・viewer の enum、201の単一メンバー、名前の nullable、Bearer 認証、400・401・403・404・409を確認した。このドキュメント生成確認では DB・Supabase Auth へ接続していない。
+- 追加 API の E2E を39件追加した。member・viewer の201と返却項目・名前の null・DB保存、前後空白の除去、別 Project に参加済みの User の追加を確認した。401・403・404・400・409、Supabase Auth だけに登録済みの対象、メールの大文字・小文字の違い、owner 自身を含む参加済みの3 role、同時追加の201・409と参加情報1件を確認した。
+- 拒否時は Project・ProjectMember の値・更新日時を比較し、別 Project を用意したケースではそちらも不変であることを確認した。成功時も Project と既存参加情報を維持する。AuthGuard による User のプロフィール同期は比較に含めない。既存の一時ユーザー作成・後片付けを使い、ファイル分割・共通 helper の導入は行っていない。
+- 通常の `pnpm test:e2e` は全128件（Projects 115件・Auth 12件・Health 1件）が通過した。変更対象の format・lint、API typecheck・build、`git diff --check` も通過した。DB schema・migration・依存関係・Web は変更していない。PR 前のレビュー・品質チェックの結果は下記の実施メモを参照する。PR 作成・CI は未実施である。
+- 本メモの更新時に、API 契約を `UI_API.md`、業務ルールを `DOMAIN_MODEL.md`、追加 API と検証内容を API README に反映した。今回は docs の変更だけであり、直前の全128件成功の結果を使用する。
+
+#### Project メンバー追加の PR 前レビュー・品質確認（2026-10-13）
+
+- ユーザーが Bruno で作成した `get-project-members.yml`・`add-project-member.yml` をレビューした。メソッド・URL・JSON 本文・seq・Bearer 設定が正しく、token は `{{accessToken}}` を参照し、実際の JWT は保存されていない。2ファイルは既存の Prettier 形式に整え、Bruno README に2ユーザーの準備・owner の token への切り替え・一覧と追加・エラー時の確認を追記した。ユーザーによる一覧200・追加成功・一覧再取得で owner と member の2人を確認した結果も記録した。
+- `pnpm format:check`・`pnpm lint`・`pnpm typecheck` が通過した。`pnpm test` は API 12件・Web 161件、通常の `pnpm test:e2e` は全128件（Projects 115件・Auth 12件・Health 1件）が通過した。docs の JSON 例・ローカルリンク・コードブロックと `git diff --check` も確認した。
+- API build は通過した。標準の `pnpm build` は Web の Google Fonts 取得で停止し、制限外での再実行は Turbopack の CSS 処理におけるポート作成の `Operation not permitted` で失敗した。CLI の `--webpack` を確認して Web build を別途実行し、コンパイル・型チェック・ページ生成は通過した。公開設定は CI と同じローカル URL とダミーキーを使った。標準 Turbopack build の成功とは扱わず、PR 前または CI で再確認する。
+- 全体レビューで、メンバー追加のアーカイブ確認と保存の間に別リクエストのアーカイブが完了すると、アーカイブ済み Project にメンバーが追加される問題を再現した。リポジトリ外の一時テストで対象 User 検索の進行だけを制御し、本物の token・HTTP リクエスト・E2E 専用 DB を使った。結果は追加201、`isArchived: true`、参加情報2件で、期待する409・参加情報1件の確認が失敗した。通常の128件とは別の再現確認である。
+- このレビューでは競合を指摘し、API 実装は変更しなかった。競合の修正・回帰テストの確認結果は、下記の2026-10-15の実施メモに記録した。Bruno の2ファイルには修正が必要な動作上の指摘はなかった。
+
+#### Project メンバー追加とアーカイブの競合修正・回帰確認（2026-10-15）
+
+- Repository の `createProjectMember` を transaction 化した。`SELECT … FOR UPDATE` で対象 Project 行をロックし、Project の存在・アーカイブ状態の再確認とメンバー保存を同じ transaction 内で行う。`$queryRaw` のタグ付きテンプレートで Project ID をパラメーターとして渡し、transaction の終了まで行ロックを保持する。
+- Repository は `created`・`project_archived`・`project_not_found` を返し、Service は作成したメンバー・409・既存と同じ404本文へ変換する。Service の事前の認可・業務ルール確認の順序と、重複時の `P2002` → 409を維持した。既存のアーカイブ UPDATE と行ロックで待ち合わせるため、アーカイブ API の実装変更は不要だった。
+- 既存の `projects.e2e-spec.ts` のメンバー追加グループに回帰テストを2件追加した。Service の事前確認後にアーカイブが完了した場合、追加を409で拒否し、アーカイブ後の Project・ProjectMember の値・更新日時を維持する。追加が先に Project 行をロックした場合は、保存までアーカイブが DB でロック待ちとなり、追加201・アーカイブ200と DB 保存を確認する。HTTP レスポンスの到着順を保証するテストではない。
+- 本物のローカル Supabase token と E2E 専用 PostgreSQL の構成を維持した。保存前の進行制御と PostgreSQL のロック待ちの確認で順序を再現し、固定時間の待機には頼らない。失敗時も待機・ロック・spy を解除してから既存の後片付けへ進む。User のプロフィール同期は不変性の比較に含めず、ファイル分割・共通 helper の導入は行っていない。
+- 追加2件の対象実行と、通常の `pnpm test:e2e` の全130件（Projects 117件・Auth 12件・Health 1件）が通過した。メンバー追加のテストは39件から41件になった。Repository・Service 修正時の format・lint・API typecheck・build、回帰テスト追加時の format・lint・API typecheck・`git diff --check` も通過した。
+- 本メモと `DOMAIN_MODEL.md`・`UI_API.md`・API README を更新し、保存時の状態確認・競合時の動作・最新テスト件数を反映した。docs 更新時は直前の全130件成功の結果を使用する。DB schema・migration・依存関係・Web は変更していない。
+- 修正後の PR 前レビューで、認証・認可、重複防止、行ロックによる競合対策、拒否時の DB 不変性、Swagger・Bruno・docs の整合性を再確認した。新たに修正が必要な指摘はなかった。`pnpm format:check`・`pnpm lint`・`pnpm typecheck`・`pnpm test`（API 12件・Web 161件）・`pnpm test:e2e`（全130件）が通過した。Swagger の生成結果、docs の JSON 例・ローカルリンク、`git diff --check` も確認した。
+- ユーザーによる標準 `pnpm build` の成功ログを確認し、Codex 側でも同じコマンドを再実行した。API build と Web の標準 Turbopack build がともに通過した。2026-10-13 の環境制限による build の再確認待ちは解消した。
+
 #### 後続作業
 
-- 区切り1〜4は `develop` にマージ済み。区切り5のメンバー一覧 API の PR を確認し、その後に追加・role変更・削除を endpoint ごとに進める。
+- 区切り1〜4と、区切り5のメンバー一覧 API（PR #23）は `develop` にマージ済み。追加とアーカイブの競合修正・回帰テスト、修正後の PR 前レビュー・品質確認、標準 build の再確認は完了した。追加 API の PR で CI とレビュー結果を確認する。`develop` へのマージはユーザーが依頼した段階で行う。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- メンバーの追加・role変更・削除と、owner 自身の削除・role変更を防ぐ処理は、区切り5の後続 PR で進める。各操作の権限と拒否時の DB 不変性を API E2E で確認する。
+- メンバーの role 変更・削除 API と、owner 自身の削除・role変更を防ぐ処理、メンバー管理 Web UI は区切り5の後続 PR で進める。各操作の権限と拒否時の DB 不変性を API E2E で確認する。
 - Projects API E2E のファイル分割・共通 helper の導入は、ユーザーがテスト構成を理解してから再検討する。現在は整理 PR を保留し、既存ファイルの構成を維持して機能追加を進める。
 - 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 

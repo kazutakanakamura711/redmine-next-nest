@@ -106,6 +106,8 @@ Projects の全 API にも Bearer 認証と `401`・`403` を設定し、Project
 作成者の UUID である `ownerId` を含めています。
 設定更新・アーカイブ・解除の概要には owner のみと明記し、`403` はメール未設定・未確認と role の権限不足を説明しています。
 詳細取得・設定更新・アーカイブ・解除の `404` は、Project が存在しない場合と非参加者の場合を説明しています。
+メンバー一覧・追加も owner のみと明記しています。追加 API は email・role の入力 DTO、
+member・viewer の enum、201の単一メンバー、400・401・403・404・409を説明しています。
 **Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
 `Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
 
@@ -118,14 +120,16 @@ NestJS の Swagger には含めず、Bruno のリクエストと README に手�
 確認済みメールアドレスを必要とします。token なし・形式不正・無効な token は `401`、
 メールアドレスが未設定・未確認の場合は `403` を返します。
 
-| 操作           | メソッド・パス                            | 成功時の応答          |
-| -------------- | ----------------------------------------- | --------------------- |
-| 一覧取得       | `GET /api/projects`                       | `200`、Project の配列 |
-| 詳細取得       | `GET /api/projects/:projectId`            | `200`、Project        |
-| 作成           | `POST /api/projects`                      | `201`、Project        |
-| 更新           | `PATCH /api/projects/:projectId`          | `200`、Project        |
-| アーカイブ     | `POST /api/projects/:projectId/archive`   | `200`、Project        |
-| アーカイブ解除 | `POST /api/projects/:projectId/unarchive` | `200`、Project        |
+| 操作           | メソッド・パス                            | 成功時の応答            |
+| -------------- | ----------------------------------------- | ----------------------- |
+| 一覧取得       | `GET /api/projects`                       | `200`、Project の配列   |
+| 詳細取得       | `GET /api/projects/:projectId`            | `200`、Project          |
+| 作成           | `POST /api/projects`                      | `201`、Project          |
+| 更新           | `PATCH /api/projects/:projectId`          | `200`、Project          |
+| アーカイブ     | `POST /api/projects/:projectId/archive`   | `200`、Project          |
+| アーカイブ解除 | `POST /api/projects/:projectId/unarchive` | `200`、Project          |
+| メンバー一覧   | `GET /api/projects/:projectId/members`    | `200`、メンバーの配列   |
+| メンバー追加   | `POST /api/projects/:projectId/members`   | `201`、追加したメンバー |
 
 作成者の ID は `AuthGuard` が設定した `request.user.id` から取得します。
 リクエスト本文に `ownerId` を指定する必要はありません。
@@ -140,9 +144,51 @@ owner・member・viewer のすべてを対象にし、作成日時の新しい�
 設定更新・アーカイブ・解除は owner のみ許可します。存在しない Project と非参加者には同じ `404`、
 参加者である member・viewer には `403` を返します。
 `ownerId` が本人でも、ProjectMember がなければ操作できません。
-メンバー管理は後続の実装対象です。
+メンバー一覧・追加も owner のみ許可します。role 変更・削除 API とメンバー管理 Web UI は後続の実装対象です。
 
-Next.js のログイン・登録画面と、全 Project API 呼び出しへの token 付与は PR #21 で実装済みです。
+Next.js のログイン・登録画面と、Project の基本6 API 呼び出しへの token 付与は PR #21 で実装済みです。
+
+### メンバー一覧・追加
+
+`GET /api/projects/:projectId/members` は、owner 自身を含む一覧を返します。
+返却項目は `id`・`userId`・`role`・`createdAt`・`user.name`・`user.email` です。
+並び順は owner → member → viewer、同じ role は参加日時の古い順、同じ日時なら ProjectMember ID の昇順です。
+名前が未設定なら `null` を返します。
+
+`POST /api/projects/:projectId/members` の入力例:
+
+```json
+{
+  "email": "member@example.test",
+  "role": "member"
+}
+```
+
+email・role は必須です。email は前後の空白だけを除き、大文字・小文字を区別してアプリ側 User.email と完全一致で検索します。
+role は member・viewer だけを受け付け、owner・manager は拒否します。null・型が不正な値・定義外の項目も400です。
+実行者の ID は本文から受け取らず、AuthGuard が確認した `request.user.id` を使います。
+
+追加対象はアプリ側 User が存在するユーザーだけです。Supabase Auth への登録だけでは、アプリ側 User は作成されません。
+確認済みメールを持つ本人が、token を付けて `/api/auth/me` など AuthGuard を通る API を初めて呼ぶと作成されます。
+メンバー追加 API で対象 User を作成・同期することはありません。
+
+成功時は201と、メンバー一覧の各要素と同じ形式の単一オブジェクトを返します。
+本文の検証後、実行者の membership・owner role、アーカイブ状態、追加対象 User の存在・参加状況を順に確認します。
+保存時は Repository の transaction 内で、対象 Project 行を `SELECT … FOR UPDATE` によってロックし、状態を再確認してからメンバーを保存します。
+Repository は作成成功・アーカイブ済み・Project 不在を結果として返し、Service がメンバーのレスポンス・409・404に変換します。
+アーカイブが先に保存された場合は追加を409で拒否し、追加が先にロックを取得した場合は、メンバー保存までアーカイブが待機します。
+
+| 条件                                        | 応答                  |
+| ------------------------------------------- | --------------------- |
+| 実行者が member・viewer                     | `403`                 |
+| 存在しない Project、または実行者が非参加者  | 既存と同じ `404` 本文 |
+| owner によるアーカイブ済み Project への追加 | `409`                 |
+| 追加対象のアプリ側 User が見つからない      | `404`                 |
+| owner 自身を含む、参加済みユーザーへの追加  | `409`                 |
+
+重複は `(projectId, userId)` の unique 制約で防ぎ、同時追加による保存時の `P2002` も409に変換します。
+既存の参加情報の role・値・更新日時は変更しません。
+詳しいリクエスト・レスポンスとエラー本文は [UI_API.md](../../docs/UI_API.md) を参照してください。
 
 ## 確認コマンド
 
@@ -189,9 +235,10 @@ Projects E2E も実際のローカル Supabase Auth を使い、テストごと�
 access token を用意します。後片付けは ProjectMember → Project → User の順に行い、
 Supabase Auth の一時ユーザーも削除します。
 
+Projects E2E は117件です。Auth 12件・Health 1件を合わせ、ローカルの `pnpm test:e2e` は全130件が通過しています。
 Projects E2E には、次の確認を含めています。
 
-- 全 6 API の token なし・無効な token の `401`（計 12 件）。
+- Project の基本6 API の token なし・無効な token の `401`（計12件）。メンバー一覧・追加は、それぞれ token なし・形式不正・無効な token の3件を確認する。
 - owner・member・viewer として参加している Project だけが一覧に含まれ、非参加 Project は含まれないこと。
 - 参加 Project がない場合の空配列、参加情報がない場合に `ownerId` だけでは取得できないこと。
 - 一覧の作成日時降順とアーカイブ済み Project の表示。
@@ -209,9 +256,15 @@ Projects E2E には、次の確認を含めています。
 - 作成者の `ownerId` と `role: owner` の ProjectMember が DB に保存されること。
 - 認証失敗時に Project が作成されず、更新・アーカイブ・解除でも DB が変わらないこと。
 - 有効な token を使う既存の成功ケースと、入力・対象 ID に応じた `400`・`404`・`409`。
+- メンバー一覧の10件: owner 自身を含む一覧、必要な返却項目・名前の null、3段階の並び順、別 Project の除外、認証・認可エラーと拒否時の不変性。
+- メンバー追加の41件: member・viewer の201、返却項目・名前の null・DB保存、email の前後空白の除去、別 Project に参加済みの User の追加。
+- 追加時の401・403・404・400・409、Supabase Auth だけに登録された対象、メールの大文字・小文字の違い、owner 自身を含む参加済みの3 role、アーカイブ済み Project、必須項目・形式・型・role・定義外項目の検証。
+- 同じ User の同時追加で201と409になり、参加情報が1件だけ保存されること。成功時は Project と既存参加情報を維持し、拒否時も Project・ProjectMember の値と更新日時が変わらないこと。User のプロフィール同期は比較に含めない。
+- Service の事前確認後にアーカイブが完了しても、追加を409で拒否し、アーカイブ後の Project・ProjectMember の値と更新日時を維持すること。
+- 追加が先に Project 行をロックした場合は、メンバー保存までアーカイブが実際にロック待ちとなり、追加201・アーカイブ200と DB 保存を確認できること。固定時間の待機には頼らず、失敗時も待機・ロック・spy を解除して後片付けする。
 
-テストは一覧・詳細・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
-一覧・詳細・設定更新・アーカイブ・解除の membership・role による認可を API E2E で確認しています。
+テストは一覧・詳細・メンバー一覧・メンバー追加・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
+一覧・詳細・設定更新・アーカイブ・解除・メンバー一覧・追加の membership・role による認可を API E2E で確認しています。
 
 ユーザーを作成・削除するため、Auth E2E の成功ケースと Projects E2E の接続先は
 HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。

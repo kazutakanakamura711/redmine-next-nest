@@ -13,6 +13,8 @@ Bruno で [redmine-next-nest-api](./redmine-next-nest-api/) をコレクショ�
 | [update-project](./redmine-next-nest-api/update-project.yml)                     | NestJS: `PATCH /api/projects/:projectId`            | Project 名・説明を更新                     |
 | [archive-project](./redmine-next-nest-api/archive-project.yml)                   | NestJS: `POST /api/projects/:projectId/archive`     | Project をアーカイブ                       |
 | [unarchive-project](./redmine-next-nest-api/unarchive-project.yml)               | NestJS: `POST /api/projects/:projectId/unarchive`   | Project のアーカイブを解除                 |
+| [get-project-members](./redmine-next-nest-api/get-project-members.yml)           | NestJS: `GET /api/projects/:projectId/members`      | owner がメンバー一覧を取得                 |
+| [add-project-member](./redmine-next-nest-api/add-project-member.yml)             | NestJS: `POST /api/projects/:projectId/members`     | owner が登録済み User を追加               |
 | [supabase-update-password](./redmine-next-nest-api/supabase-update-password.yml) | Supabase: `PUT /auth/v1/user`                       | ログインユーザーのパスワードを変更         |
 
 NestJS は `http://localhost:3001`、ローカル Supabase は `http://127.0.0.1:54321` で動きます。
@@ -101,15 +103,56 @@ Send すると、Bruno が `Authorization: Bearer <access_token>` を付けて�
 続けて `create-project` を Send すると、`201 Created` と `ownerId` が返ります。
 Body の `key` は未使用の値にしてください。作成者の ProjectMember も `role: owner` で保存されます。
 
-Project の全 6 リクエストにも **Bearer Token** の `{{accessToken}}` を設定しています。
+Project の基本6リクエストとメンバー一覧・追加にも **Bearer Token** の `{{accessToken}}` を設定しています。
 `get-projects` は `200 OK` と Project の配列を返します。
 詳細・更新・アーカイブ・解除の URL にある Project ID は、作成した Project の `id` に置き換えてください。
 これらの成功時の応答は `200 OK` と、対象の Project（`ownerId` を含む）です。
 
-現在は本人確認まで実装しています。参加者だけの閲覧や owner だけの更新・アーカイブ・解除は
-後続の実装対象です。認証の仕様と確認範囲は [API README](../apps/api/README.md#project-api-の認証と-owner-登録) を参照してください。
+一覧・詳細は参加者の owner・member・viewer が取得でき、更新・アーカイブ・解除とメンバー一覧・追加は owner のみ操作できます。
+存在しない Project と非参加者は同じ404、参加者の権限不足は403になります。
+認証・認可の仕様と確認範囲は [API README](../apps/api/README.md#project-api-の認証と-owner-登録) を参照してください。
 
-## 5. パスワードを変更する
+## 5. メンバー一覧・追加を確認する
+
+`get-project-members` と `add-project-member` の URL は、確認したい Project の ID に置き換えます。
+
+```text
+http://localhost:3001/api/projects/PROJECT_ID/members
+```
+
+どちらも **Auth → Bearer Token → Token** は `{{accessToken}}` です。
+owner の token は、その Project を作成したユーザーでログインして取得する access token です。
+API は token で本人を特定し、対象 Project の ProjectMember.role を確認します。
+
+追加対象には、確認済みメールを持つ別ユーザーを用意します。Supabase Auth の登録とアプリ側 User の作成は別なので、次の順で確認します。
+
+1. 手順1と同じ方法で、Supabase Studio に追加対象のテストユーザーを作成します。
+2. Local の `loginEmail`・Secrets の `loginPassword` を追加対象のユーザーに変更し、`supabase-login` を Send します。
+3. 取得した `access_token` を Secrets の `accessToken` に保存し、`auth-me` を Send して200を確認します。これで追加対象のアプリ側 User が作成されます。
+4. Local のログイン情報を Project の owner に戻し、再び `supabase-login` を Send します。取得した token を Secrets の `accessToken` に保存し、`auth-me` の email で実行者を確認します。
+5. owner の token で `get-project-members` を Send し、200と owner 自身を含む一覧を確認します。Body は不要です。
+6. `add-project-member` の **Body → JSON** に追加対象のメールアドレスと role を指定し、Send します。
+
+```json
+{
+  "email": "test@example.com",
+  "role": "member"
+}
+```
+
+email は追加対象のアプリ側 User に保存された値に置き換えます。前後の空白は除去し、大文字・小文字は区別します。
+role は member・viewer のどちらかで、owner は指定できません。
+
+追加成功時は201と単一メンバーが返ります。続けて一覧を再送信し、追加したユーザーの名前・メール・role が増えていることを確認します。
+同じユーザーを再度追加すると409になり、既存の role は変更されません。アーカイブ済み Project への追加も409です。
+role 変更・削除は後続の実装対象です。
+
+確認後は両方のリクエストを保存します。Token の設定は `{{accessToken}}` を維持し、実際の token は Secrets に保存します。
+リクエスト内の Project ID と追加対象メールはローカル確認用の例なので、別の環境ではそれぞれ置き換えてください。
+
+2026-10-13 のユーザーによる手動確認では、owner の一覧取得が200、メンバー追加が成功し、再取得した一覧に owner・member の2人が返ることを確認済みです。
+
+## 6. パスワードを変更する
 
 `supabase-update-password` は **Bearer Token** の `{{accessToken}}` を使い、
 `PUT http://127.0.0.1:54321/auth/v1/user` に次の JSON を送ります。
@@ -136,8 +179,11 @@ Bruno の `loginPassword` を変えるだけでは、Supabase 側のパスワー
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | ログインの `400 invalid_credentials`           | Local が選択されているか、メールアドレスの綴り、保存したパスワードが Supabase 側と一致するか                            |
 | `auth-me`・Project API・パスワード変更の `401` | 有効な access token を Secrets に保存したか。期限切れなら `supabase-login` を再送信し、新しい `access_token` を保存する |
-| `auth-me`・Project API の `403`                | テストユーザーのメールアドレスが確認済みか                                                                              |
-| Project API の `404`                           | URL の Project ID を、存在する Project の `id` に置き換えたか                                                           |
+| `auth-me`・Project API の `403`                | メールアドレスが確認済みか。owner 専用操作では、対象 Project の owner でログインしているか                              |
+| Project API の `404`                           | Project ID が正しいか、実行者が対象 Project に参加しているか                                                            |
+| メンバー追加の対象 User の `404`               | 対象ユーザーが `auth-me` を実行済みか、アプリ側 User のメールアドレスと大文字・小文字も一致しているか                   |
+| メンバー追加の `400`                           | email・role が必須条件を満たし、role が member・viewer で、定義外の項目がないか                                         |
+| メンバー追加の `409`                           | 対象ユーザーが参加済みではないか、Project がアーカイブ済みではないか                                                    |
 | Project 作成の `409`                           | Body の `key` が既存 Project と重複していないか                                                                         |
 
 操作後は `pnpm exec supabase stop` で Supabase を停止できます。通常の停止ではローカルデータを保持します。

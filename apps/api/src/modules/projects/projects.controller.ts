@@ -29,6 +29,7 @@ import { ProjectResponseDto } from './dto/project-response.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { type AuthenticatedRequest, AuthGuard } from '../auth/auth.guard.js';
 import { ProjectMemberResponseDto } from './dto/project-member-response.dto.js';
+import { CreateProjectMemberDto } from './dto/create-project-member.dto.js';
 
 @ApiTags('Projects')
 @ApiBearerAuth()
@@ -103,6 +104,50 @@ export class ProjectsController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.projectsService.findProjectMembers(projectId, request.user.id);
+  }
+
+  @Post(':projectId/members')
+  @UseGuards(AuthGuard)
+  @ApiOperation({
+    summary: 'プロジェクトにメンバーを追加する（owner のみ）',
+    description:
+      'アプリ側 User に登録済みのユーザーを、メールアドレスで指定して追加する。メールアドレスは前後の空白を除き、大文字・小文字を区別する。role は member・viewer のみ指定でき、アーカイブ済みのプロジェクトには追加できない。',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'メンバーを追加するプロジェクトの ID',
+  })
+  @ApiCreatedResponse({
+    description: '追加したメンバーを返す',
+    type: ProjectMemberResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'メールアドレス・role が不正、必須項目が未指定、または定義外の項目が指定されている',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
+  })
+  @ApiNotFoundResponse({
+    description:
+      '指定したプロジェクトが存在しない、参加していない、または追加対象のアプリ側 User が存在しない',
+  })
+  @ApiConflictResponse({
+    description:
+      'プロジェクトがアーカイブ済み、または追加対象のユーザーがすでに参加している',
+  })
+  addProjectMember(
+    @Param('projectId') projectId: string,
+    @Body() dto: CreateProjectMemberDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.addProjectMember(
+      projectId,
+      dto.email,
+      dto.role,
+      request.user.id,
+    );
   }
 
   @Post()
