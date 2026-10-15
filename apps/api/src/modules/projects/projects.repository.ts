@@ -14,6 +14,12 @@ type UpdateProjectData = {
   description?: string | null;
 };
 
+type CreateProjectMemberData = {
+  projectId: string;
+  userId: string;
+  role: Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>;
+};
+
 @Injectable()
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -78,6 +84,15 @@ export class ProjectsRepository {
     });
   }
 
+  findUserByEmail(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+      },
+    });
+  }
+
   create(data: CreateProjectData) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Project を作成する。
@@ -96,6 +111,44 @@ export class ProjectsRepository {
 
       // 両方成功したら、作成した Project を返す。
       return project;
+    });
+  }
+
+  createProjectMember(data: CreateProjectMemberData) {
+    return this.prisma.$transaction(async (tx) => {
+      // メンバーの保存まで Project 行をロックし、アーカイブとの競合を防ぐ。
+      const [project] = await tx.$queryRaw<{ isArchived: boolean }[]>`
+        SELECT is_archived AS "isArchived"
+        FROM projects
+        WHERE id = ${data.projectId}
+        FOR UPDATE
+      `;
+
+      if (!project) {
+        return { status: 'project_not_found' as const };
+      }
+
+      if (project.isArchived) {
+        return { status: 'project_archived' as const };
+      }
+
+      const member = await tx.projectMember.create({
+        data,
+        select: {
+          id: true,
+          userId: true,
+          role: true,
+          createdAt: true,
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      return { status: 'created' as const, member };
     });
   }
 

@@ -28,6 +28,10 @@
 | email | Supabase Auth で確認済みのメールアドレス |
 | name | 画面に表示する名前。未設定は `null` |
 
+Supabase Auth の登録と、アプリ側 User の作成は別である。
+アプリ側 User は、有効な token と確認済みメールアドレスを持つ本人が、AuthGuard を通る API を初めて呼んだときに作成する。
+Supabase Auth に登録済みでも、まだこの API 呼び出しを行っていなければ、アプリ側 User は存在しない。
+
 名前は認証済み API の呼び出し時に Supabase Auth の `user_metadata.name` から同期する。
 文字列なら前後の空白を除き、未設定・空白・文字列以外なら `null` として、既存の名前も更新する。
 通常の登録画面では名前を必須にするが、名前を持たない既存ユーザーや管理 API で作成したユーザーも扱う。
@@ -61,7 +65,13 @@
 | viewer | 閲覧だけできる |
 
 - プロジェクト作成時に、作成者を `owner` とする ProjectMember も同時に作る。
-- 同じユーザーを同じプロジェクトへ二重登録しない。
+- メンバーの追加は、対象 Project の ProjectMember が `owner` のユーザーだけに許可する。`ownerId` や表示用の名前だけで許可しない。
+- 追加対象は、アプリ側 User が存在するユーザーに限る。追加処理では対象 User を作成・同期しない。
+- 追加対象はメールアドレスで指定する。前後の空白を除き、大文字・小文字を変換せず、保存された User.email と完全一致で検索する。参加情報には、取得した User の ID を保存する。
+- 追加時に指定できる role は `member`・`viewer` だけとし、`owner` は追加できない。
+- アーカイブ済み Project には、owner でもメンバーを追加できない。
+- メンバー追加とアーカイブが同時に行われても、対象 Project の保存順を揃える。アーカイブが先に保存された場合は追加を拒否し、メンバー追加が先に保存された場合は、その後のアーカイブを許可する。
+- 同じユーザーを同じプロジェクトへ二重登録しない。同時追加でも `(projectId, userId)` の unique 制約で重複を防ぐ。追加 API では、既存の参加情報の role・値・更新日時を変更しない。
 - owner 自身を削除・role変更しない。
 - `manager` role は、owner と member の間の権限が本当に必要になったとき追加する。
 
@@ -97,9 +107,10 @@ priority: low  | normal      | high
 
 - 認証は Supabase Auth を使う。
 - Frontend が表示を隠すだけでは不十分である。NestJS API でも、ログイン済みか・対象 Project の member かを確認する。
-- クライアントから渡された `userId` をそのまま信用しない。認証済み token からユーザーを特定する。
+- 操作する本人は、クライアントから渡された `userId` ではなく、認証済み token から特定する。
 
-Project の基本操作は認証なしで実装済み。外部公開に向け、次は Supabase Auth と Project の権限を実装してから Task CRUD に進む。今後は認証済みの作成者を owner にする。
+全 Project API の認証保護、membership・role による認可、Project 作成時の owner 登録は実装済みである。
+メンバー一覧・追加 API も owner 権限で実装済みであり、メンバーの role 変更・削除は後続で扱う。Task CRUD は、この認証・認可の基盤を使って進める。
 
 ## 後続段階で追加するもの
 

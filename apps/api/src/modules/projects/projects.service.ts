@@ -79,6 +79,84 @@ export class ProjectsService {
     }
   }
 
+  async addProjectMember(
+    projectId: string,
+    email: string,
+    role: Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>,
+    userId: string,
+  ) {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      projectId,
+      userId,
+    );
+
+    // 参加情報がなければ404を返す。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    // role が owner 以外なら403を返す。
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException(
+        'プロジェクトに参加者を追加する権限がありません',
+      );
+    }
+
+    // アーカイブ済みの Project にはメンバーを追加できない。
+    const project = await this.findOne(projectId);
+    if (project.isArchived) {
+      throw new ConflictException(
+        'アーカイブ済みのプロジェクトにメンバーを追加できません',
+      );
+    }
+
+    // メールアドレスから追加対象のアプリ側 User を取得する。
+    const targetUser = await this.projectsRepository.findUserByEmail(email);
+    if (!targetUser) {
+      throw new NotFoundException('追加対象のユーザーが見つかりません');
+    }
+
+    // 実行者ではなく、追加対象の参加情報で重複を確認する。
+    const targetProjectMember = await this.projectsRepository.findProjectMember(
+      projectId,
+      targetUser.id,
+    );
+    if (targetProjectMember) {
+      throw new ConflictException('指定したユーザーはすでに参加しています');
+    }
+
+    try {
+      const result = await this.projectsRepository.createProjectMember({
+        projectId,
+        userId: targetUser.id,
+        role,
+      });
+
+      // 保存直前にロックして確認した Project の状態を応答に反映する。
+      if (result.status === 'project_not_found') {
+        throw new NotFoundException('プロジェクトが見つかりません');
+      }
+
+      if (result.status === 'project_archived') {
+        throw new ConflictException(
+          'アーカイブ済みのプロジェクトにメンバーを追加できません',
+        );
+      }
+
+      return result.member;
+    } catch (error) {
+      // 事前確認の後に別リクエストが追加していた場合も409を返す。
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('指定したユーザーはすでに参加しています');
+      }
+
+      throw error;
+    }
+  }
+
   async update(id: string, dto: UpdateProjectDto, userId: string) {
     const projectMember = await this.projectsRepository.findProjectMember(
       id,
