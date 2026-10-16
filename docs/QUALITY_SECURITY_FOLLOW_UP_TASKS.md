@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-15
+最終更新: 2026-10-16
 
 ## 目的
 
@@ -14,7 +14,7 @@
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
-- 区切り5の owner によるメンバー一覧 API は PR #23 を `develop` にマージ済み。メンバー追加 API は `feat/phase-2/project-members-add` で実装し、PR 前のレビューで見つかった追加とアーカイブの競合も修正済み。回帰テスト2件を含むローカル API E2E 全130件と、修正後の PR 前レビュー・品質確認・標準 build の再確認が通過した。PR の CI と `develop` へのマージは後続で確認する。role 変更・削除 API とメンバー管理 Web UI は未実装。
+- 区切り5の owner によるメンバー一覧・追加 API は PR #23・#24 を `develop` にマージ済み。PR #24 の CI と標準 build は成功し、追加とアーカイブの競合対策も確認済み。続く role 変更 API は `feat/phase-2/project-members-role-update` で実装し、API E2E 53件追加・全183件が成功した。Bruno・手動確認・全体レビューと品質チェックを実施し、修正が必要なレビュー指摘はなかった。ユーザーが実行した標準の `pnpm build` も API・Web ともに成功し、環境制限による build の確認待ちは解消済み。コミット・PR 作成・CI は未実施。メンバー削除 API とメンバー管理 Web UI は未実装。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -172,7 +172,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（区切り1〜4と区切り5のメンバー一覧は PR #18・#20・#21・#22・#23 を `develop` にマージ済み。メンバー追加 API は作業ブランチで競合修正・回帰テストを含め実装し、ローカル API E2E 全130件確認済み。role 変更・削除 API とメンバー管理 Web UI は未実装）
+- 状態: 対応中（区切り1〜4と区切り5のメンバー一覧・追加は PR #18・#20・#21・#22・#23・#24 を `develop` にマージ済み。role 変更 API は `feat/phase-2/project-members-role-update` で実装済み、API E2E 53件追加・全183件成功。メンバー削除 API とメンバー管理 Web UI は未実装）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -389,12 +389,41 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - 修正後の PR 前レビューで、認証・認可、重複防止、行ロックによる競合対策、拒否時の DB 不変性、Swagger・Bruno・docs の整合性を再確認した。新たに修正が必要な指摘はなかった。`pnpm format:check`・`pnpm lint`・`pnpm typecheck`・`pnpm test`（API 12件・Web 161件）・`pnpm test:e2e`（全130件）が通過した。Swagger の生成結果、docs の JSON 例・ローカルリンク、`git diff --check` も確認した。
 - ユーザーによる標準 `pnpm build` の成功ログを確認し、Codex 側でも同じコマンドを再実行した。API build と Web の標準 Turbopack build がともに通過した。2026-10-13 の環境制限による build の再確認待ちは解消した。
 
+#### Project メンバー追加のマージ済み状況（2026-10-16確認）
+
+- PR #24 は `develop` にマージ済みで、CI の Quality checks・API E2E は両方成功している。ユーザーがローカルの `develop` も更新し、HEAD `7525564`・作業ツリーがクリーンであることを確認した上で、次の role 変更作業を開始した。
+- 上記の追加 API の実施メモにある PR 準備・CI 確認待ちは、その時点の記録である。標準の `pnpm build` の確認待ちも解消済みである。
+
+#### Project メンバーrole変更の実施メモ（2026-10-16）
+
+- PR #24 マージ済みの `develop`（`7525564`）から `feat/phase-2/project-members-role-update` を作成した。`PATCH /api/projects/:projectId/members/:memberId` を Repository → Service → DTO → Controller → API E2E の順に、仕様を相談しながら実装・確認した。
+- `memberId` は User ID ではなく ProjectMember.id とした。Repository の `findProjectMemberById(projectId, projectMemberId)` と更新処理の両方で、指定 Project への所属を検索条件に含める。内部の引数名は User ID と区別するため `projectMemberId` とした。
+- `updateProjectMemberRole` は transaction 内で Project 行を `SELECT … FOR UPDATE` によりロックし、Project 不在 → アーカイブ済み → 対象不在 → owner 保護 → 同じ role → 更新の順で判定する。Repository は `project_not_found`・`project_archived`・`member_not_found`・`owner_protected`・`unchanged`・`updated` を返し、HTTP の例外を扱わない。
+- Service は AuthGuard が確認した実行者の ID と対象 Project の membership・owner role で認可する。非参加・Project 不在の404、member・viewer の403、アーカイブ済み・owner 対象の409、対象不在・別 Project の参加情報の同じ404を、合意した順序・本文で返す。同じ role でも Service から早期に成功を返さず、保存時の再確認へ進む。
+- `UpdateProjectMemberRoleDto` は role のみを必須とし、`IsIn` と `Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>` で member・viewer に限定する。空白除去・大文字小文字の変換は行わず、owner・manager・null・型不正・定義外の項目を400にする。成功時は200と既存の `ProjectMemberResponseDto` による単一メンバーを返す。同じ role は UPDATE せず、更新日時も維持する。
+- Controller は AuthGuard・DTO・Service を接続し、`request.user.id` を渡す。Swagger の PATCH ルート、projectId・memberId、role 必須と2種類の enum、200の単一メンバー・名前の nullable、Bearer 認証、400・401・403・404・409を生成結果で確認した。
+- 既存の `projects.e2e-spec.ts` に role 変更53件を追加した。member ↔ viewer と同じ role の200、返却項目、名前の null、対象だけの更新、認証・認可・入力・Project 所属・owner 保護・判定順を確認する。拒否時と変更不要時は Project・ProjectMember の値と更新日時を比較し、User のプロフィール同期を含めない。
+- 保存直前の Project・参加情報の削除に対する404を2件、アーカイブとの競合を3件、同時 role 変更を2件追加した。アーカイブ完了後は同じ role でも409となり、role 変更が先に Project 行をロックした場合は、アーカイブが保存まで待機する。同時変更は、2件目が Project 行を待つことを確認してから再開し、最新の role に後の指定を適用する。処理の進行・DB のロック待ちで順序を再現し、固定時間の待機は使わない。失敗時も待機・ロック・spy を解除して既存の後片付けへ戻す。
+- 本物のローカル Supabase token と E2E 専用 PostgreSQL を使い、追加グループの53件と通常の `pnpm test:e2e` の全183件（Projects 170件・Auth 12件・Health 1件）が成功した。API typecheck、変更した TypeScript の lint・format、API build、`git diff --check` も通過した。DB schema・migration・依存関係・Web は変更していない。テストのファイル分割・共通 helper 導入も行っていない。
+- `DOMAIN_MODEL.md`・`UI_API.md`・API README と本メモに仕様・進捗・検証結果を反映した。文書更新時は直前の全183件成功の結果を使用する。この時点では role 変更用の Bruno リクエストと手動確認、PR 前の全体レビュー・品質チェック、PR 作成・CI は未実施であり、後の結果は下記に記録する。
+
+#### Project メンバーrole変更の手動確認・PR前確認（2026-10-16）
+
+- ユーザーが Bruno で作成した `update-project-member-role.yml` を確認した。PATCH のメソッド、role のみの JSON 本文、Bearer 認証、既存リクエストと重複しない seq が適切で、token は `{{accessToken}}` を参照している。実際の token は保存されていない。
+- ユーザーから role 変更の手動成功の報告を受けた。Bruno README にリクエストへのリンク、owner の token の利用、URL の `<projectId>`・`<projectMemberId>` を実際の ID に置き換える手順、ProjectMember.id と User.id の違い、成功・失敗時の確認を追記した。
+- Controller・DTO・Service・Repository・API E2E・関連 docs・Bruno の差分全体をレビューした。認証・owner 認可、Project 所属、owner 保護、同じ role の不変性、アーカイブ・同時 role 変更のロック順、失敗時の後片付けを確認し、修正が必要な指摘はなかった。
+- `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test`（Web 161件・API 12件）、`git diff --check` が成功した。Bruno の12リクエストの seq 重複・role リクエストの本文と token 参照、関連文書の JSON 例16件・ローカルリンク28件・コードブロック・エラー本文の整合性も確認した。`docs/` は Prettier の対象外のため、文書の整合性確認とフォーマット確認を区別している。
+- API E2E は、同じ実装・テストで直前に成功した全183件（Projects 170件・Auth 12件・Health 1件）の結果を使用した。以降は docs と Bruno のみを更新しており、この PR 前確認では API E2E を再実行していない。
+- 公開用ダミーの Supabase 設定を指定した標準の `pnpm build` は、API が成功した後、Web の Google Fonts 取得で失敗した。制限外での再実行でも、Turbopack の CSS 処理で `creating new process` → `binding to a port` → `Operation not permitted (os error 1)` により停止した。この時点では標準 Web build の成功確認を保留し、PR #24 の成功結果で代用しなかった。
+- 補助確認として、同じ公開用ダミー設定で `pnpm --filter @redmine-next-nest/web exec next build --webpack` を実行し、コンパイル・TypeScript・静的ページ生成を含め成功した。build script・依存関係・Web の実装は変更していない。
+- その後、ユーザーが実行した標準の `pnpm build` の成功ログを確認した。API の `nest build` と Web の `next build`（標準 Turbopack）がともに成功しており、今回の環境制限による build の確認待ちは解消した。Codex 側で同じコマンドの再実行は行っていない。
+
 #### 後続作業
 
-- 区切り1〜4と、区切り5のメンバー一覧 API（PR #23）は `develop` にマージ済み。追加とアーカイブの競合修正・回帰テスト、修正後の PR 前レビュー・品質確認、標準 build の再確認は完了した。追加 API の PR で CI とレビュー結果を確認する。`develop` へのマージはユーザーが依頼した段階で行う。
+- 区切り1〜4と区切り5のメンバー一覧・追加は PR #24 まで `develop` にマージ済み。role 変更 API は作業ブランチで実装・API E2E 全183件・Bruno 手動成功・文書更新・全体レビュー・PR 前の品質チェックまで完了した。標準の `pnpm build` もユーザーの実行ログで API・Web ともに成功を確認済み。次はコミット・push・PR 作成後に CI を確認する。コミット・push・PR 作成・マージはユーザーが依頼した段階で行う。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- メンバーの role 変更・削除 API と、owner 自身の削除・role変更を防ぐ処理、メンバー管理 Web UI は区切り5の後続 PR で進める。各操作の権限と拒否時の DB 不変性を API E2E で確認する。
+- メンバー削除 API、owner 自身の削除を防ぐ処理、メンバー管理 Web UI は区切り5の後続 PR で進める。role 変更側の owner 保護は実装・確認済みである。後続の各操作も、権限と拒否時の DB 不変性を API E2E で確認する。
 - Projects API E2E のファイル分割・共通 helper の導入は、ユーザーがテスト構成を理解してから再検討する。現在は整理 PR を保留し、既存ファイルの構成を維持して機能追加を進める。
 - 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
@@ -468,6 +497,6 @@ shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story
 
 新しいスレッドで、このリポジトリを開いて次のように依頼する。
 
-> `docs/REQUIREMENTS.md`、`docs/DOMAIN_MODEL.md`、`docs/UI_API.md` と本書のタスク 5 を読み、認証・Project 権限の最初の実装範囲を決めてください。開発用 DB の既存 Project は試作データとして削除済みです。作成者を owner に登録する設計とし、認証と権限の API E2E は専用 DB で実行してください。
+> `docs/REQUIREMENTS.md`、`docs/DOMAIN_MODEL.md`、`docs/UI_API.md` と本書のタスク 5 を読んでください。PR #24 まで `develop` にマージ済みで、`feat/phase-2/project-members-role-update` では role 変更 API・API E2E 53件追加と全183件成功・仕様書と Bruno README の更新・ユーザーによる Bruno 手動成功・全体レビューまで完了しています。format・lint・typecheck・単体テストは成功し、標準の `pnpm build` もユーザーの実行ログで API・Web ともに成功を確認済みです。環境制限による build の確認待ちは解消しています。現在の差分と検証結果を確認し、コミット・PR 準備の進め方を説明してください。ファイル変更・コミット・push・PR 作成は、明示的に依頼した段階で行ってください。
 
 最初のタスク以外に着手する場合は、依頼文でタスク名を指定する。この文書の状態と完了条件を、新しいスレッドの作業基準として使う。

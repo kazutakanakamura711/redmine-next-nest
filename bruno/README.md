@@ -3,19 +3,20 @@
 Bruno で [redmine-next-nest-api](./redmine-next-nest-api/) をコレクションとして開きます。
 リクエストは OpenCollection の YAML 形式で保存しています。
 
-| リクエスト                                                                       | 呼び出す API                                        | 用途                                       |
-| -------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------ |
-| [supabase-login](./redmine-next-nest-api/supabase-login.yml)                     | Supabase: `POST /auth/v1/token?grant_type=password` | ログインして access token を取得           |
-| [auth-me](./redmine-next-nest-api/auth-me.yml)                                   | NestJS: `GET /api/auth/me`                          | 本人のアプリ側 User を取得・初回作成       |
-| [create-project](./redmine-next-nest-api/create-project.yml)                     | NestJS: `POST /api/projects`                        | Project と作成者の owner membership を作成 |
-| [get-projects](./redmine-next-nest-api/get-projects.yml)                         | NestJS: `GET /api/projects`                         | Project 一覧を取得                         |
-| [get-project](./redmine-next-nest-api/get-project.yml)                           | NestJS: `GET /api/projects/:projectId`              | Project 詳細を取得                         |
-| [update-project](./redmine-next-nest-api/update-project.yml)                     | NestJS: `PATCH /api/projects/:projectId`            | Project 名・説明を更新                     |
-| [archive-project](./redmine-next-nest-api/archive-project.yml)                   | NestJS: `POST /api/projects/:projectId/archive`     | Project をアーカイブ                       |
-| [unarchive-project](./redmine-next-nest-api/unarchive-project.yml)               | NestJS: `POST /api/projects/:projectId/unarchive`   | Project のアーカイブを解除                 |
-| [get-project-members](./redmine-next-nest-api/get-project-members.yml)           | NestJS: `GET /api/projects/:projectId/members`      | owner がメンバー一覧を取得                 |
-| [add-project-member](./redmine-next-nest-api/add-project-member.yml)             | NestJS: `POST /api/projects/:projectId/members`     | owner が登録済み User を追加               |
-| [supabase-update-password](./redmine-next-nest-api/supabase-update-password.yml) | Supabase: `PUT /auth/v1/user`                       | ログインユーザーのパスワードを変更         |
+| リクエスト                                                                           | 呼び出す API                                               | 用途                                       |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------ |
+| [supabase-login](./redmine-next-nest-api/supabase-login.yml)                         | Supabase: `POST /auth/v1/token?grant_type=password`        | ログインして access token を取得           |
+| [auth-me](./redmine-next-nest-api/auth-me.yml)                                       | NestJS: `GET /api/auth/me`                                 | 本人のアプリ側 User を取得・初回作成       |
+| [create-project](./redmine-next-nest-api/create-project.yml)                         | NestJS: `POST /api/projects`                               | Project と作成者の owner membership を作成 |
+| [get-projects](./redmine-next-nest-api/get-projects.yml)                             | NestJS: `GET /api/projects`                                | Project 一覧を取得                         |
+| [get-project](./redmine-next-nest-api/get-project.yml)                               | NestJS: `GET /api/projects/:projectId`                     | Project 詳細を取得                         |
+| [update-project](./redmine-next-nest-api/update-project.yml)                         | NestJS: `PATCH /api/projects/:projectId`                   | Project 名・説明を更新                     |
+| [archive-project](./redmine-next-nest-api/archive-project.yml)                       | NestJS: `POST /api/projects/:projectId/archive`            | Project をアーカイブ                       |
+| [unarchive-project](./redmine-next-nest-api/unarchive-project.yml)                   | NestJS: `POST /api/projects/:projectId/unarchive`          | Project のアーカイブを解除                 |
+| [get-project-members](./redmine-next-nest-api/get-project-members.yml)               | NestJS: `GET /api/projects/:projectId/members`             | owner がメンバー一覧を取得                 |
+| [add-project-member](./redmine-next-nest-api/add-project-member.yml)                 | NestJS: `POST /api/projects/:projectId/members`            | owner が登録済み User を追加               |
+| [update-project-member-role](./redmine-next-nest-api/update-project-member-role.yml) | NestJS: `PATCH /api/projects/:projectId/members/:memberId` | owner がメンバーの role を変更             |
+| [supabase-update-password](./redmine-next-nest-api/supabase-update-password.yml)     | Supabase: `PUT /auth/v1/user`                              | ログインユーザーのパスワードを変更         |
 
 NestJS は `http://localhost:3001`、ローカル Supabase は `http://127.0.0.1:54321` で動きます。
 Supabase のリクエストは外部サービスの操作なので、NestJS の Swagger には含めません。
@@ -103,12 +104,12 @@ Send すると、Bruno が `Authorization: Bearer <access_token>` を付けて�
 続けて `create-project` を Send すると、`201 Created` と `ownerId` が返ります。
 Body の `key` は未使用の値にしてください。作成者の ProjectMember も `role: owner` で保存されます。
 
-Project の基本6リクエストとメンバー一覧・追加にも **Bearer Token** の `{{accessToken}}` を設定しています。
+Project の基本6リクエストとメンバー一覧・追加・role変更にも **Bearer Token** の `{{accessToken}}` を設定しています。
 `get-projects` は `200 OK` と Project の配列を返します。
 詳細・更新・アーカイブ・解除の URL にある Project ID は、作成した Project の `id` に置き換えてください。
 これらの成功時の応答は `200 OK` と、対象の Project（`ownerId` を含む）です。
 
-一覧・詳細は参加者の owner・member・viewer が取得でき、更新・アーカイブ・解除とメンバー一覧・追加は owner のみ操作できます。
+一覧・詳細は参加者の owner・member・viewer が取得でき、更新・アーカイブ・解除とメンバー一覧・追加・role変更は owner のみ操作できます。
 存在しない Project と非参加者は同じ404、参加者の権限不足は403になります。
 認証・認可の仕様と確認範囲は [API README](../apps/api/README.md#project-api-の認証と-owner-登録) を参照してください。
 
@@ -145,14 +146,50 @@ role は member・viewer のどちらかで、owner は指定できません。
 
 追加成功時は201と単一メンバーが返ります。続けて一覧を再送信し、追加したユーザーの名前・メール・role が増えていることを確認します。
 同じユーザーを再度追加すると409になり、既存の role は変更されません。アーカイブ済み Project への追加も409です。
-role 変更・削除は後続の実装対象です。
+role 変更は次の手順6で確認できます。メンバー削除は後続の実装対象です。
 
 確認後は両方のリクエストを保存します。Token の設定は `{{accessToken}}` を維持し、実際の token は Secrets に保存します。
 リクエスト内の Project ID と追加対象メールはローカル確認用の例なので、別の環境ではそれぞれ置き換えてください。
 
 2026-10-13 のユーザーによる手動確認では、owner の一覧取得が200、メンバー追加が成功し、再取得した一覧に owner・member の2人が返ることを確認済みです。
 
-## 6. パスワードを変更する
+## 6. メンバーの role を変更する
+
+`update-project-member-role` は、owner が既存の参加情報の role を member・viewer に変更するリクエストです。
+Auth は **Bearer Token**、Token は `{{accessToken}}` を使います。
+
+1. Project の owner でログインし、取得した token を Local の Secrets の `accessToken` に保存します。`auth-me` の email で実行者を確認します。
+2. `get-project-members` を Send し、変更したい member・viewer の参加情報を選びます。
+3. 保存済み URL の `<projectId>` を対象 Project の ID、`<projectMemberId>` を選んだ参加情報の **`id`（ProjectMember.id）** に置き換えます。`userId` は使いません。
+
+```text
+PATCH http://localhost:3001/api/projects/<projectId>/members/<projectMemberId>
+```
+
+山括弧付きの値は、送信前に実際の ID へ置き換えるためのプレースホルダーです。
+Bruno の環境変数ではありません。`<projectMemberId>` の位置が API の `:memberId` に対応します。
+
+4. **Body → JSON** に変更先の role だけを指定し、Send します。
+
+```json
+{
+  "role": "viewer"
+}
+```
+
+成功時は200と単一メンバーが返ります。`id`・`userId` が選んだ参加情報と一致し、role が指定した値になっていることを確認します。
+続けて `get-project-members` を再送信し、一覧にも変更が反映されていることを確認します。
+member に戻す場合は本文を `{"role":"member"}` にして送信します。
+
+同じ role を再送信した場合も200となり、Project・ProjectMember の値と更新日時を変更しません。
+`updatedAt` はレスポンスに含めず、不変性は API E2E でも確認しています。
+role に owner・manager を指定すると400、対象が owner なら409、アーカイブ済み Project も409になります。
+別 Project の参加情報の ID と存在しない ID は、同じ対象メンバーの404で拒否します。
+
+リクエストを保存するときも Token は `{{accessToken}}` のままとし、実際の token は Secrets に保存します。
+2026-10-16 に、ユーザーから Bruno による role 変更の成功報告を受けています。
+
+## 7. パスワードを変更する
 
 `supabase-update-password` は **Bearer Token** の `{{accessToken}}` を使い、
 `PUT http://127.0.0.1:54321/auth/v1/user` に次の JSON を送ります。
@@ -184,6 +221,9 @@ Bruno の `loginPassword` を変えるだけでは、Supabase 側のパスワー
 | メンバー追加の対象 User の `404`               | 対象ユーザーが `auth-me` を実行済みか、アプリ側 User のメールアドレスと大文字・小文字も一致しているか                   |
 | メンバー追加の `400`                           | email・role が必須条件を満たし、role が member・viewer で、定義外の項目がないか                                         |
 | メンバー追加の `409`                           | 対象ユーザーが参加済みではないか、Project がアーカイブ済みではないか                                                    |
+| メンバーrole変更の `400`                       | role が member・viewer のどちらかで、必須項目があり、定義外の項目・前後空白・大文字を含んでいないか                     |
+| メンバーrole変更の対象メンバーの `404`         | URL の Project ID と ProjectMember.id が同じ参加情報を指しているか。User.id を指定していないか                          |
+| メンバーrole変更の `409`                       | 変更対象が owner ではないか、Project がアーカイブ済みではないか                                                         |
 | Project 作成の `409`                           | Body の `key` が既存 Project と重複していないか                                                                         |
 
 操作後は `pnpm exec supabase stop` で Supabase を停止できます。通常の停止ではローカルデータを保持します。

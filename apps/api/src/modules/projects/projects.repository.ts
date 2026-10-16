@@ -20,6 +20,12 @@ type CreateProjectMemberData = {
   role: Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>;
 };
 
+type UpdateProjectMemberRoleData = {
+  projectId: string;
+  projectMemberId: string;
+  role: Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>;
+};
+
 @Injectable()
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -61,6 +67,15 @@ export class ProjectsRepository {
           projectId,
           userId,
         },
+      },
+    });
+  }
+
+  findProjectMemberById(projectId: string, projectMemberId: string) {
+    return this.prisma.projectMember.findUnique({
+      where: {
+        id: projectMemberId,
+        projectId,
       },
     });
   }
@@ -149,6 +164,72 @@ export class ProjectsRepository {
       });
 
       return { status: 'created' as const, member };
+    });
+  }
+
+  updateProjectMemberRole(data: UpdateProjectMemberRoleData) {
+    return this.prisma.$transaction(async (tx) => {
+      // role の確認から保存まで Project 行をロックし、アーカイブや同時変更と順序を揃える。
+      const [project] = await tx.$queryRaw<{ isArchived: boolean }[]>`
+        SELECT is_archived AS "isArchived"
+        FROM projects
+        WHERE id = ${data.projectId}
+        FOR UPDATE
+      `;
+
+      if (!project) {
+        return { status: 'project_not_found' as const };
+      }
+
+      if (project.isArchived) {
+        return { status: 'project_archived' as const };
+      }
+
+      const memberSelect = {
+        id: true,
+        userId: true,
+        role: true,
+        createdAt: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      } as const;
+
+      // 対象を指定 Project 内に限定し、ロック取得後の最新の role を確認する。
+      const member = await tx.projectMember.findUnique({
+        where: {
+          id: data.projectMemberId,
+          projectId: data.projectId,
+        },
+        select: memberSelect,
+      });
+
+      if (!member) {
+        return { status: 'member_not_found' as const };
+      }
+
+      if (member.role === ProjectMemberRole.owner) {
+        return { status: 'owner_protected' as const };
+      }
+
+      // 同じ role なら UPDATE せず、参加情報の更新日時も維持する。
+      if (member.role === data.role) {
+        return { status: 'unchanged' as const, member };
+      }
+
+      const updatedMember = await tx.projectMember.update({
+        where: {
+          id: data.projectMemberId,
+          projectId: data.projectId,
+        },
+        data: { role: data.role },
+        select: memberSelect,
+      });
+
+      return { status: 'updated' as const, member: updatedMember };
     });
   }
 

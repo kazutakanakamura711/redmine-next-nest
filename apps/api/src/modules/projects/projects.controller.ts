@@ -30,6 +30,7 @@ import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { type AuthenticatedRequest, AuthGuard } from '../auth/auth.guard.js';
 import { ProjectMemberResponseDto } from './dto/project-member-response.dto.js';
 import { CreateProjectMemberDto } from './dto/create-project-member.dto.js';
+import { UpdateProjectMemberRoleDto } from './dto/update-project-member-role.dto.js';
 
 @ApiTags('Projects')
 @ApiBearerAuth()
@@ -145,6 +146,55 @@ export class ProjectsController {
     return this.projectsService.addProjectMember(
       projectId,
       dto.email,
+      dto.role,
+      request.user.id,
+    );
+  }
+
+  @Patch(':projectId/members/:memberId')
+  @UseGuards(AuthGuard)
+  @ApiOperation({
+    summary: 'プロジェクトのメンバーの role を変更する（owner のみ）',
+    description:
+      '指定した ProjectMember の role を member・viewer に変更する。アーカイブ済みのプロジェクトでは変更できず、owner 自身の role 変更もできない。同じ role を指定した場合は、参加情報と更新日時を変更せずに成功する。',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'メンバーの role を変更するプロジェクトの ID',
+  })
+  @ApiParam({
+    name: 'memberId',
+    description: '変更対象の ProjectMember の ID。User の ID とは異なる',
+  })
+  @ApiOkResponse({
+    description:
+      'role 変更後のメンバーを返す。同じ role の場合は現在のメンバーを返す',
+    type: ProjectMemberResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'role が未指定、値・型が不正、または定義外の項目が指定されている',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
+  })
+  @ApiNotFoundResponse({
+    description:
+      '指定したプロジェクトが存在しない、参加していない、または対象の ProjectMember が指定したプロジェクト内に存在しない',
+  })
+  @ApiConflictResponse({
+    description: 'プロジェクトがアーカイブ済み、または変更対象の role が owner',
+  })
+  updateProjectMemberRole(
+    @Param('projectId') projectId: string,
+    @Param('memberId') projectMemberId: string,
+    @Body() dto: UpdateProjectMemberRoleDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.projectsService.updateProjectMemberRole(
+      projectId,
+      projectMemberId,
       dto.role,
       request.user.id,
     );
