@@ -157,6 +157,76 @@ export class ProjectsService {
     }
   }
 
+  async updateProjectMemberRole(
+    projectId: string,
+    projectMemberId: string,
+    role: Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>,
+    userId: string,
+  ) {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      projectId,
+      userId,
+    );
+
+    // 対象の情報を確認する前に、実行者の参加情報と owner 権限を確認する。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException(
+        'プロジェクトのメンバーの role を変更する権限がありません',
+      );
+    }
+
+    const project = await this.findOne(projectId);
+    if (project.isArchived) {
+      throw new ConflictException(
+        'アーカイブ済みのプロジェクトではメンバーの role を変更できません',
+      );
+    }
+
+    const targetProjectMember =
+      await this.projectsRepository.findProjectMemberById(
+        projectId,
+        projectMemberId,
+      );
+    if (!targetProjectMember) {
+      throw new NotFoundException('変更対象のメンバーが見つかりません');
+    }
+
+    if (targetProjectMember.role === ProjectMemberRole.owner) {
+      throw new ConflictException('owner の role は変更できません');
+    }
+
+    // 同じ role の場合も保存側へ進み、ロック取得後の最新状態で判定する。
+    const result = await this.projectsRepository.updateProjectMemberRole({
+      projectId,
+      projectMemberId,
+      role,
+    });
+
+    if (result.status === 'project_not_found') {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    if (result.status === 'project_archived') {
+      throw new ConflictException(
+        'アーカイブ済みのプロジェクトではメンバーの role を変更できません',
+      );
+    }
+
+    if (result.status === 'member_not_found') {
+      throw new NotFoundException('変更対象のメンバーが見つかりません');
+    }
+
+    if (result.status === 'owner_protected') {
+      throw new ConflictException('owner の role は変更できません');
+    }
+
+    return result.member;
+  }
+
   async update(id: string, dto: UpdateProjectDto, userId: string) {
     const projectMember = await this.projectsRepository.findProjectMember(
       id,

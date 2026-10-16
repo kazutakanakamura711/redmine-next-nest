@@ -180,7 +180,7 @@ DELETE /api/projects/:projectId/members/:memberId
 
 | 項目 | 意味 |
 | --- | --- |
-| `id` | ProjectMember の ID。後続の role 変更・削除 API の `memberId` に使う |
+| `id` | ProjectMember の ID。role 変更 API と後続の削除 API の `memberId` に使う |
 | `userId` | 参加している User の ID（UUID） |
 | `role` | `owner`・`member`・`viewer` |
 | `createdAt` | 参加日時（ProjectMember の作成日時）。ISO 8601 形式の文字列 |
@@ -280,7 +280,103 @@ owner 自身の重複追加も `409` とし、既存の role を変更しない�
 
 拒否された操作では Project・ProjectMember の値と更新日時を変更しない。
 認証時に行う実行者の User プロフィール同期は、この不変性の対象に含めない。
-メンバーの role 変更・削除 API とメンバー管理 Web UI は後続で扱う。
+メンバーの role 変更は次節を参照する。メンバー削除 API とメンバー管理 Web UI は後続で扱う。
+
+#### メンバーの role 変更: PATCH /api/projects/:projectId/members/:memberId
+
+対象 Project の owner が、指定した参加情報の role を `member`・`viewer` に変更する。
+実行者は AuthGuard が検証した User ID と対象 Project の ProjectMember.role で認可し、`ownerId` や表示用の名前だけで許可しない。
+
+| パラメーター | 意味 |
+| --- | --- |
+| `projectId` | 操作する Project の ID |
+| `memberId` | 変更対象の ProjectMember.id。メンバー一覧の各要素の `id` を使う。User.id とは異なる |
+
+対象の検索・更新は、`projectId` と ProjectMember の ID の両方で限定する。
+別 Project の `memberId` と存在しない `memberId` は、同じ対象404本文で扱う。
+実行者が両方の Project の owner でも、別 Project の参加情報は変更できない。
+
+リクエスト本文:
+
+```json
+{
+  "role": "viewer"
+}
+```
+
+`role` は必須で、`member`・`viewer` のみを受け付ける。
+`owner`・`manager`・未知の値・null・型が不正な値は `400` とする。
+role の前後の空白や大文字・小文字は変換せず、`" member "` や `"MEMBER"` も拒否する。
+空の本文と定義外の項目も `400` とし、本文に `userId`・`ownerId`・`projectId`・`memberId`・`email` は指定しない。
+
+判定順は次のとおりとする。
+
+1. AuthGuard による token・メールの確認と、実行者の User の同期。
+2. DTO による本文の検証。
+3. 実行者の対象 Project の membership・owner 権限の確認。
+4. Project のアーカイブ状態の確認。
+5. 対象の Project 所属・存在と、対象が owner ではないことの確認。
+6. transaction 内で Project 行をロックし、Project の存在・アーカイブ状態、対象の所属・存在・owner 保護を同じ順で再確認する。
+7. ロック後の最新の role と比較し、同じなら更新せず、異なれば保存する。
+
+成功時は `200 OK` と、一覧の各要素と同じ形式の単一メンバーを返す。
+同じ role の指定も同じ成功形式とし、`updatedAt` はレスポンスに含めない。
+
+```json
+{
+  "id": "cmua3r1ik00042ed8lasbg1jk",
+  "userId": "22222222-2222-4222-8222-222222222222",
+  "role": "viewer",
+  "createdAt": "2026-10-13T01:00:00.000Z",
+  "user": {
+    "name": null,
+    "email": "member@example.test"
+  }
+}
+```
+
+| 条件 | 応答 |
+| --- | --- |
+| owner が非アーカイブ Project 内の member・viewer の role を指定 | `200`・処理後のメンバー。同じ role なら更新しない |
+| token なし・形式不正・無効 | 既存 AuthGuard の `401` |
+| token は有効だがメールアドレスが未設定・未確認 | `403`・「確認済みのメールアドレスが必要です。」 |
+| role の未指定・値や型の不正、または定義外の項目 | `400`・既存 ValidationPipe のエラー本文。`message` は配列 |
+| 実行者が member・viewer | `403`・「プロジェクトのメンバーの role を変更する権限がありません」 |
+| Project が存在しない、または実行者が非参加者 | 既存と同じ `404` 本文・「プロジェクトが見つかりません」 |
+| Project がアーカイブ済み（保存時の再確認を含む） | `409`・「アーカイブ済みのプロジェクトではメンバーの role を変更できません」 |
+| 指定 Project 内に対象が存在しない、別 Project の memberId、または User.id の指定 | `404`・「変更対象のメンバーが見つかりません」 |
+| 対象の role が owner | `409`・「owner の role は変更できません」 |
+
+本文が不正な場合は、認証後に membership・業務ルールの確認より先に `400` を返す。
+本文が有効なら、非参加者はアーカイブ状態や対象の有無によらず Project の404、member・viewer は403となる。
+owner によるアーカイブ済み Project の操作は、対象の不存在・owner 保護より先にアーカイブの409を返す。
+変更先に `owner` を指定した場合は DTO の400、対象が owner で変更先が `member`・`viewer` の場合は owner 保護の409となる。
+
+業務エラーは既存と同じ `message`・`error`・`statusCode` の形式とする。対象404の本文例:
+
+```json
+{
+  "message": "変更対象のメンバーが見つかりません",
+  "error": "Not Found",
+  "statusCode": 404
+}
+```
+
+保存時は `SELECT … FOR UPDATE` で対象 Project 行をロックし、再確認から保存完了まで同じ transaction を使う。
+アーカイブの UPDATE が自動取得する行ロックと待ち合わせるため、アーカイブ API に追加の明示ロックは不要である。
+アーカイブが先に保存された場合は、同じ role の指定でも409で拒否する。
+role 変更が先に Project 行をロックした場合は、その transaction が終わるまでアーカイブが待ち、role 変更200・アーカイブ200で成功できる。
+
+同じ参加情報を同時に変更する場合は、Project 行ロックの取得順に処理する。
+後の処理は最新の role を読み直し、指定と同じなら UPDATE しない。異なれば後の指定を保存する。
+各成功応答はそれぞれの処理時点のメンバーを返し、後続処理で role が変わる場合がある。
+DB の保存順を保証するものであり、HTTP レスポンスの到着順は保証しない。
+
+実際の変更では、対象 ProjectMember の role と更新日時だけを更新する。
+Project と他の参加情報、対象の ID・userId・projectId・createdAt は維持する。
+拒否時と同じ role による変更不要時は、Project・ProjectMember の値・更新日時を変更しない。
+認証時の User プロフィール同期は、この不変性の対象に含めない。
+メンバー削除 API とメンバー管理 Web UI は後続で扱う。
 
 ### 段階3: Tasks
 
