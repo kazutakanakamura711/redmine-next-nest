@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://localhost:3001/api/projects/cmutlquox0000yxd8ti7dudz3/members
+  url: http://localhost:3001/api/projects/{{projectId}}/members
   auth:
     type: bearer
     token: '{{accessToken}}'

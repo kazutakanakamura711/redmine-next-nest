@@ -73,7 +73,7 @@ Sheet を閉じてもログアウト処理中の状態とエラーを保持し�
 
 - Base URL は `/api`、データ形式は JSON とする。
 - 入力値は NestJS の DTO と `class-validator` で検証する。
-- API は成功時に JSON を返し、失敗時は HTTP status code とエラー内容を返す。
+- API は成功時に JSON を返す。`204 No Content` の場合は本文を返さない。失敗時は HTTP status code とエラー内容を返す。
 - 段階2から、保護する API には `Authorization: Bearer <access token>` を付ける。
 - API 側でも Project の閲覧・編集権限を確認する。
 - DB のカラム名をそのまま画面の都合へ広げず、必要な形で response を返す。
@@ -180,7 +180,7 @@ DELETE /api/projects/:projectId/members/:memberId
 
 | 項目 | 意味 |
 | --- | --- |
-| `id` | ProjectMember の ID。role 変更 API と後続の削除 API の `memberId` に使う |
+| `id` | ProjectMember の ID。role 変更・削除 API の `memberId` に使う |
 | `userId` | 参加している User の ID（UUID） |
 | `role` | `owner`・`member`・`viewer` |
 | `createdAt` | 参加日時（ProjectMember の作成日時）。ISO 8601 形式の文字列 |
@@ -280,7 +280,7 @@ owner 自身の重複追加も `409` とし、既存の role を変更しない�
 
 拒否された操作では Project・ProjectMember の値と更新日時を変更しない。
 認証時に行う実行者の User プロフィール同期は、この不変性の対象に含めない。
-メンバーの role 変更は次節を参照する。メンバー削除 API とメンバー管理 Web UI は後続で扱う。
+メンバーの role 変更・削除は後続の節を参照する。メンバー管理 Web UI は後続で扱う。
 
 #### メンバーの role 変更: PATCH /api/projects/:projectId/members/:memberId
 
@@ -376,7 +376,81 @@ DB の保存順を保証するものであり、HTTP レスポンスの到着順
 Project と他の参加情報、対象の ID・userId・projectId・createdAt は維持する。
 拒否時と同じ role による変更不要時は、Project・ProjectMember の値・更新日時を変更しない。
 認証時の User プロフィール同期は、この不変性の対象に含めない。
-メンバー削除 API とメンバー管理 Web UI は後続で扱う。
+メンバー削除は次節を参照する。
+
+#### メンバー削除: DELETE /api/projects/:projectId/members/:memberId
+
+指定した Project の owner が、その Project に属する member・viewer の参加情報を1件だけ削除する。
+認可には AuthGuard が確認した実行者の User ID と、対象 Project の ProjectMember.role を使う。
+`ownerId` が本人でも、対象 Project の参加情報がなければ許可しない。
+
+| パラメーター | 意味 |
+| --- | --- |
+| `projectId` | 削除対象の参加情報が属する Project の ID |
+| `memberId` | メンバー一覧の `id`（ProjectMember.id）。User.id とは異なる |
+
+リクエスト本文は不要で、入力 DTO は持たない。本文が送られても削除処理では参照しない。
+実行者の ID は本文から受け取らず、認証済みユーザーの ID を使う。
+
+成功時は `204 No Content` を返す。本文は空であり、JSON オブジェクトや `null` は返さない。
+対象 ProjectMember を物理削除し、対象のアプリ側 User と Supabase Auth アカウントは保持する。
+Project と残った参加情報、同じ User の別 Project の参加情報の値・更新日時は変更しない。
+
+判定順は次のとおりとする。
+
+1. AuthGuard による token・メールの確認と、実行者の User の同期。
+2. 実行者の対象 Project の membership・owner 権限の確認。
+3. Project のアーカイブ状態の確認。
+4. 対象の Project 所属・存在と、対象が owner ではないことの確認。
+5. transaction 内で対象 Project 行を `SELECT … FOR UPDATE` によりロックする。
+6. Project の存在・アーカイブ状態、対象の所属・存在・owner 保護を同じ順で再確認する。
+7. `projectId` と `memberId` の両方で対象を限定し、その ProjectMember を削除する。
+
+| 条件 | 応答 |
+| --- | --- |
+| owner が非アーカイブ Project 内の member・viewer を削除 | `204`・本文なし |
+| token なし・形式不正・無効 | 既存 AuthGuard の `401` |
+| token は有効だがメールアドレスが未設定・未確認 | `403`・「確認済みのメールアドレスが必要です。」 |
+| 実行者が member・viewer | `403`・「プロジェクトのメンバーを削除する権限がありません」 |
+| Project が存在しない、または実行者が非参加者 | 既存と同じ `404` 本文・「プロジェクトが見つかりません」 |
+| Project がアーカイブ済み（保存時の再確認を含む） | `409`・「アーカイブ済みのプロジェクトではメンバーを削除できません」 |
+| 指定 Project 内に対象が存在しない、別 Project の memberId、User.id、または削除済みの memberId | 同じ `404` 本文・「削除対象のメンバーが見つかりません」 |
+| 対象の role が owner | `409`・「owner は削除できません」 |
+
+非参加者はアーカイブ状態や対象の有無によらず Project の404、member・viewer は403となる。
+owner によるアーカイブ済み Project の操作は、対象の不存在・owner 保護より先にアーカイブの409を返す。
+対象不在の4ケースは、すべて同じ status・本文で扱う。削除済みの ID への再削除も成功にはしない。
+
+業務エラーは既存と同じ `message`・`error`・`statusCode` の形式とする。対象404の本文:
+
+```json
+{
+  "message": "削除対象のメンバーが見つかりません",
+  "error": "Not Found",
+  "statusCode": 404
+}
+```
+
+Project 行のロックは、状態の再確認から削除完了まで同じ transaction 内で保持する。
+アーカイブの UPDATE、role 変更、他の削除と保存順を揃え、待機後は最新の状態を確認する。
+
+| 先に保存・Project 行ロックを取得した操作 | 後続操作と結果 |
+| --- | --- |
+| アーカイブが先に保存 | 削除は409。アーカイブ後の Project・参加情報の値と更新日時を維持する |
+| 削除が先に Project 行をロック | アーカイブは削除完了まで待機。削除204・アーカイブ200となり、対象の参加情報がない状態でアーカイブされる |
+| 同じ参加情報への削除が先に Project 行をロック | 後の削除は待機し、対象不在の404を返す。先の削除は204 |
+| 同じ参加情報への role 変更が先に Project 行をロック | role 変更200で保存後、削除204でその参加情報を削除する |
+| 削除が先に Project 行をロック | 同じ参加情報への role 変更は待機し、対象不在の404・「変更対象のメンバーが見つかりません」を返す。削除は204 |
+
+DB の処理順を保証するものであり、HTTP レスポンスの到着順は保証しない。
+role 変更の成功応答はその処理時点の参加情報を返し、後続の削除でその参加情報がなくなる場合がある。
+
+削除後に同じ User を再追加すると、新しい ID を持つ ProjectMember を作成する。
+古い memberId への削除は対象不在の404となり、新しい参加情報の role・値・更新日時を変更しない。
+
+拒否時は Project・ProjectMember の値・更新日時を変更しない。
+認証時に行う実行者の User プロフィール同期は、この不変性の対象に含めない。
+メンバー管理 Web UI は後続で扱う。
 
 ### 段階3: Tasks
 

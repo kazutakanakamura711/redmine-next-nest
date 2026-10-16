@@ -26,6 +26,11 @@ type UpdateProjectMemberRoleData = {
   role: Exclude<ProjectMemberRole, typeof ProjectMemberRole.owner>;
 };
 
+type DeleteProjectMemberData = {
+  projectId: string;
+  projectMemberId: string;
+};
+
 @Injectable()
 export class ProjectsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -230,6 +235,54 @@ export class ProjectsRepository {
       });
 
       return { status: 'updated' as const, member: updatedMember };
+    });
+  }
+
+  deleteProjectMember(data: DeleteProjectMemberData) {
+    return this.prisma.$transaction(async (tx) => {
+      // 状態の確認から削除完了まで Project 行をロックする。
+      const [project] = await tx.$queryRaw<{ isArchived: boolean }[]>`
+      SELECT is_archived AS "isArchived"
+      FROM projects
+      WHERE id = ${data.projectId}
+      FOR UPDATE
+    `;
+
+      if (!project) {
+        return { status: 'project_not_found' as const };
+      }
+
+      if (project.isArchived) {
+        return { status: 'project_archived' as const };
+      }
+
+      // 指定 Project 内の参加情報を、ロック取得後に確認する。
+      const member = await tx.projectMember.findUnique({
+        where: {
+          id: data.projectMemberId,
+          projectId: data.projectId,
+        },
+        select: {
+          role: true,
+        },
+      });
+
+      if (!member) {
+        return { status: 'member_not_found' as const };
+      }
+
+      if (member.role === ProjectMemberRole.owner) {
+        return { status: 'owner_protected' as const };
+      }
+
+      await tx.projectMember.delete({
+        where: {
+          id: data.projectMemberId,
+          projectId: data.projectId,
+        },
+      });
+
+      return { status: 'deleted' as const };
     });
   }
 
