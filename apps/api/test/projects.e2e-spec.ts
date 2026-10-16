@@ -2733,6 +2733,1170 @@ describe('Projects endpoint', () => {
     );
   });
 
+  describe('メンバー削除: DELETE /api/projects/:projectId/members/:memberId', () => {
+    it('role変更が先にProject行をロックした場合はrole変更200の後に削除204となり、他の参加情報を維持する', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const remaining = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Member Role Change Before Deletion',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              {
+                userId: target.id,
+                role: 'member',
+                updatedAt: new Date('2020-01-01T00:00:00.000Z'),
+              },
+              { userId: remaining.id, role: 'viewer' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const member = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+      let notifyBlockerReady = (_pid: number) => {};
+      let rejectBlockerReady = (_error: unknown) => {};
+      const blockerReady = new Promise<number>((resolve, reject) => {
+        notifyBlockerReady = resolve;
+        rejectBlockerReady = reject;
+      });
+      let resumeMember = () => {};
+      const memberGate = new Promise<void>((resolve) => {
+        resumeMember = resolve;
+      });
+      // role変更 API が Project 行を保持して UPDATE を待つよう、対象行をロックする。
+      const memberBlocker = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM project_members WHERE id = ${member.id} FOR UPDATE`;
+          const [{ pid }] = await tx.$queryRaw<
+            { pid: number }[]
+          >`SELECT pg_backend_pid() AS pid`;
+          notifyBlockerReady(pid);
+          await memberGate;
+        },
+        { timeout: 10000 },
+      );
+      memberBlocker.catch(rejectBlockerReady);
+      let pendingChange: Promise<request.Response> | undefined;
+      let pendingDelete: Promise<request.Response> | undefined;
+
+      try {
+        const blockerPid = await blockerReady;
+        pendingChange = request(app.getHttpServer())
+          .patch(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ role: 'viewer' })
+          .expect(200)
+          .then((response) => response);
+        pendingChange.catch(() => {});
+
+        const changePid = await vi.waitUntil(
+          async () => {
+            const [changing] = await prisma.$queryRaw<{ pid: number }[]>`
+              SELECT pid FROM pg_stat_activity
+              WHERE ${blockerPid}::integer = ANY(pg_blocking_pids(pid))
+                AND query LIKE 'UPDATE%'
+                AND query LIKE '%project_members%'
+            `;
+            return changing?.pid;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+
+        pendingDelete = request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(204)
+          .then((response) => response);
+        pendingDelete.catch(() => {});
+
+        // 削除 API が先行する role変更の Project 行ロックを待つことを確認する。
+        await vi.waitUntil(
+          async () => {
+            const [state] = await prisma.$queryRaw<{ waiting: boolean }[]>`
+              SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE ${changePid}::integer = ANY(pg_blocking_pids(pid))
+                  AND query LIKE '%FOR UPDATE%'
+                  AND query LIKE '%projects%'
+              ) AS waiting
+            `;
+            return state.waiting;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+
+        resumeMember();
+        await memberBlocker;
+        const [changed, deleted] = await Promise.all([
+          pendingChange,
+          pendingDelete,
+        ]);
+        expect(changed.body).toEqual({
+          id: member.id,
+          userId: target.id,
+          role: 'viewer',
+          createdAt: member.createdAt.toISOString(),
+          user: { name: null, email: target.email },
+        });
+        expect(deleted.text).toBe('');
+        expect(
+          await prisma.projectMember.findUnique({ where: { id: member.id } }),
+        ).toBeNull();
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual({
+          ...project,
+          projectMembers: project.projectMembers.filter(
+            (entry) => entry.id !== member.id,
+          ),
+        });
+      } finally {
+        resumeMember();
+        await Promise.allSettled([memberBlocker, pendingChange, pendingDelete]);
+      }
+    }, 15000);
+
+    it('削除が先にProject行をロックした場合は削除204の後にrole変更が404となり、残りのDBを維持する', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const remaining = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Member Deletion Before Role Change',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+              { userId: remaining.id, role: 'viewer' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const member = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+      let notifyBlockerReady = (_pid: number) => {};
+      let rejectBlockerReady = (_error: unknown) => {};
+      const blockerReady = new Promise<number>((resolve, reject) => {
+        notifyBlockerReady = resolve;
+        rejectBlockerReady = reject;
+      });
+      let resumeMember = () => {};
+      const memberGate = new Promise<void>((resolve) => {
+        resumeMember = resolve;
+      });
+      // 削除 API が Project 行を保持して DELETE を待つよう、対象行をロックする。
+      const memberBlocker = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM project_members WHERE id = ${member.id} FOR UPDATE`;
+          const [{ pid }] = await tx.$queryRaw<
+            { pid: number }[]
+          >`SELECT pg_backend_pid() AS pid`;
+          notifyBlockerReady(pid);
+          await memberGate;
+        },
+        { timeout: 10000 },
+      );
+      memberBlocker.catch(rejectBlockerReady);
+      let pendingDelete: Promise<request.Response> | undefined;
+      let pendingChange: Promise<request.Response> | undefined;
+
+      try {
+        const blockerPid = await blockerReady;
+        pendingDelete = request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(204)
+          .then((response) => response);
+        pendingDelete.catch(() => {});
+
+        const deletePid = await vi.waitUntil(
+          async () => {
+            const [deleting] = await prisma.$queryRaw<{ pid: number }[]>`
+              SELECT pid FROM pg_stat_activity
+              WHERE ${blockerPid}::integer = ANY(pg_blocking_pids(pid))
+                AND query LIKE 'DELETE%'
+                AND query LIKE '%project_members%'
+            `;
+            return deleting?.pid;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+
+        pendingChange = request(app.getHttpServer())
+          .patch(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ role: 'viewer' })
+          .expect(404)
+          .then((response) => response);
+        pendingChange.catch(() => {});
+
+        // role変更 API も対象の存在を事前確認した後、削除 API の Project 行ロックを待つ。
+        await vi.waitUntil(
+          async () => {
+            const [state] = await prisma.$queryRaw<{ waiting: boolean }[]>`
+              SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE ${deletePid}::integer = ANY(pg_blocking_pids(pid))
+                  AND query LIKE '%FOR UPDATE%'
+                  AND query LIKE '%projects%'
+              ) AS waiting
+            `;
+            return state.waiting;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+
+        resumeMember();
+        await memberBlocker;
+        const [deleted, changed] = await Promise.all([
+          pendingDelete,
+          pendingChange,
+        ]);
+        expect(deleted.text).toBe('');
+        expect(changed.body).toEqual({
+          message: '変更対象のメンバーが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+        expect(
+          await prisma.projectMember.findUnique({ where: { id: member.id } }),
+        ).toBeNull();
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual({
+          ...project,
+          projectMembers: project.projectMembers.filter(
+            (entry) => entry.id !== member.id,
+          ),
+        });
+      } finally {
+        resumeMember();
+        await Promise.allSettled([memberBlocker, pendingDelete, pendingChange]);
+      }
+    }, 15000);
+
+    it('同じメンバーへの同時削除はProject行ロックの順で204・404となり、Projectと残った参加情報を変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const remaining = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Concurrent Member Deletions',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+              { userId: remaining.id, role: 'viewer' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const member = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+      let notifyBlockerReady = (_pid: number) => {};
+      let rejectBlockerReady = (_error: unknown) => {};
+      const blockerReady = new Promise<number>((resolve, reject) => {
+        notifyBlockerReady = resolve;
+        rejectBlockerReady = reject;
+      });
+      let resumeMember = () => {};
+      const memberGate = new Promise<void>((resolve) => {
+        resumeMember = resolve;
+      });
+      // 1件目が Project 行を保持したまま DELETE を待つ状態にする。
+      const memberBlocker = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM project_members WHERE id = ${member.id} FOR UPDATE`;
+          const [{ pid }] = await tx.$queryRaw<
+            { pid: number }[]
+          >`SELECT pg_backend_pid() AS pid`;
+          notifyBlockerReady(pid);
+          await memberGate;
+        },
+        { timeout: 10000 },
+      );
+      memberBlocker.catch(rejectBlockerReady);
+      let pendingFirst: Promise<request.Response> | undefined;
+      let pendingSecond: Promise<request.Response> | undefined;
+
+      try {
+        const blockerPid = await blockerReady;
+        pendingFirst = request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(204)
+          .then((response) => response);
+        pendingFirst.catch(() => {});
+
+        const firstPid = await vi.waitUntil(
+          async () => {
+            const [deleting] = await prisma.$queryRaw<{ pid: number }[]>`
+              SELECT pid FROM pg_stat_activity
+              WHERE ${blockerPid}::integer = ANY(pg_blocking_pids(pid))
+                AND query LIKE 'DELETE%'
+                AND query LIKE '%project_members%'
+            `;
+            return deleting?.pid;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+
+        pendingSecond = request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .then((response) => response);
+        pendingSecond.catch(() => {});
+
+        // 2件目も対象の存在を事前確認した後、1件目の Project 行ロックを待つ。
+        await vi.waitUntil(
+          async () => {
+            const [state] = await prisma.$queryRaw<{ waiting: boolean }[]>`
+              SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE ${firstPid}::integer = ANY(pg_blocking_pids(pid))
+                  AND query LIKE '%FOR UPDATE%'
+                  AND query LIKE '%projects%'
+              ) AS waiting
+            `;
+            return state.waiting;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+
+        resumeMember();
+        await memberBlocker;
+        const [first, second] = await Promise.all([
+          pendingFirst,
+          pendingSecond,
+        ]);
+        expect(first.text).toBe('');
+        expect(second.body).toEqual({
+          message: '削除対象のメンバーが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+        expect(
+          await prisma.projectMember.findUnique({ where: { id: member.id } }),
+        ).toBeNull();
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual({
+          ...project,
+          projectMembers: project.projectMembers.filter(
+            (entry) => entry.id !== member.id,
+          ),
+        });
+        expect(
+          await prisma.user.findUnique({ where: { id: target.id } }),
+        ).toEqual(target);
+      } finally {
+        resumeMember();
+        await Promise.allSettled([memberBlocker, pendingFirst, pendingSecond]);
+      }
+    }, 15000);
+
+    it('事前確認後にアーカイブが完了した場合は削除を409で拒否し、参加情報とアーカイブ後の値・更新日時を維持する', async () => {
+      const prisma = app.get(PrismaService);
+      const repository = app.get(ProjectsRepository);
+      const target = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Archive Before Member Deletion',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const member = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+
+      // Service の事前確認後、実際の削除 transaction に入る直前で待たせる。
+      let resumeDelete = () => {};
+      const deleteGate = new Promise<void>((resolve) => {
+        resumeDelete = resolve;
+      });
+      const deleteProjectMember =
+        repository.deleteProjectMember.bind(repository);
+      const deleteSpy = vi
+        .spyOn(repository, 'deleteProjectMember')
+        .mockImplementationOnce(async (data) => {
+          await deleteGate;
+          return deleteProjectMember(data);
+        });
+      const pendingDelete = request(app.getHttpServer())
+        .delete(`/api/projects/${project.id}/members/${member.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .then((response) => response);
+      pendingDelete.catch(() => {});
+
+      try {
+        await vi.waitFor(
+          () =>
+            expect(deleteSpy).toHaveBeenCalledExactlyOnceWith({
+              projectId: project.id,
+              projectMemberId: member.id,
+            }),
+          { timeout: 3000, interval: 10 },
+        );
+
+        await request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/archive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        const archivedProject = await prisma.project.findUniqueOrThrow({
+          where: { id: project.id },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+        expect(archivedProject.isArchived).toBe(true);
+        expect(archivedProject.projectMembers).toEqual(project.projectMembers);
+
+        resumeDelete();
+        const response = await pendingDelete;
+        expect(response.status).toBe(409);
+        expect(response.body).toEqual({
+          message: 'アーカイブ済みのプロジェクトではメンバーを削除できません',
+          error: 'Conflict',
+          statusCode: 409,
+        });
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(archivedProject);
+      } finally {
+        // 失敗時も待機を解除し、HTTP 処理を終えてから後片付けに進む。
+        resumeDelete();
+        await Promise.allSettled([pendingDelete]);
+        deleteSpy.mockRestore();
+      }
+    });
+
+    it('削除が先にProject行をロックした場合は完了までアーカイブが待機し、削除204・アーカイブ200で保存できる', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Member Deletion Before Archive',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const member = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+      let notifyBlockerReady = (_pid: number) => {};
+      let rejectBlockerReady = (_error: unknown) => {};
+      const blockerReady = new Promise<number>((resolve, reject) => {
+        notifyBlockerReady = resolve;
+        rejectBlockerReady = reject;
+      });
+      let resumeMember = () => {};
+      const memberGate = new Promise<void>((resolve) => {
+        resumeMember = resolve;
+      });
+      // 対象の参加情報をロックし、削除 API が Project 行を保持したまま DELETE を待つ状態にする。
+      const memberBlocker = prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM project_members WHERE id = ${member.id} FOR UPDATE`;
+          const [{ pid }] = await tx.$queryRaw<
+            { pid: number }[]
+          >`SELECT pg_backend_pid() AS pid`;
+          notifyBlockerReady(pid);
+          await memberGate;
+        },
+        { timeout: 10000 },
+      );
+      memberBlocker.catch(rejectBlockerReady);
+      let pendingDelete: Promise<request.Response> | undefined;
+      let pendingArchive: Promise<request.Response> | undefined;
+
+      try {
+        const blockerPid = await blockerReady;
+        pendingDelete = request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(204)
+          .then((response) => response);
+        pendingDelete.catch(() => {});
+
+        const deletionPid = await vi.waitUntil(
+          async () => {
+            const [deleting] = await prisma.$queryRaw<{ pid: number }[]>`
+              SELECT pid FROM pg_stat_activity
+              WHERE ${blockerPid}::integer = ANY(pg_blocking_pids(pid))
+                AND query LIKE 'DELETE%'
+                AND query LIKE '%project_members%'
+            `;
+            return deleting?.pid;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+
+        pendingArchive = request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/archive`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+          .then((response) => response);
+        pendingArchive.catch(() => {});
+
+        // アーカイブの UPDATE が削除 API の Project 行ロックを待つことを確認する。
+        await vi.waitUntil(
+          async () => {
+            const [state] = await prisma.$queryRaw<{ waiting: boolean }[]>`
+              SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE ${deletionPid}::integer = ANY(pg_blocking_pids(pid))
+                  AND query LIKE 'UPDATE%'
+                  AND query LIKE '%projects%'
+              ) AS waiting
+            `;
+            return state.waiting;
+          },
+          { timeout: 3000, interval: 10 },
+        );
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+
+        resumeMember();
+        await memberBlocker;
+        const [deleted, archived] = await Promise.all([
+          pendingDelete,
+          pendingArchive,
+        ]);
+        expect(deleted.text).toBe('');
+        expect(archived.body).toMatchObject({
+          id: project.id,
+          isArchived: true,
+        });
+        expect(
+          await prisma.projectMember.findUnique({ where: { id: member.id } }),
+        ).toBeNull();
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual({
+          ...project,
+          isArchived: true,
+          updatedAt: new Date(archived.body.updatedAt),
+          projectMembers: project.projectMembers.filter(
+            (entry) => entry.id !== member.id,
+          ),
+        });
+      } finally {
+        resumeMember();
+        await Promise.allSettled([
+          memberBlocker,
+          pendingDelete,
+          pendingArchive,
+        ]);
+      }
+    }, 15000);
+
+    it.each([
+      ['token なし', undefined],
+      ['Bearer 形式ではないヘッダー', 'Basic'],
+      ['無効な token', 'Bearer invalid-token'],
+    ])(
+      '削除時に%sを401で拒否し、Projectと参加情報を変更しない',
+      async (_caseName, authorization) => {
+        const prisma = app.get(PrismaService);
+        const target = await createOtherUser();
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Unauthorized Member Deletion',
+            key: projectKey,
+            projectMembers: {
+              create: [
+                { userId, role: 'owner' },
+                { userId: target.id, role: 'member' },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+        const member = project.projectMembers.find(
+          (entry) => entry.userId === target.id,
+        )!;
+        const deletionRequest = request(app.getHttpServer()).delete(
+          `/api/projects/${project.id}/members/${member.id}`,
+        );
+        if (authorization) {
+          deletionRequest.set(
+            'Authorization',
+            authorization === 'Basic' ? `Basic ${accessToken}` : authorization,
+          );
+        }
+
+        await deletionRequest.expect(401);
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it.each(['member', 'viewer'] as const)(
+      'ownerは%sを削除し、204・本文なしと対象だけの削除を確認できる',
+      async (role) => {
+        const prisma = app.get(PrismaService);
+        const target = await createOtherUser();
+
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Delete Member',
+            key: projectKey,
+            projectMembers: {
+              create: [
+                { userId, role: 'owner' },
+                { userId: target.id, role },
+              ],
+            },
+          },
+          include: {
+            projectMembers: { orderBy: { id: 'asc' } },
+          },
+        });
+
+        const member = project.projectMembers.find(
+          (entry) => entry.userId === target.id,
+        )!;
+
+        const response = await request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(204);
+
+        // 204 は JSON オブジェクトではなく、本文が空であることを確認する。
+        expect(response.text).toBe('');
+
+        expect(
+          await prisma.projectMember.findUnique({
+            where: { id: member.id },
+          }),
+        ).toBeNull();
+
+        // Project と残った参加情報の値・更新日時を維持する。
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: {
+              projectMembers: { orderBy: { id: 'asc' } },
+            },
+          }),
+        ).toEqual({
+          ...project,
+          projectMembers: project.projectMembers.filter(
+            (entry) => entry.id !== member.id,
+          ),
+        });
+
+        // 削除対象のアプリ側 User を保持する。
+        expect(
+          await prisma.user.findUnique({
+            where: { id: target.id },
+          }),
+        ).toEqual(target);
+
+        // Supabase Auth のアカウントも保持する。
+        const { data, error } = await adminClient.auth.admin.getUserById(
+          target.id,
+        );
+
+        expect(error).toBeNull();
+        expect(data.user?.id).toBe(target.id);
+      },
+    );
+
+    it('削除後に同じUserを再追加すると新しい参加情報が作られ、古いmemberIdでは削除できない', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Readd Member After Deletion',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const originalMember = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+
+      const deletion = await request(app.getHttpServer())
+        .delete(`/api/projects/${project.id}/members/${originalMember.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(204);
+      expect(deletion.text).toBe('');
+
+      const readdition = await request(app.getHttpServer())
+        .post(`/api/projects/${project.id}/members`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ email: target.email, role: 'viewer' })
+        .expect(201);
+      const readdedMember = await prisma.projectMember.findUniqueOrThrow({
+        where: {
+          projectId_userId: { projectId: project.id, userId: target.id },
+        },
+      });
+      expect(readdedMember.id).not.toBe(originalMember.id);
+      expect(readdedMember.role).toBe('viewer');
+      expect(readdition.body).toEqual({
+        id: readdedMember.id,
+        userId: target.id,
+        role: 'viewer',
+        createdAt: readdedMember.createdAt.toISOString(),
+        user: { name: null, email: target.email },
+      });
+      const projectAfterReaddition = await prisma.project.findUniqueOrThrow({
+        where: { id: project.id },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      expect(projectAfterReaddition.projectMembers).toHaveLength(2);
+      expect(projectAfterReaddition).toEqual({
+        ...project,
+        projectMembers: expect.arrayContaining([
+          project.projectMembers.find((entry) => entry.userId === userId)!,
+          readdedMember,
+        ]),
+      });
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${project.id}/members/${originalMember.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404)
+        .expect({
+          message: '削除対象のメンバーが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+
+      expect(
+        await prisma.projectMember.findUnique({
+          where: { id: originalMember.id },
+        }),
+      ).toBeNull();
+      expect(
+        await prisma.projectMember.findUnique({
+          where: { id: readdedMember.id },
+        }),
+      ).toEqual(readdedMember);
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        }),
+      ).toEqual(projectAfterReaddition);
+      expect(
+        await prisma.user.findUnique({ where: { id: target.id } }),
+      ).toEqual(target);
+    });
+
+    it.each([
+      { role: 'member', isArchived: false, targetExists: false },
+      { role: 'viewer', isArchived: false, targetExists: false },
+      { role: 'member', isArchived: true, targetExists: false },
+      { role: 'viewer', isArchived: true, targetExists: false },
+      { role: 'member', isArchived: false, targetExists: true },
+      { role: 'viewer', isArchived: false, targetExists: true },
+      { role: 'member', isArchived: true, targetExists: true },
+      { role: 'viewer', isArchived: true, targetExists: true },
+    ] as const)(
+      '$roleはisArchived=$isArchived、targetExists=$targetExistsでも403で拒否する',
+      async ({ role, isArchived, targetExists }) => {
+        const prisma = app.get(PrismaService);
+        const owner = await createOtherUser();
+        const target = await createOtherUser();
+        const project = await prisma.project.create({
+          data: {
+            ownerId: owner.id,
+            name: 'Forbidden Member Deletion',
+            key: projectKey,
+            isArchived,
+            projectMembers: {
+              create: [
+                { userId: owner.id, role: 'owner' },
+                { userId, role },
+                ...(targetExists
+                  ? [{ userId: target.id, role: 'member' as const }]
+                  : []),
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+        const targetMember = project.projectMembers.find(
+          (entry) => entry.userId === target.id,
+        );
+        const memberId = targetMember?.id ?? 'not-found';
+
+        await request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${memberId}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(403)
+          .expect({
+            message: 'プロジェクトのメンバーを削除する権限がありません',
+            error: 'Forbidden',
+            statusCode: 403,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+      },
+    );
+
+    it('非参加者による既存Projectと存在しないProjectへの削除は同じ404になり、既存Projectを変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const owner = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: owner.id,
+          name: 'Unjoined Member Deletion',
+          key: projectKey,
+          projectMembers: { create: { userId: owner.id, role: 'owner' } },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const ownerMember = project.projectMembers[0];
+
+      for (const projectId of ['not-found', project.id]) {
+        await request(app.getHttpServer())
+          .delete(`/api/projects/${projectId}/members/${ownerMember.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect({
+            message: 'プロジェクトが見つかりません',
+            error: 'Not Found',
+            statusCode: 404,
+          });
+      }
+
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        }),
+      ).toEqual(project);
+    });
+
+    it('ownerIdが本人でも参加情報がなければ404で拒否し、Projectを変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Owner Id Without Membership For Deletion',
+          key: projectKey,
+          projectMembers: {
+            create: { userId: target.id, role: 'member' },
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const targetMember = project.projectMembers[0];
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${project.id}/members/${targetMember.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404)
+        .expect({
+          message: 'プロジェクトが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        }),
+      ).toEqual(project);
+    });
+
+    it.each([
+      '存在しないProjectMember.id',
+      '対象ユーザーのUser.id',
+      '削除済みProjectMember.id',
+    ] as const)(
+      '%sを削除対象に指定すると同じ404になり、Projectと参加情報を変更しない',
+      async (targetType) => {
+        const prisma = app.get(PrismaService);
+        const target = await createOtherUser();
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Missing Member Deletion Target',
+            key: projectKey,
+            projectMembers: {
+              create: [
+                { userId, role: 'owner' },
+                { userId: target.id, role: 'member' },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+        const targetMember = project.projectMembers.find(
+          (entry) => entry.userId === target.id,
+        )!;
+
+        let memberId: string;
+        if (targetType === '存在しないProjectMember.id') {
+          memberId = randomUUID();
+        } else if (targetType === '対象ユーザーのUser.id') {
+          memberId = target.id;
+        } else {
+          memberId = targetMember.id;
+          await prisma.projectMember.delete({ where: { id: memberId } });
+        }
+
+        const projectBeforeRequest = await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+
+        await request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${memberId}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect({
+            message: '削除対象のメンバーが見つかりません',
+            error: 'Not Found',
+            statusCode: 404,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(projectBeforeRequest);
+      },
+    );
+
+    it('別ProjectのProjectMember.idを指定しても同じ404になり、両Projectを変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const otherProjectKey = projectKey.replace('E2E', 'OTH');
+      projectKeys.push(otherProjectKey);
+
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Scoped Member Deletion',
+          key: projectKey,
+          projectMembers: { create: { userId, role: 'owner' } },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const otherProject = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Foreign Member Deletion',
+          key: otherProjectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const foreignMember = otherProject.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${project.id}/members/${foreignMember.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404)
+        .expect({
+          message: '削除対象のメンバーが見つかりません',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+
+      for (const expectedProject of [project, otherProject]) {
+        expect(
+          await prisma.project.findUnique({
+            where: { id: expectedProject.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(expectedProject);
+      }
+    });
+
+    it('ownerのProjectMemberを削除しようとすると409になり、Projectと参加情報を変更しない', async () => {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const project = await prisma.project.create({
+        data: {
+          ownerId: userId,
+          name: 'Protect Owner Member',
+          key: projectKey,
+          projectMembers: {
+            create: [
+              { userId, role: 'owner' },
+              { userId: target.id, role: 'member' },
+            ],
+          },
+        },
+        include: { projectMembers: { orderBy: { id: 'asc' } } },
+      });
+      const ownerMember = project.projectMembers.find(
+        (entry) => entry.userId === userId,
+      )!;
+
+      await request(app.getHttpServer())
+        .delete(`/api/projects/${project.id}/members/${ownerMember.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(409)
+        .expect({
+          message: 'owner は削除できません',
+          error: 'Conflict',
+          statusCode: 409,
+        });
+
+      expect(
+        await prisma.project.findUnique({
+          where: { id: project.id },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        }),
+      ).toEqual(project);
+    });
+
+    it.each(['member', 'owner', 'not-found'] as const)(
+      'アーカイブ済みProjectでは対象が%sでもアーカイブ競合を優先し、DBを変更しない',
+      async (targetType) => {
+        const prisma = app.get(PrismaService);
+        const target = await createOtherUser();
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Archived Member Deletion',
+            key: projectKey,
+            isArchived: true,
+            projectMembers: {
+              create: [
+                { userId, role: 'owner' },
+                { userId: target.id, role: 'member' },
+              ],
+            },
+          },
+          include: { projectMembers: { orderBy: { id: 'asc' } } },
+        });
+        const ownerMember = project.projectMembers.find(
+          (entry) => entry.userId === userId,
+        )!;
+        const targetMember = project.projectMembers.find(
+          (entry) => entry.userId === target.id,
+        )!;
+        const memberId =
+          targetType === 'member'
+            ? targetMember.id
+            : targetType === 'owner'
+              ? ownerMember.id
+              : randomUUID();
+
+        await request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${memberId}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(409)
+          .expect({
+            message: 'アーカイブ済みのプロジェクトではメンバーを削除できません',
+            error: 'Conflict',
+            statusCode: 409,
+          });
+
+        expect(
+          await prisma.project.findUnique({
+            where: { id: project.id },
+            include: { projectMembers: { orderBy: { id: 'asc' } } },
+          }),
+        ).toEqual(project);
+      },
+    );
+  });
+
   describe('作成: POST /api/projects', () => {
     it.each([
       ['token なし', undefined],

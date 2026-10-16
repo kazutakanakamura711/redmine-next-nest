@@ -227,6 +227,73 @@ export class ProjectsService {
     return result.member;
   }
 
+  async deleteProjectMember(
+    projectId: string,
+    projectMemberId: string,
+    userId: string,
+  ): Promise<void> {
+    const projectMember = await this.projectsRepository.findProjectMember(
+      projectId,
+      userId,
+    );
+
+    // 削除対象を調べる前に、実行者の参加情報と owner 権限を確認する。
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    if (projectMember.role !== ProjectMemberRole.owner) {
+      throw new ForbiddenException(
+        'プロジェクトのメンバーを削除する権限がありません',
+      );
+    }
+
+    const project = await this.findOne(projectId);
+    if (project.isArchived) {
+      throw new ConflictException(
+        'アーカイブ済みのプロジェクトではメンバーを削除できません',
+      );
+    }
+
+    const targetProjectMember =
+      await this.projectsRepository.findProjectMemberById(
+        projectId,
+        projectMemberId,
+      );
+
+    if (!targetProjectMember) {
+      throw new NotFoundException('削除対象のメンバーが見つかりません');
+    }
+
+    if (targetProjectMember.role === ProjectMemberRole.owner) {
+      throw new ConflictException('owner は削除できません');
+    }
+
+    const result = await this.projectsRepository.deleteProjectMember({
+      projectId,
+      projectMemberId,
+    });
+
+    // ロック取得後に確認した結果を、HTTP エラーに変換する。
+    if (result.status === 'project_not_found') {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    if (result.status === 'project_archived') {
+      throw new ConflictException(
+        'アーカイブ済みのプロジェクトではメンバーを削除できません',
+      );
+    }
+
+    if (result.status === 'member_not_found') {
+      throw new NotFoundException('削除対象のメンバーが見つかりません');
+    }
+
+    if (result.status === 'owner_protected') {
+      throw new ConflictException('owner は削除できません');
+    }
+  }
+
   async update(id: string, dto: UpdateProjectDto, userId: string) {
     const projectMember = await this.projectsRepository.findProjectMember(
       id,

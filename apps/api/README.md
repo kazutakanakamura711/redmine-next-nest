@@ -106,10 +106,12 @@ Projects の全 API にも Bearer 認証と `401`・`403` を設定し、Project
 作成者の UUID である `ownerId` を含めています。
 設定更新・アーカイブ・解除の概要には owner のみと明記し、`403` はメール未設定・未確認と role の権限不足を説明しています。
 詳細取得・設定更新・アーカイブ・解除の `404` は、Project が存在しない場合と非参加者の場合を説明しています。
-メンバー一覧・追加・role変更も owner のみと明記しています。追加 API は email・role の入力 DTO、
+メンバー一覧・追加・role変更・削除も owner のみと明記しています。追加 API は email・role の入力 DTO、
 member・viewer の enum、201の単一メンバー、400・401・403・404・409を説明しています。
 role 変更 API は role のみの必須入力、ProjectMember ID のパラメーター、200の単一メンバー、
 同じ role の成功、owner 保護・アーカイブ禁止、400・401・403・404・409を説明しています。
+削除 API は ProjectMember ID の指定、本文なしの204、User・Supabase Auth アカウントの保持、
+401・403・404・409、owner 保護・アーカイブ判定の優先を説明しています。
 **Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
 `Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
 
@@ -122,17 +124,18 @@ NestJS の Swagger には含めず、Bruno のリクエストと README に手�
 確認済みメールアドレスを必要とします。token なし・形式不正・無効な token は `401`、
 メールアドレスが未設定・未確認の場合は `403` を返します。
 
-| 操作             | メソッド・パス                                     | 成功時の応答            |
-| ---------------- | -------------------------------------------------- | ----------------------- |
-| 一覧取得         | `GET /api/projects`                                | `200`、Project の配列   |
-| 詳細取得         | `GET /api/projects/:projectId`                     | `200`、Project          |
-| 作成             | `POST /api/projects`                               | `201`、Project          |
-| 更新             | `PATCH /api/projects/:projectId`                   | `200`、Project          |
-| アーカイブ       | `POST /api/projects/:projectId/archive`            | `200`、Project          |
-| アーカイブ解除   | `POST /api/projects/:projectId/unarchive`          | `200`、Project          |
-| メンバー一覧     | `GET /api/projects/:projectId/members`             | `200`、メンバーの配列   |
-| メンバー追加     | `POST /api/projects/:projectId/members`            | `201`、追加したメンバー |
-| メンバーrole変更 | `PATCH /api/projects/:projectId/members/:memberId` | `200`、処理後のメンバー |
+| 操作             | メソッド・パス                                      | 成功時の応答            |
+| ---------------- | --------------------------------------------------- | ----------------------- |
+| 一覧取得         | `GET /api/projects`                                 | `200`、Project の配列   |
+| 詳細取得         | `GET /api/projects/:projectId`                      | `200`、Project          |
+| 作成             | `POST /api/projects`                                | `201`、Project          |
+| 更新             | `PATCH /api/projects/:projectId`                    | `200`、Project          |
+| アーカイブ       | `POST /api/projects/:projectId/archive`             | `200`、Project          |
+| アーカイブ解除   | `POST /api/projects/:projectId/unarchive`           | `200`、Project          |
+| メンバー一覧     | `GET /api/projects/:projectId/members`              | `200`、メンバーの配列   |
+| メンバー追加     | `POST /api/projects/:projectId/members`             | `201`、追加したメンバー |
+| メンバーrole変更 | `PATCH /api/projects/:projectId/members/:memberId`  | `200`、処理後のメンバー |
+| メンバー削除     | `DELETE /api/projects/:projectId/members/:memberId` | `204`、本文なし         |
 
 作成者の ID は `AuthGuard` が設定した `request.user.id` から取得します。
 リクエスト本文に `ownerId` を指定する必要はありません。
@@ -147,7 +150,7 @@ owner・member・viewer のすべてを対象にし、作成日時の新しい�
 設定更新・アーカイブ・解除は owner のみ許可します。存在しない Project と非参加者には同じ `404`、
 参加者である member・viewer には `403` を返します。
 `ownerId` が本人でも、ProjectMember がなければ操作できません。
-メンバー一覧・追加・role変更も owner のみ許可します。メンバー削除 API とメンバー管理 Web UI は後続の実装対象です。
+メンバー一覧・追加・role変更・削除も owner のみ許可します。メンバー管理 Web UI は後続の実装対象です。
 
 Next.js のログイン・登録画面と、Project の基本6 API 呼び出しへの token 付与は PR #21 で実装済みです。
 
@@ -228,6 +231,30 @@ Service で同じ role を事前に読んでも早期に成功を返さず、ロ
 拒否時の Project・ProjectMember の値と更新日時も維持します。AuthGuard による User のプロフィール同期は比較に含めません。
 エラー本文と判定順の詳細は [UI_API.md](../../docs/UI_API.md) を参照してください。
 
+### メンバー削除
+
+`DELETE /api/projects/:projectId/members/:memberId` は、owner が指定 Project 内の参加情報を1件削除する API です。
+`memberId` は ProjectMember.id を指定し、リクエスト本文は使用しません。成功時は204・本文なしです。
+削除対象の User と Supabase Auth アカウント、Project と他の参加情報の値・更新日時は保持します。
+
+認証 → 実行者の membership・owner 権限 → アーカイブ状態 → 対象の所属・存在・owner 保護の順に確認します。
+transaction 内で Project 行をロックし、Project の存在・アーカイブ状態と対象の所属・存在・owner 保護を再確認してから削除します。
+
+| 条件                                                                                    | 応答                                       |
+| --------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 実行者が member・viewer                                                                 | `403`                                      |
+| 存在しない Project、または実行者が非参加者                                              | 同じ Project の `404` 本文                 |
+| アーカイブ済み Project                                                                  | 対象の不存在・owner 保護より優先して `409` |
+| 指定 Project 内に対象が存在しない、別 Project の memberId、User.id、削除済みの memberId | 同じ対象メンバーの `404` 本文              |
+| 削除対象が owner                                                                        | `409`                                      |
+
+アーカイブが先に保存されれば削除は409となり、参加情報を残します。
+削除が先に Project 行をロックすればアーカイブは待機し、削除204・アーカイブ200で保存できます。
+同じ参加情報への同時削除は先が204、後が404となります。role 変更が先なら変更200・削除204、削除が先なら削除204・変更404です。
+DB の処理順を保証し、HTTP レスポンスの到着順は保証しません。
+同じ User を再追加した場合は新しい ProjectMember ID を作り、古い memberId による削除では新しい参加情報を変更しません。
+エラー本文・判定順・同時実行時の詳細は [UI_API.md](../../docs/UI_API.md) を参照してください。
+
 ## 確認コマンド
 
 ```bash
@@ -273,10 +300,9 @@ Projects E2E も実際のローカル Supabase Auth を使い、テストごと�
 access token を用意します。後片付けは ProjectMember → Project → User の順に行い、
 Supabase Auth の一時ユーザーも削除します。
 
-Projects E2E は170件です。Auth 12件・Health 1件を合わせ、ローカルの `pnpm test:e2e` は全183件が通過しています（2026-10-16）。
-Projects E2E には、次の確認を含めています。
+Projects E2E は Auth・Health と合わせて `pnpm test:e2e` で実行します。次の確認を含めています。
 
-- Project の基本6 API の token なし・無効な token の `401`（計12件）。メンバー一覧・追加・role変更は、それぞれ token なし・形式不正・無効な token の3件を確認する。
+- Project の基本6 API の token なし・無効な token の `401`（計12件）。メンバー一覧・追加・role変更・削除は、それぞれ token なし・形式不正・無効な token の3件を確認する。
 - owner・member・viewer として参加している Project だけが一覧に含まれ、非参加 Project は含まれないこと。
 - 参加 Project がない場合の空配列、参加情報がない場合に `ownerId` だけでは取得できないこと。
 - 一覧の作成日時降順とアーカイブ済み Project の表示。
@@ -306,9 +332,12 @@ Projects E2E には、次の確認を含めています。
 - role 変更の事前確認後に Project・対象参加情報が削除されても保存時に404を返すこと。削除後の DB を再作成・更新しない。
 - role 変更とアーカイブの競合3件: 保存直前にアーカイブされた場合は、同じ role・異なる role のどちらも409。role 変更が先に Project 行をロックした場合は、アーカイブが保存完了まで待ち、両方200になる。
 - 同時 role 変更の2件: 1件目の保存待ちと2件目の Project 行ロック待ちを DB で確認し、後の member・viewer の指定を最新の role に適用する。固定時間の待機は使わず、失敗時も待機・ロック・spy を解除してから既存の後片付けへ戻す。
+- メンバー削除の204・本文なしと、対象の参加情報だけが削除され、User・Supabase Auth アカウントが残ること。認可・対象不在の4ケース・owner 保護・アーカイブの判定順と、拒否時の Project・ProjectMember の値と更新日時の維持。
+- メンバー削除とアーカイブ・同時削除・role 変更の競合。DB のロック待機を確認し、取得順に応じた成功・404・409と最終的な参加情報を検証する。
+- 削除後の同じ User の再追加で新しい ProjectMember ID が発行され、古い memberId への削除が404となって新しい参加情報を維持すること。
 
-テストは一覧・詳細・メンバー一覧・メンバー追加・メンバーrole変更・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
-一覧・詳細・設定更新・アーカイブ・解除・メンバー一覧・追加・role変更の membership・role による認可を API E2E で確認しています。
+テストは一覧・詳細・メンバー一覧・メンバー追加・メンバーrole変更・メンバー削除・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
+一覧・詳細・設定更新・アーカイブ・解除・メンバー一覧・追加・role変更・削除の membership・role による認可を API E2E で確認しています。
 
 ユーザーを作成・削除するため、Auth E2E の成功ケースと Projects E2E の接続先は
 HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。

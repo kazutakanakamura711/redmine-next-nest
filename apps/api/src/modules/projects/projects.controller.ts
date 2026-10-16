@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -22,6 +23,7 @@ import {
   ApiBearerAuth,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
@@ -196,6 +198,49 @@ export class ProjectsController {
       projectId,
       projectMemberId,
       dto.role,
+      request.user.id,
+    );
+  }
+
+  @Delete(':projectId/members/:memberId')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'プロジェクトのメンバーを削除する（owner のみ）',
+    description:
+      '指定した ProjectMember の参加情報だけを削除し、User・Supabase Auth アカウントは保持する。アーカイブ済みのプロジェクトでは削除できず、owner 自身も削除できない。リクエスト本文は使用しない。',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'メンバーを削除するプロジェクトの ID',
+  })
+  @ApiParam({
+    name: 'memberId',
+    description: '削除対象の ProjectMember の ID。User の ID とは異なる',
+  })
+  @ApiNoContentResponse({
+    description: '参加情報を削除する。レスポンス本文は返さない',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
+  })
+  @ApiNotFoundResponse({
+    description:
+      '指定したプロジェクトが存在しない、参加していない、または対象の ProjectMember が指定したプロジェクト内に存在しない。削除済みの ID も対象不在として扱う',
+  })
+  @ApiConflictResponse({
+    description:
+      'プロジェクトがアーカイブ済み、または削除対象の role が owner。アーカイブ済みの判定を優先する',
+  })
+  async deleteProjectMember(
+    @Param('projectId') projectId: string,
+    @Param('memberId') projectMemberId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    await this.projectsService.deleteProjectMember(
+      projectId,
+      projectMemberId,
       request.user.id,
     );
   }
