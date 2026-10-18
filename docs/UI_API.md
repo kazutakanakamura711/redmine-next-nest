@@ -23,6 +23,36 @@
 | `/confirm` | 確認メールの情報を検証し、確認後にアプリへ移動する Route Handler |
 | `/projects/[projectId]/members` | メンバーの追加・閲覧・role変更をする |
 
+メンバー管理画面は一覧表示から順に実装する。メンバータブと一覧は、対象 Project に参加する owner・member・viewer に表示する。
+メンバー追加・role変更・削除の操作と設定タブは owner にだけ表示する。owner 自身の role変更・削除操作は表示しない。
+アーカイブ済み Project でも一覧は閲覧できるが、メンバー追加・role変更・削除はできない。
+表示制御にかかわらず、API でも各操作の membership・role を検証する。
+
+一覧表示は Project 詳細・メンバー一覧・本人情報の API に接続済みである。メンバー追加・role変更・削除の UI は後続で実装する。
+一覧には件数と、名前・メールアドレス・権限・参加日を表示する。PC は表、モバイルはカード形式とし、API の並び順を維持する。
+名前が未設定・空白だけの場合は「名前未設定」と表示する。権限は「オーナー」「メンバー」「閲覧者」、参加日は日本時間の `YYYY/MM/DD` で表示する。
+本人情報 API が返す User.id と一覧の `userId` が一致する行だけ、名前の横に「（自分）」を表示する。ProjectMember.id は本人判定に使わない。
+
+取得中はヘッダー・タブ・一覧のスケルトンと、読み込み中の案内を表示する。成功時の空配列は「0名」「メンバーはいません。」と表示する。
+Project 詳細またはメンバー一覧の取得で API が404を返した場合は、`notFound()` により404画面を表示する。
+401・403を含む取得失敗やセッション・本人情報の取得失敗は、共通の「メンバー情報を取得できませんでした」という案内と、再試行・プロジェクト一覧へ戻る導線を表示する。
+再試行はページのデータを再取得し、成功したら一覧へ復旧する。内部エラーの詳細をそのまま画面に表示しない。
+
+Project 詳細のタブはページ移動のリンクとして扱い、表示対象を URL に保存する。
+
+| 表示対象 | URL |
+| --- | --- |
+| タスク | `/projects/[projectId]` |
+| メンバー | `/projects/[projectId]/members` |
+| 設定 | `/projects/[projectId]?tab=setting` |
+
+直リンク・再読み込み・ブラウザーの戻る／進むでも URL に対応する表示を復元する。
+選択中のリンクには `aria-current="page"` を付ける。
+設定リンクは Project 詳細 API の `currentUserRole` が owner の場合だけ表示する。
+member・viewer が設定 URL を直接開いた場合も設定フォームを表示せず、タスク URL へ戻す。
+Project 詳細 URL で `tab` が未指定、または単一の `setting` 以外の場合はタスクを表示する。
+アーカイブ・解除の成功後は、設定 URL をタスク URL に置き換える。
+
 登録画面は名前・メールアドレス・パスワード・確認用パスワードを受け付ける。
 名前とメールアドレスは trim し、パスワードは8文字以上・確認用との一致を検証する。
 Supabase へ送るのはメールアドレス・パスワードと、`user_metadata.name` に保存する名前である。
@@ -140,6 +170,41 @@ POST   /api/projects/:projectId/unarchive
 - 存在しない Project と非参加者による詳細・更新・アーカイブ・解除は、同じ `404` 応答で扱い、Project の存在を知らせない
 - 参加者の member・viewer による更新・アーカイブ・解除は `403` を返す
 
+#### Project 詳細: GET /api/projects/:projectId
+
+対象 Project に参加する owner・member・viewer に、Project の情報と閲覧者自身の `currentUserRole` を返す。
+`currentUserRole` は必須で、認証済みユーザーの対象 Project の ProjectMember.role から取得する。
+`ownerId` との比較や、クライアントが指定したユーザー ID からは決めない。
+アーカイブ済み Project でも、本人の現在の role を含めて取得できる。
+
+成功時は `200` と次の形式のオブジェクトを返す。
+
+```json
+{
+  "id": "cmua3r1ik00032ed8lasbg1jj",
+  "ownerId": "11111111-1111-4111-8111-111111111111",
+  "name": "Task Management App",
+  "key": "APP",
+  "description": "タスク管理アプリ",
+  "isArchived": false,
+  "createdAt": "2026-10-17T00:00:00.000Z",
+  "updatedAt": "2026-10-17T00:00:00.000Z",
+  "currentUserRole": "member"
+}
+```
+
+| 項目 | 意味 |
+| --- | --- |
+| `ownerId` | Project 作成者の User ID。閲覧者自身の role を表す項目ではない |
+| `currentUserRole` | 認証済みユーザー自身の対象 Project での role。`owner`・`member`・`viewer` のいずれか。null にはしない |
+
+既存の Project 項目は維持し、取得に使った内部の `projectMembers` はレスポンスに含めない。
+`currentUserRole` を追加するのは詳細取得だけであり、Project 一覧・作成・更新・アーカイブ・解除のレスポンスには含めない。
+
+token の不備は `401`、確認済みメールアドレスがない場合は `403` とする。
+Project 不在・非参加は従来と同じ `404` 本文で扱い、Project の情報や role は返さない。
+Web は `currentUserRole` をタブや操作の表示制御に使うが、各 API はリクエストごとに membership・role を検証する。
+
 ### 段階2: Auth と Members
 
 ```text
@@ -157,9 +222,10 @@ DELETE /api/projects/:projectId/members/:memberId
 
 #### メンバー一覧: GET /api/projects/:projectId/members
 
-指定した Project の owner に、owner 自身を含むメンバー一覧を返す。
-認可には検証済み token で特定した User の ID と、対象 Project の ProjectMember の role を使う。
-表示用の名前は認可判断に使わない。
+指定した Project に owner・member・viewer として参加しているユーザーに、owner を含む全メンバーの一覧を返す。
+アーカイブ済み Project も閲覧できる。返却項目と並び順は、閲覧者の role によって変えない。
+認可には検証済み token で特定した User の ID と、対象 Project の本人の ProjectMember を使う。
+`ownerId` や表示用の名前だけでは許可しない。
 
 成功時は `200` と次の形式の配列を返す。
 
@@ -195,10 +261,9 @@ DELETE /api/projects/:projectId/members/:memberId
 
 | 条件 | 応答 |
 | --- | --- |
-| 有効な token・確認済みメールアドレスを持つ owner | `200`・メンバー一覧 |
+| 有効な token・確認済みメールアドレスを持つ参加者（owner・member・viewer） | `200`・メンバー一覧。アーカイブ済みも同じ |
 | token なし・形式不正・無効 | `401` |
 | token は有効だがメールアドレスが未設定・未確認 | `403` |
-| 参加者の role が member・viewer | `403` |
 | 存在しない Project、または非参加者 | 同じ `404` 本文 |
 
 存在しない Project と非参加者には、既存 Project API と同じ次の本文を返す。
@@ -280,7 +345,7 @@ owner 自身の重複追加も `409` とし、既存の role を変更しない�
 
 拒否された操作では Project・ProjectMember の値と更新日時を変更しない。
 認証時に行う実行者の User プロフィール同期は、この不変性の対象に含めない。
-メンバーの role 変更・削除は後続の節を参照する。メンバー管理 Web UI は後続で扱う。
+メンバーの role 変更・削除 API は後続の節を参照する。Web の一覧表示は実装済みで、追加・role変更・削除の UI は後続で扱う。
 
 #### メンバーの role 変更: PATCH /api/projects/:projectId/members/:memberId
 
@@ -450,7 +515,7 @@ role 変更の成功応答はその処理時点の参加情報を返し、後続
 
 拒否時は Project・ProjectMember の値・更新日時を変更しない。
 認証時に行う実行者の User プロフィール同期は、この不変性の対象に含めない。
-メンバー管理 Web UI は後続で扱う。
+Web の一覧表示は実装済みで、追加・role変更・削除の UI は後続で扱う。
 
 ### 段階3: Tasks
 

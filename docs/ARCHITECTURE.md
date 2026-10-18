@@ -73,6 +73,22 @@ Sheet はプロジェクト一覧・詳細へのリンクを表示し、現在�
 再び開いた場合もログアウト処理中の状態とエラーを保持する。
 NestJS API でも token を検証し、membership・role による認可は既存の実装順に沿って追加する。
 
+### メンバー一覧画面
+
+`projects/[projectId]/members/page.tsx` は Server Component とし、Project 詳細、メンバー一覧、本人情報の順に取得する。
+Project 詳細とメンバー一覧は `projects/_lib/get-project.ts`・`get-project-members.ts` が Cookie のセッションから token を取得して API に渡す。
+ページは本人情報の取得にも Cookie のセッションを使い、共通の `getCurrentUser(accessToken)` に token を渡す。認証済みの本人情報は API で検証した結果を使う。
+Project 詳細または一覧の取得が `null` なら `notFound()` を呼び、空配列は0件の正常な取得結果として扱う。
+
+ヘッダーと URL に対応したナビゲーションは、詳細ページと共通の `[projectId]/_components` に置く。
+`members/_components/project-members-list.tsx` は、取得済みのメンバーと本人の User.id を受け取る表示部品とし、API 取得やセッションの確認を持たない。
+本人の目印は `member.userId === currentUserId` で判断する。表示用の props に access token を含めない。
+設定リンクは詳細の `currentUserRole` が owner の場合だけ表示し、API 側の membership・role 検証も維持する。
+
+同じ route の `loading.tsx` は Server Component のスケルトンを定義し、Next.js がデータ取得中に表示する。
+`error.tsx` は Client Component とし、固定のエラー案内、Next.js から渡される `retry()` による再取得、`/projects` へ戻るリンクを表示する。
+Project 詳細・メンバー一覧 API の404は404画面、それ以外の取得失敗は共通のエラー案内で扱う。内部エラーの内容をそのまま画面へ出さない。
+
 ## テスト構成
 
 | 対象                      | 主な道具                       | 例                                               |

@@ -1,3 +1,4 @@
+import { ProjectDetailResponseDto } from './dto/project-detail-response.dto.js';
 import {
   Body,
   Controller,
@@ -68,8 +69,8 @@ export class ProjectsController {
     example: 'cmua3r1ik00032ed8lasbg1jj',
   })
   @ApiOkResponse({
-    description: 'プロジェクト詳細を返す',
-    type: ProjectResponseDto,
+    description: 'プロジェクト詳細と閲覧者自身の role を返す',
+    type: ProjectDetailResponseDto,
   })
   @ApiNotFoundResponse({
     description: '指定したプロジェクトが存在しない、または参加していない',
@@ -84,20 +85,20 @@ export class ProjectsController {
   @Get(':projectId/members')
   @UseGuards(AuthGuard)
   @ApiOperation({
-    summary: 'プロジェクトのメンバー一覧を取得する（owner のみ）',
+    summary: '参加しているプロジェクトのメンバー一覧を取得する',
   })
   @ApiParam({
     name: 'projectId',
     description: '取得するプロジェクトの ID',
   })
   @ApiOkResponse({
-    description: 'プロジェクトのメンバー一覧を返す',
+    description:
+      'owner・member・viewer にメンバー一覧を返す。アーカイブ済みも閲覧できる',
     type: ProjectMemberResponseDto,
     isArray: true,
   })
   @ApiForbiddenResponse({
-    description:
-      'メールアドレスが未設定・未確認、または参加者の role が owner 以外',
+    description: 'メールアドレスが未設定・未確認',
   })
   @ApiNotFoundResponse({
     description: '指定したプロジェクトが存在しない、または参加していない',

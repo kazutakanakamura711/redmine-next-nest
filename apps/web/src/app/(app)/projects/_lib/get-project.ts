@@ -1,8 +1,16 @@
 import { connection } from 'next/server';
 import type { Project } from './get-projects';
+import type { ProjectRole } from './project-role';
 import { createClient } from '@/lib/supabase/server';
 
-export async function getProject(projectId: string): Promise<Project | null> {
+// 詳細 API だけが返す、閲覧者自身の role を含む Project。
+export type ProjectDetail = Project & {
+  currentUserRole: ProjectRole;
+};
+
+export async function getProject(
+  projectId: string,
+): Promise<ProjectDetail | null> {
   // 詳細画面もリクエスト時に最新データを取得する。
   await connection();
 

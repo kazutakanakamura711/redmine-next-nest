@@ -2,8 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getProject } from './get-project';
-import type { Project } from './get-projects';
+import { getProject, type ProjectDetail } from './get-project';
+import { ProjectRole } from './project-role';
 
 const mocks = vi.hoisted(() => ({
   connection: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const fetchMock = vi.fn<typeof fetch>();
 
-const project: Project = {
+const project: ProjectDetail = {
   id: 'project-1',
   key: 'WEB',
   name: 'Web 開発',
@@ -27,6 +27,7 @@ const project: Project = {
   isArchived: false,
   createdAt: '2026-10-06T00:00:00.000Z',
   updatedAt: '2026-10-06T00:00:00.000Z',
+  currentUserRole: ProjectRole.Owner,
 };
 
 beforeEach(() => {

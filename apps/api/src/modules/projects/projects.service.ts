@@ -32,11 +32,16 @@ export class ProjectsService {
   async findOneForMember(id: string, userId: string) {
     const project = await this.projectsRepository.findByIdForMember(id, userId);
 
-    if (!project) {
+    if (!project || project.projectMembers.length === 0) {
       throw new NotFoundException('プロジェクトが見つかりません');
     }
 
-    return project;
+    const { projectMembers, ...projectData } = project;
+
+    return {
+      ...projectData,
+      currentUserRole: projectMembers[0].role,
+    };
   }
 
   async findProjectMembers(projectId: string, userId: string) {
@@ -49,13 +54,7 @@ export class ProjectsService {
     if (!projectMember) {
       throw new NotFoundException('プロジェクトが見つかりません');
     }
-    // role が owner 以外なら403を返す。
-    if (projectMember.role !== ProjectMemberRole.owner) {
-      throw new ForbiddenException(
-        'プロジェクトのメンバー一覧を取得する権限がありません',
-      );
-    }
-
+    // 一覧は、対象 Project の参加者であれば role を問わず閲覧できる。
     return await this.projectsRepository.findProjectMembers(projectId);
   }
 

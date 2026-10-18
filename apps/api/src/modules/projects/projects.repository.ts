@@ -62,6 +62,12 @@ export class ProjectsRepository {
           some: { userId },
         },
       },
+      include: {
+        projectMembers: {
+          where: { userId },
+          select: { role: true },
+        },
+      },
     });
   }
 

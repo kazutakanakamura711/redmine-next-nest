@@ -104,9 +104,11 @@ Bruno でのテストユーザー作成、ログイン、token 保存、パス�
 `GET /api/auth/me` の概要、初回 User 作成の説明、User のレスポンスと `401`・`403` の条件を記載しています。
 Projects の全 API にも Bearer 認証と `401`・`403` を設定し、Project のレスポンスには
 作成者の UUID である `ownerId` を含めています。
+詳細取得は `ProjectResponseDto` を継承した `ProjectDetailResponseDto` を使い、
+本人の `currentUserRole` を owner・member・viewer の enum として説明しています。
 設定更新・アーカイブ・解除の概要には owner のみと明記し、`403` はメール未設定・未確認と role の権限不足を説明しています。
 詳細取得・設定更新・アーカイブ・解除の `404` は、Project が存在しない場合と非参加者の場合を説明しています。
-メンバー一覧・追加・role変更・削除も owner のみと明記しています。追加 API は email・role の入力 DTO、
+メンバー一覧は参加者の owner・member・viewer に許可し、追加・role変更・削除は owner のみと明記しています。追加 API は email・role の入力 DTO、
 member・viewer の enum、201の単一メンバー、400・401・403・404・409を説明しています。
 role 変更 API は role のみの必須入力、ProjectMember ID のパラメーター、200の単一メンバー、
 同じ role の成功、owner 保護・アーカイブ禁止、400・401・403・404・409を説明しています。
@@ -124,18 +126,18 @@ NestJS の Swagger には含めず、Bruno のリクエストと README に手�
 確認済みメールアドレスを必要とします。token なし・形式不正・無効な token は `401`、
 メールアドレスが未設定・未確認の場合は `403` を返します。
 
-| 操作             | メソッド・パス                                      | 成功時の応答            |
-| ---------------- | --------------------------------------------------- | ----------------------- |
-| 一覧取得         | `GET /api/projects`                                 | `200`、Project の配列   |
-| 詳細取得         | `GET /api/projects/:projectId`                      | `200`、Project          |
-| 作成             | `POST /api/projects`                                | `201`、Project          |
-| 更新             | `PATCH /api/projects/:projectId`                    | `200`、Project          |
-| アーカイブ       | `POST /api/projects/:projectId/archive`             | `200`、Project          |
-| アーカイブ解除   | `POST /api/projects/:projectId/unarchive`           | `200`、Project          |
-| メンバー一覧     | `GET /api/projects/:projectId/members`              | `200`、メンバーの配列   |
-| メンバー追加     | `POST /api/projects/:projectId/members`             | `201`、追加したメンバー |
-| メンバーrole変更 | `PATCH /api/projects/:projectId/members/:memberId`  | `200`、処理後のメンバー |
-| メンバー削除     | `DELETE /api/projects/:projectId/members/:memberId` | `204`、本文なし         |
+| 操作             | メソッド・パス                                      | 成功時の応答                        |
+| ---------------- | --------------------------------------------------- | ----------------------------------- |
+| 一覧取得         | `GET /api/projects`                                 | `200`、Project の配列               |
+| 詳細取得         | `GET /api/projects/:projectId`                      | `200`、Project と `currentUserRole` |
+| 作成             | `POST /api/projects`                                | `201`、Project                      |
+| 更新             | `PATCH /api/projects/:projectId`                    | `200`、Project                      |
+| アーカイブ       | `POST /api/projects/:projectId/archive`             | `200`、Project                      |
+| アーカイブ解除   | `POST /api/projects/:projectId/unarchive`           | `200`、Project                      |
+| メンバー一覧     | `GET /api/projects/:projectId/members`              | `200`、メンバーの配列               |
+| メンバー追加     | `POST /api/projects/:projectId/members`             | `201`、追加したメンバー             |
+| メンバーrole変更 | `PATCH /api/projects/:projectId/members/:memberId`  | `200`、処理後のメンバー             |
+| メンバー削除     | `DELETE /api/projects/:projectId/members/:memberId` | `204`、本文なし                     |
 
 作成者の ID は `AuthGuard` が設定した `request.user.id` から取得します。
 リクエスト本文に `ownerId` を指定する必要はありません。
@@ -146,17 +148,23 @@ Project のレスポンスには `ownerId` を含めます。
 owner・member・viewer のすべてを対象にし、作成日時の新しい順でアーカイブ済みも含めます。
 参加 Project がなければ `200` と空配列を返します。
 詳細取得も owner・member・viewer として参加している Project だけを許可します。
+詳細レスポンスには、認証済み本人の対象 Project の ProjectMember.role を `currentUserRole` として追加します。
+値は owner・member・viewer のいずれかで、アーカイブ済みでも返します。内部の `projectMembers` は公開しません。
+この項目は詳細取得専用であり、一覧・作成・更新・アーカイブ・解除のレスポンスには追加しません。
+Web は表示制御に使えますが、各 API での membership・role の検証も引き続き行います。
 存在しない Project と非参加者には、同じメッセージ・本文の `404` を返します。
 設定更新・アーカイブ・解除は owner のみ許可します。存在しない Project と非参加者には同じ `404`、
 参加者である member・viewer には `403` を返します。
 `ownerId` が本人でも、ProjectMember がなければ操作できません。
-メンバー一覧・追加・role変更・削除も owner のみ許可します。メンバー管理 Web UI は後続の実装対象です。
+メンバー一覧も参加者の owner・member・viewer に許可し、追加・role変更・削除は owner のみ許可します。Web のメンバー一覧表示は実装済みで、追加・role変更・削除の UI は後続の実装対象です。
 
 Next.js のログイン・登録画面と、Project の基本6 API 呼び出しへの token 付与は PR #21 で実装済みです。
 
 ### メンバー一覧・追加
 
-`GET /api/projects/:projectId/members` は、owner 自身を含む一覧を返します。
+`GET /api/projects/:projectId/members` は、対象 Project に参加する owner・member・viewer に、owner を含む全メンバーの一覧を返します。
+アーカイブ済みでも閲覧でき、返却項目と並び順は閲覧者の role によって変わりません。
+存在しない Project と非参加者には同じ404を返します。`ownerId` が本人でも、参加情報がなければ取得できません。
 返却項目は `id`・`userId`・`role`・`createdAt`・`user.name`・`user.email` です。
 並び順は owner → member → viewer、同じ role は参加日時の古い順、同じ日時なら ProjectMember ID の昇順です。
 名前が未設定なら `null` を返します。
@@ -306,7 +314,7 @@ Projects E2E は Auth・Health と合わせて `pnpm test:e2e` で実行しま�
 - owner・member・viewer として参加している Project だけが一覧に含まれ、非参加 Project は含まれないこと。
 - 参加 Project がない場合の空配列、参加情報がない場合に `ownerId` だけでは取得できないこと。
 - 一覧の作成日時降順とアーカイブ済み Project の表示。
-- 詳細取得の3 role の成功、アーカイブ済み Project の viewer による取得。
+- 詳細取得の3 role の成功と、それぞれ本人の `currentUserRole` が返ること。アーカイブ済み Project でも viewer の role が返ること。レスポンス全体の比較で、既存の Project 項目と日時の維持、内部の `projectMembers` が含まれないことも確認する。
 - 詳細取得で、別 Project に参加していても非参加 Project は取得できず、存在しない ID と同じ `404` になること。
 - 詳細取得を拒否した場合に、対象の Project と ProjectMember の値・更新日時が変わらないこと。
 - 設定更新の owner による成功・DB 保存、アーカイブ済み Project の設定更新。
@@ -320,7 +328,7 @@ Projects E2E は Auth・Health と合わせて `pnpm test:e2e` で実行しま�
 - 作成者の `ownerId` と `role: owner` の ProjectMember が DB に保存されること。
 - 認証失敗時に Project が作成されず、更新・アーカイブ・解除でも DB が変わらないこと。
 - 有効な token を使う既存の成功ケースと、入力・対象 ID に応じた `400`・`404`・`409`。
-- メンバー一覧の10件: owner 自身を含む一覧、必要な返却項目・名前の null、3段階の並び順、別 Project の除外、認証・認可エラーと拒否時の不変性。
+- メンバー一覧の14件: owner を含む一覧、必要な返却項目・名前の null、3段階の並び順、別 Project の除外、認証・認可エラーと拒否時の不変性。owner・member・viewer の各 role とアーカイブ状態の true・false の6通りで、一覧の取得と Project・ProjectMember の値・更新日時の維持を確認する。
 - メンバー追加の41件: member・viewer の201、返却項目・名前の null・DB保存、email の前後空白の除去、別 Project に参加済みの User の追加。
 - 追加時の401・403・404・400・409、Supabase Auth だけに登録された対象、メールの大文字・小文字の違い、owner 自身を含む参加済みの3 role、アーカイブ済み Project、必須項目・形式・型・role・定義外項目の検証。
 - 同じ User の同時追加で201と409になり、参加情報が1件だけ保存されること。成功時は Project と既存参加情報を維持し、拒否時も Project・ProjectMember の値と更新日時が変わらないこと。User のプロフィール同期は比較に含めない。
