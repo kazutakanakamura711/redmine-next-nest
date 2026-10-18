@@ -13,7 +13,7 @@ Bruno で [redmine-next-nest-api](./redmine-next-nest-api/) をコレクショ�
 | [update-project](./redmine-next-nest-api/update-project.yml)                         | NestJS: `PATCH /api/projects/:projectId`                   | Project 名・説明を更新                     |
 | [archive-project](./redmine-next-nest-api/archive-project.yml)                       | NestJS: `POST /api/projects/:projectId/archive`            | Project をアーカイブ                       |
 | [unarchive-project](./redmine-next-nest-api/unarchive-project.yml)                   | NestJS: `POST /api/projects/:projectId/unarchive`          | Project のアーカイブを解除                 |
-| [get-project-members](./redmine-next-nest-api/get-project-members.yml)               | NestJS: `GET /api/projects/:projectId/members`             | owner がメンバー一覧を取得                 |
+| [get-project-members](./redmine-next-nest-api/get-project-members.yml)               | NestJS: `GET /api/projects/:projectId/members`             | 参加者がメンバー一覧を取得                 |
 | [add-project-member](./redmine-next-nest-api/add-project-member.yml)                 | NestJS: `POST /api/projects/:projectId/members`            | owner が登録済み User を追加               |
 | [update-project-member-role](./redmine-next-nest-api/update-project-member-role.yml) | NestJS: `PATCH /api/projects/:projectId/members/:memberId` | owner がメンバーの role を変更             |
 | [supabase-update-password](./redmine-next-nest-api/supabase-update-password.yml)     | Supabase: `PUT /auth/v1/user`                              | ログインユーザーのパスワードを変更         |
@@ -108,8 +108,11 @@ Project の基本6リクエストとメンバー一覧・追加・role変更に�
 `get-projects` は `200 OK` と Project の配列を返します。
 詳細・更新・アーカイブ・解除の URL にある Project ID は、作成した Project の `id` に置き換えてください。
 これらの成功時の応答は `200 OK` と、対象の Project（`ownerId` を含む）です。
+`get-project` の詳細レスポンスだけには、ログイン中のユーザー自身の `currentUserRole` も含まれます。
+参加している Project で owner・member・viewer の各 token を使うと、それぞれの role が返ります。
+アーカイブ済みでも返り、内部の `projectMembers` は含まれません。
 
-一覧・詳細は参加者の owner・member・viewer が取得でき、更新・アーカイブ・解除とメンバー一覧・追加・role変更は owner のみ操作できます。
+Project の一覧・詳細とメンバー一覧は参加者の owner・member・viewer が取得でき、更新・アーカイブ・解除とメンバー追加・role変更・削除は owner のみ操作できます。
 存在しない Project と非参加者は同じ404、参加者の権限不足は403になります。
 認証・認可の仕様と確認範囲は [API README](../apps/api/README.md#project-api-の認証と-owner-登録) を参照してください。
 
@@ -123,7 +126,7 @@ http://localhost:3001/api/projects/PROJECT_ID/members
 
 どちらも **Auth → Bearer Token → Token** は `{{accessToken}}` です。
 owner の token は、その Project を作成したユーザーでログインして取得する access token です。
-API は token で本人を特定し、対象 Project の ProjectMember.role を確認します。
+API は token で本人を特定し、対象 Project の参加情報を確認します。一覧は owner・member・viewer が閲覧でき、追加は owner のみです。
 
 追加対象には、確認済みメールを持つ別ユーザーを用意します。Supabase Auth の登録とアプリ側 User の作成は別なので、次の順で確認します。
 
@@ -146,7 +149,9 @@ role は member・viewer のどちらかで、owner は指定できません。
 
 追加成功時は201と単一メンバーが返ります。続けて一覧を再送信し、追加したユーザーの名前・メール・role が増えていることを確認します。
 同じユーザーを再度追加すると409になり、既存の role は変更されません。アーカイブ済み Project への追加も409です。
-role 変更は次の手順6で確認できます。メンバー削除は後続の実装対象です。
+追加後は、追加した member・viewer の token に切り替えて一覧が200になること、同じ token で追加すると403になることも確認できます。
+アーカイブ済み Project の一覧も参加者は200で取得できます。非参加者と存在しない Project は同じ404になります。
+role 変更は次の手順6で確認できます。メンバー削除 API の仕様は [API README](../apps/api/README.md#メンバー削除) を参照してください。
 
 確認後は両方のリクエストを保存します。Token の設定は `{{accessToken}}` を維持し、実際の token は Secrets に保存します。
 リクエスト内の Project ID と追加対象メールはローカル確認用の例なので、別の環境ではそれぞれ置き換えてください。

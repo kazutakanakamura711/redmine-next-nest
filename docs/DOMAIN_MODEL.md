@@ -65,7 +65,8 @@ Supabase Auth に登録済みでも、まだこの API 呼び出しを行って�
 | viewer | 閲覧だけできる |
 
 - プロジェクト作成時に、作成者を `owner` とする ProjectMember も同時に作る。
-- メンバー一覧の取得・追加・role変更・削除は、対象 Project の ProjectMember が `owner` のユーザーだけに許可する。`ownerId` や表示用の名前だけで許可しない。
+- メンバー一覧の取得は、対象 Project に `owner`・`member`・`viewer` として参加しているユーザーに許可する。アーカイブ済み Project も閲覧できる。
+- メンバーの追加・role変更・削除は、対象 Project の ProjectMember が `owner` のユーザーだけに許可する。閲覧・変更ともに本人の参加情報を確認し、`ownerId` や表示用の名前だけで許可しない。
 - 追加対象は、アプリ側 User が存在するユーザーに限る。追加処理では対象 User を作成・同期しない。
 - 追加対象はメールアドレスで指定する。前後の空白を除き、大文字・小文字を変換せず、保存された User.email と完全一致で検索する。参加情報には、取得した User の ID を保存する。
 - 追加時に指定できる role は `member`・`viewer` だけとし、`owner` は追加できない。
@@ -122,7 +123,7 @@ priority: low  | normal      | high
 - 操作する本人は、クライアントから渡された `userId` ではなく、認証済み token から特定する。
 
 全 Project API の認証保護、membership・role による認可、Project 作成時の owner 登録は実装済みである。
-メンバー一覧・追加・role変更・削除 API も owner 権限で実装済みであり、メンバー管理 Web UI は後続で扱う。Task CRUD は、この認証・認可の基盤を使って進める。
+メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧表示は実装済みであり、追加・role変更・削除の UI は後続で扱う。Task CRUD は、この認証・認可の基盤を使って進める。
 
 ## 後続段階で追加するもの
 

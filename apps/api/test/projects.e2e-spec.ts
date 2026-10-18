@@ -391,7 +391,7 @@ describe('Projects endpoint', () => {
     });
 
     it.each(['owner', 'member', 'viewer'] as const)(
-      'IDを指定して%sとして参加しているプロジェクトを取得する',
+      '%sとして参加しているProjectの詳細と本人のroleを返し、内部の参加情報を含めない',
       async (role) => {
         const ownerId =
           role === 'owner' ? userId : (await createOtherUser()).id;
@@ -418,13 +418,17 @@ describe('Projects endpoint', () => {
           .set('Authorization', `Bearer ${accessToken}`)
           .expect(200);
 
-        expect(response.body).toMatchObject({
+        // 既存の Project 項目と本人の role だけを返すことを確認する。
+        expect(response.body).toEqual({
           id: project.id,
           ownerId,
           name: 'Project Detail',
           key: projectKey,
           description: '詳細取得用のテストデータ',
           isArchived: false,
+          createdAt: project.createdAt.toISOString(),
+          updatedAt: project.updatedAt.toISOString(),
+          currentUserRole: role,
         });
       },
     );
@@ -517,11 +521,16 @@ describe('Projects endpoint', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
-      expect(response.body).toMatchObject({
+      expect(response.body).toEqual({
         id: project.id,
         ownerId: otherUser.id,
+        name: 'Archived Project Detail',
         key: projectKey,
+        description: null,
         isArchived: true,
+        createdAt: project.createdAt.toISOString(),
+        updatedAt: project.updatedAt.toISOString(),
+        currentUserRole: 'viewer',
       });
     });
 
@@ -742,41 +751,66 @@ describe('Projects endpoint', () => {
       });
     });
 
-    it.each(['member', 'viewer'] as const)(
-      '%sのメンバー一覧取得を403で拒否し、Projectと参加情報を変更しない',
-      async (role) => {
+    it.each([
+      { role: 'owner', isArchived: false },
+      { role: 'member', isArchived: false },
+      { role: 'viewer', isArchived: false },
+      { role: 'owner', isArchived: true },
+      { role: 'member', isArchived: true },
+      { role: 'viewer', isArchived: true },
+    ] as const)(
+      '$roleはisArchived=$isArchivedでもメンバー一覧を取得でき、Projectと参加情報を変更しない',
+      async ({ role, isArchived }) => {
         const otherUser = await createOtherUser();
         const prisma = app.get(PrismaService);
+        const currentUser = await prisma.user.findUniqueOrThrow({
+          where: { id: userId },
+        });
+        const ownerId = role === 'owner' ? userId : otherUser.id;
         const project = await prisma.project.create({
           data: {
-            ownerId: otherUser.id,
+            ownerId,
             name: 'Project Members',
             key: projectKey,
+            isArchived,
             projectMembers: {
               create: [
-                { userId: otherUser.id, role: 'owner' },
-                { userId, role },
+                { userId: ownerId, role: 'owner' },
+                {
+                  userId: role === 'owner' ? otherUser.id : userId,
+                  role: role === 'owner' ? 'member' : role,
+                },
               ],
             },
           },
-          include: { projectMembers: { orderBy: { id: 'asc' } } },
+          include: { projectMembers: { orderBy: { role: 'asc' } } },
         });
 
-        await request(app.getHttpServer())
+        const response = await request(app.getHttpServer())
           .get(`/api/projects/${project.id}/members`)
           .set('Authorization', `Bearer ${accessToken}`)
-          .expect(403)
-          .expect({
-            message: 'プロジェクトのメンバー一覧を取得する権限がありません',
-            error: 'Forbidden',
-            statusCode: 403,
-          });
+          .expect(200);
+
+        // 返却されるのは本人だけでなく、owner を含む Project 内の全メンバー。
+        expect(response.body).toEqual(
+          project.projectMembers.map((member) => ({
+            id: member.id,
+            userId: member.userId,
+            role: member.role,
+            createdAt: member.createdAt.toISOString(),
+            user: {
+              name: null,
+              email:
+                member.userId === userId ? currentUser.email : otherUser.email,
+            },
+          })),
+        );
 
         // AuthGuard による User の同期とは別に、値と更新日時を比較する。
         expect(
           await prisma.project.findUnique({
             where: { id: project.id },
-            include: { projectMembers: { orderBy: { id: 'asc' } } },
+            include: { projectMembers: { orderBy: { role: 'asc' } } },
           }),
         ).toEqual(project);
       },

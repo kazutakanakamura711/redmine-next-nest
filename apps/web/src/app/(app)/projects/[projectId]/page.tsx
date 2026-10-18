@@ -1,25 +1,25 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getProject } from '@/app/(app)/projects/_lib/get-project';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectDetailHeader } from './_components/project-detail-header';
 import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbSeparator,
-  BreadcrumbPage,
-} from '@/components/ui/breadcrumb';
-import Link from 'next/link';
-import { TriangleAlert } from 'lucide-react';
-import { ProjectDetailTabs } from './_components/project-detail-tabs';
+  ProjectDetailTabs,
+  ProjectTabs,
+} from './_components/project-detail-tabs';
+import { ProjectSettingsPanel } from './_components/project-settings-panel';
 
 type ProjectDetailPageProps = {
   params: Promise<{
     projectId: string;
   }>;
+  searchParams: Promise<{
+    tab?: string | string[];
+  }>;
 };
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: ProjectDetailPageProps) {
   const { projectId } = await params;
   const project = await getProject(projectId);
@@ -28,51 +28,34 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
+  const { tab } = await searchParams;
+  const activeTab =
+    tab === ProjectTabs.Setting ? ProjectTabs.Setting : ProjectTabs.Task;
+
+  if (
+    activeTab === ProjectTabs.Setting &&
+    project.currentUserRole !== ProjectRole.Owner
+  ) {
+    redirect(`/projects/${encodeURIComponent(project.id)}`);
+  }
+
   return (
     <>
-      <header className="border-b border-border bg-background">
-        <div className="flex min-h-23 items-center px-5 py-3 sm:px-6">
-          <div>
-            <Breadcrumb className="text-xs">
-              <BreadcrumbList className="gap-1 text-xs">
-                <BreadcrumbItem>
-                  <BreadcrumbLink
-                    render={<Link href="/projects" />}
-                    className="hover:text-indigo-600"
-                  >
-                    プロジェクト一覧
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator>/</BreadcrumbSeparator>
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{project.name}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <h1 className="mt-1 text-lg font-semibold tracking-tight">
-              {project.name}
-            </h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {project.key}
-            </p>
-          </div>
-        </div>
-      </header>
-
-      {project.isArchived && (
-        <div
-          role="status"
-          className="flex items-center gap-2 border-b border-amber-300 bg-amber-50 px-5 py-3 text-sm text-amber-950 sm:px-6"
-        >
-          <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
-          <p>
-            このプロジェクトはアーカイブ済みです。タスクの作成・更新操作は無効化されています。
-          </p>
+      <ProjectDetailHeader
+        name={project.name}
+        projectKey={project.key}
+        isArchived={project.isArchived}
+      />
+      <ProjectDetailTabs
+        projectId={project.id}
+        activeTab={activeTab}
+        currentUserRole={project.currentUserRole}
+      />
+      {activeTab === ProjectTabs.Setting && (
+        <div className="p-5 sm:p-6">
+          <ProjectSettingsPanel project={project} />
         </div>
       )}
-
-      <ProjectDetailTabs project={project} />
     </>
   );
 }

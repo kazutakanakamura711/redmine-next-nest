@@ -1,12 +1,8 @@
-'use client';
-
-import { useState } from 'react';
+import Link from 'next/link';
 import { ClipboardList, Settings, Users } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Project } from '@/app/(app)/projects/_lib/get-projects';
-import { ProjectUnarchive } from './project-unarchive';
-import { ProjectArchive } from './project-archive';
-import { ProjectSettingsForm } from './project-settings-form';
+import { cn } from 'cn';
+
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 
 export const ProjectTabs = {
   Task: 'task',
@@ -22,77 +18,62 @@ export const ProjectTabsDisplayText = {
   [ProjectTabs.Setting]: '設定',
 } satisfies Record<ProjectTab, string>;
 
-function isProjectTab(value: string | null): value is ProjectTab {
-  return Object.values(ProjectTabs).some((tab) => tab === value);
-}
-
 type ProjectDetailTabsProps = {
-  project: Project;
+  projectId: string;
+  activeTab: ProjectTab;
+  currentUserRole: ProjectRole;
 };
 
-export function ProjectDetailTabs({ project }: ProjectDetailTabsProps) {
-  const [activeTab, setActiveTab] = useState<ProjectTab>(ProjectTabs.Task);
+export function ProjectDetailTabs({
+  projectId,
+  activeTab,
+  currentUserRole,
+}: ProjectDetailTabsProps) {
+  const projectPath = `/projects/${encodeURIComponent(projectId)}`;
+  const tabs = [
+    { value: ProjectTabs.Task, href: projectPath, icon: ClipboardList },
+    {
+      value: ProjectTabs.Member,
+      href: `${projectPath}/members`,
+      icon: Users,
+    },
+    {
+      value: ProjectTabs.Setting,
+      href: `${projectPath}?tab=setting`,
+      icon: Settings,
+    },
+  ];
 
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) => {
-        if (isProjectTab(value)) {
-          setActiveTab(value);
-        }
-      }}
-      className="flex-col gap-0"
+    <nav
+      aria-label="プロジェクト詳細"
+      className="overflow-x-auto border-b border-border bg-background"
     >
-      <div className="border-b border-border bg-background">
-        <TabsList variant="line" className="h-11! gap-0 px-5 sm:px-6">
-          <TabsTrigger
-            value={ProjectTabs.Task}
-            className="h-11! flex-none rounded-none px-4 text-muted-foreground hover:text-indigo-600! data-active:border-b-2! data-active:border-b-indigo-600! data-active:text-indigo-600! after:opacity-0!"
-          >
-            <ClipboardList aria-hidden="true" />
-            {ProjectTabsDisplayText[ProjectTabs.Task]}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value={ProjectTabs.Member}
-            disabled
-            title="メンバー画面は今後実装します。"
-            className="h-11! flex-none rounded-none px-4 text-muted-foreground disabled:opacity-100"
-          >
-            <Users aria-hidden="true" />
-            {ProjectTabsDisplayText[ProjectTabs.Member]}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value={ProjectTabs.Setting}
-            className="h-11! flex-none rounded-none px-4 text-muted-foreground hover:text-indigo-600! data-active:border-b-2! data-active:border-b-indigo-600! data-active:text-indigo-600! after:opacity-0!"
-          >
-            <Settings aria-hidden="true" />
-            {ProjectTabsDisplayText[ProjectTabs.Setting]}
-          </TabsTrigger>
-        </TabsList>
-      </div>
-
-      <TabsContent value={ProjectTabs.Setting} className="m-0 p-5 sm:p-6">
-        <ProjectSettingsForm
-          projectId={project.id}
-          initialName={project.name}
-          projectKey={project.key}
-          initialDescription={project.description}
-        />
-        {project.isArchived ? (
-          <ProjectUnarchive
-            projectId={project.id}
-            onUnarchived={() => setActiveTab(ProjectTabs.Task)}
-          />
-        ) : (
-          <ProjectArchive
-            projectId={project.id}
-            projectName={project.name}
-            onArchived={() => setActiveTab(ProjectTabs.Task)}
-          />
-        )}
-      </TabsContent>
-    </Tabs>
+      <ul className="flex h-11 px-5 sm:px-6">
+        {tabs
+          .filter(
+            (tab) =>
+              tab.value !== ProjectTabs.Setting ||
+              currentUserRole === ProjectRole.Owner,
+          )
+          .map(({ value, href, icon: Icon }) => (
+            <li key={value} className="shrink-0">
+              <Link
+                href={href}
+                aria-current={activeTab === value ? 'page' : undefined}
+                className={cn(
+                  'inline-flex h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium whitespace-nowrap transition-colors hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-600 sm:px-4',
+                  activeTab === value
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-muted-foreground',
+                )}
+              >
+                <Icon aria-hidden="true" className="size-4 shrink-0" />
+                {ProjectTabsDisplayText[value]}
+              </Link>
+            </li>
+          ))}
+      </ul>
+    </nav>
   );
 }

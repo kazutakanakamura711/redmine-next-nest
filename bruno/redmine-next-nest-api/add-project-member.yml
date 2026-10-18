@@ -17,6 +17,11 @@ http:
     type: bearer
     token: '{{accessToken}}'
 
+runtime:
+  variables:
+    - name: projectId
+      value: ''
+
 settings:
   encodeUrl: true
   timeout: 0
