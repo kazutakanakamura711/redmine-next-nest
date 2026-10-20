@@ -643,19 +643,19 @@ describe('Projects endpoint', () => {
       ]);
     });
 
-    it('owner→member→viewer、同じroleは参加日時の古い順、日時も同じならIDの昇順で返す', async () => {
+    it('ownerを先頭にし、他のメンバーはroleにかかわらず参加日時・IDの昇順で返す', async () => {
       const prisma = app.get(PrismaService);
       const viewer = await createOtherUser();
       const newerMember = await createOtherUser();
       const sameDateMemberZ = await createOtherUser();
-      const sameDateMemberA = await createOtherUser();
+      const sameDateViewerA = await createOtherUser();
       const project = await prisma.project.create({
         data: { ownerId: userId, name: 'Sorted Members', key: projectKey },
       });
       const idPrefix = projectKey.toLowerCase();
 
       // 登録順・ID順・日時順だけでは、期待する並びにならないデータを用意する。
-      // owner は最新、viewer は最古でも、role の順序が優先される。
+      // owner は最新でも先頭にし、他の参加者は role より参加日時・ID を優先する。
       await prisma.projectMember.createMany({
         data: [
           {
@@ -673,7 +673,7 @@ describe('Projects endpoint', () => {
             createdAt: new Date('2026-10-03T10:00:00.000Z'),
           },
           {
-            id: `${idPrefix}-member-z`,
+            id: `${idPrefix}-same-date-z`,
             projectId: project.id,
             userId: sameDateMemberZ.id,
             role: 'member',
@@ -687,10 +687,10 @@ describe('Projects endpoint', () => {
             createdAt: new Date('2026-10-04T10:00:00.000Z'),
           },
           {
-            id: `${idPrefix}-member-a`,
+            id: `${idPrefix}-same-date-a`,
             projectId: project.id,
-            userId: sameDateMemberA.id,
-            role: 'member',
+            userId: sameDateViewerA.id,
+            role: 'viewer',
             createdAt: new Date('2026-10-02T10:00:00.000Z'),
           },
         ],
@@ -703,12 +703,93 @@ describe('Projects endpoint', () => {
 
       expect(response.body.map((member: { id: string }) => member.id)).toEqual([
         `${idPrefix}-owner`,
-        `${idPrefix}-member-a`,
-        `${idPrefix}-member-z`,
-        `${idPrefix}-member-0`,
         `${idPrefix}-viewer`,
+        `${idPrefix}-same-date-a`,
+        `${idPrefix}-same-date-z`,
+        `${idPrefix}-member-0`,
       ]);
     });
+
+    it.each([
+      ['member', 'viewer'],
+      ['viewer', 'member'],
+    ] as const)(
+      '権限変更後も一覧の位置を保つ（%s→%s）',
+      async (initialRole, nextRole) => {
+        const prisma = app.get(PrismaService);
+        const targetUser = await createOtherUser();
+        const otherUser = await createOtherUser();
+        const project = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            name: 'Stable Member Order',
+            key: projectKey,
+            projectMembers: {
+              create: {
+                userId,
+                role: 'owner',
+                createdAt: new Date('2026-10-04T10:00:00.000Z'),
+              },
+            },
+          },
+          include: { projectMembers: true },
+        });
+        const targetMember = await prisma.projectMember.create({
+          data: {
+            projectId: project.id,
+            userId: targetUser.id,
+            role: initialRole,
+            createdAt: new Date('2026-10-01T10:00:00.000Z'),
+            updatedAt: new Date('2020-01-01T00:00:00.000Z'),
+          },
+        });
+        const otherMember = await prisma.projectMember.create({
+          data: {
+            projectId: project.id,
+            userId: otherUser.id,
+            role: 'member',
+            createdAt: new Date('2026-10-02T10:00:00.000Z'),
+          },
+        });
+
+        const before = await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/members`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        const memberIdsBefore = before.body.map(
+          (member: { id: string }) => member.id,
+        );
+        expect(memberIdsBefore).toEqual([
+          project.projectMembers[0].id,
+          targetMember.id,
+          otherMember.id,
+        ]);
+
+        await request(app.getHttpServer())
+          .patch(`/api/projects/${project.id}/members/${targetMember.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ role: nextRole })
+          .expect(200);
+
+        const after = await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/members`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        expect(after.body.map((member: { id: string }) => member.id)).toEqual(
+          memberIdsBefore,
+        );
+        expect(after.body[1]).toMatchObject({
+          id: targetMember.id,
+          role: nextRole,
+        });
+
+        const savedMember = await prisma.projectMember.findUniqueOrThrow({
+          where: { id: targetMember.id },
+        });
+        expect(savedMember.createdAt).toEqual(targetMember.createdAt);
+        expect(savedMember.updatedAt).not.toEqual(targetMember.updatedAt);
+      },
+    );
 
     it('同じownerの別Projectの参加情報をメンバー一覧に含めない', async () => {
       const prisma = app.get(PrismaService);

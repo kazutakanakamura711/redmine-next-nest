@@ -13,19 +13,11 @@ import { useRouter } from 'next/navigation';
 import type { KeyboardEvent } from 'react';
 
 import type { Project } from '@/app/(app)/projects/_lib/get-projects';
+import { formatDate } from '@/lib/format-date';
 
 type ProjectsTableProps = {
   projects: Project[];
 };
-
-function formatUpdatedAt(updatedAt: string) {
-  return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: 'Asia/Tokyo',
-  }).format(new Date(updatedAt));
-}
 
 export function ProjectsTable({ projects }: ProjectsTableProps) {
   const router = useRouter();
@@ -103,7 +95,7 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
               <TableCell className="px-4 text-muted-foreground">—</TableCell>
               <TableCell className="px-4 text-muted-foreground">—</TableCell>
               <TableCell className="px-4 text-muted-foreground">
-                {formatUpdatedAt(project.updatedAt)}
+                {formatDate(project.updatedAt)}
               </TableCell>
               <TableCell className="px-4">
                 <Badge

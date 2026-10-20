@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectDetail } from '@/app/(app)/projects/_lib/get-project';
@@ -14,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   getCurrentUser: vi.fn(),
   refresh: vi.fn(),
+  updateProjectMemberRole: vi.fn(),
+  toastAdd: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
@@ -25,6 +28,14 @@ vi.mock('@/app/(app)/projects/_lib/get-project', () => ({
 
 vi.mock('@/app/(app)/projects/_lib/get-project-members', () => ({
   getProjectMembers: mocks.getProjectMembers,
+}));
+
+vi.mock('@/app/(app)/projects/_lib/update-project-member-role', () => ({
+  updateProjectMemberRole: mocks.updateProjectMemberRole,
+}));
+
+vi.mock('@/components/ui/toast', () => ({
+  toast: { add: mocks.toastAdd },
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -61,6 +72,14 @@ const members: ProjectMember[] = [
   },
 ];
 
+const editableMember: ProjectMember = {
+  id: 'membership-member',
+  userId: 'user-member',
+  role: ProjectRole.Member,
+  createdAt: '2026-10-18T00:00:00.000Z',
+  user: { name: '権限変更の対象', email: 'member@example.com' },
+};
+
 const currentUser: CurrentUser = {
   id: 'user-owner',
   email: 'owner@example.com',
@@ -90,6 +109,10 @@ describe('ProjectMembersPage', () => {
       error: null,
     });
     mocks.getCurrentUser.mockResolvedValue(currentUser);
+    mocks.updateProjectMemberRole.mockReset().mockResolvedValue({
+      ...editableMember,
+      role: ProjectRole.Viewer,
+    });
   });
 
   it('取得したProjectのヘッダー・共通ナビゲーション・メンバーを表示する', async () => {
@@ -162,10 +185,58 @@ describe('ProjectMembersPage', () => {
     expect(within(list).getAllByText('（自分）')).toHaveLength(1);
   });
 
+  it('ownerのページではowner以外のメンバーに権限変更ボタンを表示する', async () => {
+    mocks.getProjectMembers.mockResolvedValue([...members, editableMember]);
+
+    await renderPage();
+
+    const table = screen.getByRole('table', {
+      name: 'プロジェクトメンバー一覧',
+    });
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(
+      within(rows[0]).queryByRole('button', { name: '権限変更' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(rows[1]).getByRole('button', { name: '権限変更' }),
+    ).toBeEnabled();
+    const list = screen.getByRole('list', {
+      name: 'プロジェクトメンバー一覧（モバイル）',
+    });
+    expect(
+      within(list).getByRole('button', { name: '権限変更' }),
+    ).toBeEnabled();
+  });
+
+  it('ページから取得済みのProject.idをListへ渡し、対象メンバーの権限を保存する', async () => {
+    mocks.getProjectMembers.mockResolvedValue([...members, editableMember]);
+    const user = userEvent.setup();
+    await renderPage();
+
+    const table = screen.getByRole('table', {
+      name: 'プロジェクトメンバー一覧',
+    });
+    const row = within(table).getAllByRole('row')[2];
+    await user.click(within(row).getByRole('button', { name: '権限変更' }));
+    await user.selectOptions(
+      within(row).getByRole('combobox'),
+      ProjectRole.Viewer,
+    );
+    await user.click(within(row).getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    expect(mocks.updateProjectMemberRole).toHaveBeenCalledExactlyOnceWith(
+      project.id,
+      editableMember.id,
+      { role: ProjectRole.Viewer },
+    );
+  });
+
   it.each([ProjectRole.Member, ProjectRole.Viewer])(
     '%sもメンバーページを表示でき、設定リンクは表示しない',
     async (currentUserRole) => {
       mocks.getProject.mockResolvedValue({ ...project, currentUserRole });
+      mocks.getProjectMembers.mockResolvedValue([...members, editableMember]);
 
       await renderPage();
 
@@ -179,11 +250,15 @@ describe('ProjectMembersPage', () => {
       expect(
         screen.queryByRole('button', { name: 'メンバーを追加' }),
       ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '権限変更' }),
+      ).not.toBeInTheDocument();
     },
   );
 
-  it('アーカイブ済みでも一覧を表示し、ownerの追加ボタンを無効にする', async () => {
+  it('アーカイブ済みでも一覧を表示し、ownerの追加と権限変更のボタンを無効にする', async () => {
     mocks.getProject.mockResolvedValue({ ...project, isArchived: true });
+    mocks.getProjectMembers.mockResolvedValue([...members, editableMember]);
 
     await renderPage();
 
@@ -196,6 +271,9 @@ describe('ProjectMembersPage', () => {
     expect(
       screen.getByText('アーカイブ済みのため、メンバーを追加できません。'),
     ).toBeInTheDocument();
+    for (const button of screen.getAllByRole('button', { name: '権限変更' })) {
+      expect(button).toBeDisabled();
+    }
   });
 
   it('Projectが存在しない、または非参加の場合はnotFoundを呼ぶ', async () => {

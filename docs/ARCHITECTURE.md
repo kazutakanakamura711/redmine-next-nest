@@ -20,6 +20,7 @@ src/
 - `components/common` には、アプリ固有だが複数画面で使う小さな UI を置く。
 - `features` には、プロジェクト作成フォームやタスク一覧など業務機能ごとのコードを置く。
 - 画面専用の小さな部品は、その route 配下の `_components` に置いてよい。
+- カスタム Hook は、コンポーネント専用なら `use`＋コンポーネント名、複数箇所で使う共通 Hook なら処理内容が分かる名前にする。ファイル名は `use-project-members-list.ts` のように kebab-case にする。
 - UI 部品は必要に応じて Storybook の story を追加し、画面を開かなくても状態を確認できるようにする。
 
 ### Web の認証基盤
@@ -81,13 +82,26 @@ Project 詳細とメンバー一覧は `projects/_lib/get-project.ts`・`get-pro
 Project 詳細または一覧の取得が `null` なら `notFound()` を呼び、空配列は0件の正常な取得結果として扱う。
 
 ヘッダーと URL に対応したナビゲーションは、詳細ページと共通の `[projectId]/_components` に置く。
-`members/_components/project-members-list.tsx` は、取得済みのメンバーと本人の User.id を受け取る表示部品とし、API 取得やセッションの確認を持たない。
+`members/_components/project-members-list.tsx` は Client Component とし、`projectId`、取得済みのメンバー、本人の User.id、`currentUserRole` と `isArchived` を受け取り、一覧を表示する。行内編集・保存の状態と操作は、画面専用のカスタム Hook `members/_lib/use-project-members-list.ts` の `useProjectMembersList` から受け取る。一覧取得やセッションの確認は持たない。
 本人の目印は `member.userId === currentUserId` で判断する。表示用の props に access token を含めない。
 設定リンクは詳細の `currentUserRole` が owner の場合だけ表示し、API 側の membership・role 検証も維持する。
+
+メンバー一覧 API は Repository で参加日時・ID の昇順に1回で取得し、その順序を保ったまま owner を先頭にまとめる。member・viewer の違いは並び順に使わず、権限変更だけで行が移動しないようにする。Web は API の配列順で表示する。
 
 一覧の `headerAction` は JSX を受け取る表示枠とし、ページが owner の場合だけ `AddProjectMemberDialog` を渡す。ページから Dialog には `projectId` と `isArchived` を渡す。
 `AddProjectMemberDialog` は Client Component とし、開閉・入力検証・送信中の制御・結果の表示を扱う。`projects/_lib/add-project-member.ts` がブラウザーのセッションから token を取得して追加 API に渡す。
 追加成功後は `router.refresh()` で Server Component の一覧を再取得する。API の認証・認可・アーカイブ状態の検証も維持する。
+
+権限変更は行内編集とし、一覧内で編集対象の ProjectMember.id と選択中の role を管理する。対象と選択を PC・モバイルで共有するため、両方の表示を持つ一覧を Client Component にする。ページは Server Component のままとし、親が渡す `headerAction` の配置も一覧に残す。
+一覧全体のヘッダー・空状態・繰り返し表示は `project-members-list.tsx`、1人分の表示は `project-member-item.tsx` に分ける。Item は PC 用の `ProjectMemberTableRow` とモバイル用の `ProjectMemberCard` を公開し、状態と操作の関数を List から props で受け取る。
+編集欄は `project-member-role-editor.tsx` の `ProjectMemberRoleEditor` に分け、Item から読み込んで PC の権限セルとモバイルのカード下部で使う。Editor は選択中の role・選択変更と取消の関数・送信ハンドラー・アーカイブ状態・送信中の状態・エラーを props で受け取る。Hook は編集対象の ID と API エラーを `useState`、選択中の role を1つの `useForm` で管理する。List が Hook を1回呼び、その値と関数を PC・モバイルの両方へ渡す。Item・Editor・Hook は Client Component の List 配下で読み込むため、`'use client'` は List だけに置く。
+Hook に member・viewer のみを許可する Zod スキーマと、そのスキーマから推論したフォームの型を置く。`useForm` は `zodResolver` と `mode: 'onSubmit'` を設定し、`useController` の `field.value`・`field.onChange` を `editingRole`・`handleRoleChange` として List に返す。List は React Hook Form の API を直接扱わない。選択値の `useState` は持たず、編集開始時は `reset({ role: member.role })`、取消時は `reset()` を使う。owner は編集開始の処理でも対象外にする。
+owner だけに操作を表示し、対象が owner の場合は表示しない。アーカイブ済みでは操作を無効にする。
+Editor はそれぞれ `form` を持ち、List から受け取った `handleSave` に送信を渡す。Hook は `handleSubmit(onSubmit)` を `handleSave` として返し、入力検証後に保存する。項目エラーは選択欄の下に表示し、PC・モバイルが同時に DOM に存在しても `aria-describedby` が重複しないよう、対象 ID と表示種別から別々のエラー ID を付ける。
+Hook の `onSubmit` は `updateProjectMemberRole(projectId, editingMemberId, values)` を呼ぶ。`projects/_lib/update-project-member-role.ts` がブラウザーのセッションから token を取得し、既存の PATCH API に渡す。対象は User.id ではなく ProjectMember.id とする。API 側の認証・認可・owner 保護・アーカイブ状態の検証も維持する。
+送信中は `isSubmitting` を PC・モバイルで共有し、入力・保存・取消・別の対象への切り替えを無効にする。失敗時は入力と編集対象を保持し、業務エラーはメッセージ、その他の失敗は固定の案内を表示する。404・409 を status だけで項目エラーへ変換しない。成功時は通知・フォーム初期化・編集終了の後、`router.refresh()` で一覧を再取得する。
+
+メンバーの参加日とプロジェクト一覧の更新日は、共通の `apps/web/src/lib/format-date.ts` の `formatDate` で表示する。日時の文字列を受け取り、`ja-JP`・`Asia/Tokyo` を使って日本時間の `YYYY/MM/DD` 形式に揃える。
 
 同じ route の `loading.tsx` は Server Component のスケルトンを定義し、Next.js がデータ取得中に表示する。
 `error.tsx` は Client Component とし、固定のエラー案内、Next.js から渡される `retry()` による再取得、`/projects` へ戻るリンクを表示する。
@@ -190,7 +204,7 @@ Repository を通じて Service とデータアクセスの責務を分離する
 
 - 用語とルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) に揃える。Project、owner、member、viewer の意味を文書・コード・テストで統一する。
 - 現在の Controller / Service / Repository で、処理順、認証・認可、DB 保存、transaction を実装・確認する。
-- Project 作成時の owner 登録、全 Project API の認証保護と membership・role による認可、メンバー管理 API は実装済みである。Project と owner membership は同じ transaction で保存する。Web のメンバー一覧・追加 UI は実装済みで、次は role変更・削除 UI を進める。
+- Project 作成時の owner 登録、全 Project API の認証保護と membership・role による認可、メンバー管理 API は実装済みである。Project と owner membership は同じ transaction で保存する。Web のメンバー一覧・追加・role変更 UI は実装済みで、削除 UI は別の作業として進める。
 - 現在の実装はこの段階にある。Project 権限・メンバー管理などの機能の実装順は、既存の要件とフォローアップタスクに従う。
 
 ### 段階2: 一部の操作にドメインモデルを導入する
