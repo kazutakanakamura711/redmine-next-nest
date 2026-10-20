@@ -91,8 +91,8 @@ export class ProjectsRepository {
     });
   }
 
-  findProjectMembers(projectId: string) {
-    return this.prisma.projectMember.findMany({
+  async findProjectMembers(projectId: string) {
+    const members = await this.prisma.projectMember.findMany({
       where: { projectId },
       select: {
         id: true,
@@ -106,8 +106,14 @@ export class ProjectsRepository {
           },
         },
       },
-      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
+
+    // DB の参加日時・ID 順を保ち、owner だけを先頭にまとめる。
+    return [
+      ...members.filter((member) => member.role === ProjectMemberRole.owner),
+      ...members.filter((member) => member.role !== ProjectMemberRole.owner),
+    ];
   }
 
   findUserByEmail(email: string) {

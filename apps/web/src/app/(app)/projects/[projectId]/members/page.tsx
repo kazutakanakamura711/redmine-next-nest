@@ -60,8 +60,11 @@ export default async function ProjectMembersPage({
       <div className="p-4 sm:p-6">
         <div className="max-w-200">
           <ProjectMembersList
+            projectId={project.id}
             members={projectMembers}
             currentUserId={currentUser.id}
+            currentUserRole={project.currentUserRole}
+            isArchived={project.isArchived}
             headerAction={
               project.currentUserRole === ProjectRole.Owner ? (
                 <AddProjectMemberDialog

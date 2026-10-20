@@ -156,7 +156,7 @@ Web は表示制御に使えますが、各 API での membership・role の検�
 設定更新・アーカイブ・解除は owner のみ許可します。存在しない Project と非参加者には同じ `404`、
 参加者である member・viewer には `403` を返します。
 `ownerId` が本人でも、ProjectMember がなければ操作できません。
-メンバー一覧も参加者の owner・member・viewer に許可し、追加・role変更・削除は owner のみ許可します。Web のメンバー一覧表示は実装済みで、追加・role変更・削除の UI は後続の実装対象です。
+メンバー一覧も参加者の owner・member・viewer に許可し、追加・role変更・削除は owner のみ許可します。Web のメンバー一覧・追加 UI は実装済みで、作業ブランチでは権限変更 UI も行内編集から保存・一覧更新まで実装済みです。削除 UI は別の作業として扱います。
 
 Next.js のログイン・登録画面と、Project の基本6 API 呼び出しへの token 付与は PR #21 で実装済みです。
 
@@ -166,7 +166,8 @@ Next.js のログイン・登録画面と、Project の基本6 API 呼び出し�
 アーカイブ済みでも閲覧でき、返却項目と並び順は閲覧者の role によって変わりません。
 存在しない Project と非参加者には同じ404を返します。`ownerId` が本人でも、参加情報がなければ取得できません。
 返却項目は `id`・`userId`・`role`・`createdAt`・`user.name`・`user.email` です。
-並び順は owner → member → viewer、同じ role は参加日時の古い順、同じ日時なら ProjectMember ID の昇順です。
+並び順は owner を先頭にし、その他は role にかかわらず参加日時の古い順、同じ日時なら ProjectMember ID の昇順です。
+member・viewer の権限変更や更新日時の変化だけでは、一覧の位置を変えません。
 名前が未設定なら `null` を返します。
 
 `POST /api/projects/:projectId/members` の入力例:
@@ -328,7 +329,7 @@ Projects E2E は Auth・Health と合わせて `pnpm test:e2e` で実行しま�
 - 作成者の `ownerId` と `role: owner` の ProjectMember が DB に保存されること。
 - 認証失敗時に Project が作成されず、更新・アーカイブ・解除でも DB が変わらないこと。
 - 有効な token を使う既存の成功ケースと、入力・対象 ID に応じた `400`・`404`・`409`。
-- メンバー一覧の14件: owner を含む一覧、必要な返却項目・名前の null、3段階の並び順、別 Project の除外、認証・認可エラーと拒否時の不変性。owner・member・viewer の各 role とアーカイブ状態の true・false の6通りで、一覧の取得と Project・ProjectMember の値・更新日時の維持を確認する。
+- メンバー一覧の16件: owner を含む一覧、必要な返却項目・名前の null、owner 先頭・その他は参加日時・ID 順、権限変更後の位置の維持、別 Project の除外、認証・認可エラーと拒否時の不変性。owner・member・viewer の各 role とアーカイブ状態の true・false の6通りで、一覧の取得と Project・ProjectMember の値・更新日時の維持を確認する。
 - メンバー追加の41件: member・viewer の201、返却項目・名前の null・DB保存、email の前後空白の除去、別 Project に参加済みの User の追加。
 - 追加時の401・403・404・400・409、Supabase Auth だけに登録された対象、メールの大文字・小文字の違い、owner 自身を含む参加済みの3 role、アーカイブ済み Project、必須項目・形式・型・role・定義外項目の検証。
 - 同じ User の同時追加で201と409になり、参加情報が1件だけ保存されること。成功時は Project と既存参加情報を維持し、拒否時も Project・ProjectMember の値と更新日時が変わらないこと。User のプロフィール同期は比較に含めない。
