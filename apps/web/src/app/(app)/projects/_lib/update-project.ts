@@ -43,16 +43,14 @@ export async function updateProject(
     },
   );
 
-  if (response.ok) {
-    return;
+  if (!response.ok) {
+    // JSON でないエラー本文や空の本文もあり得るため、解析に失敗したら null とする。
+    const errorBody: unknown = await response.json().catch(() => null);
+
+    // API が返した message を使い、取得できない場合は画面用の汎用メッセージを使う。
+    throw new ProjectRequestError(
+      getErrorMessage(errorBody) ?? 'プロジェクトの更新に失敗しました。',
+      response.status,
+    );
   }
-
-  // JSON でないエラー本文や空の本文もあり得るため、解析に失敗したら null とする。
-  const errorBody: unknown = await response.json().catch(() => null);
-
-  // API が返した message を使い、取得できない場合は画面用の汎用メッセージを使う。
-  throw new ProjectRequestError(
-    getErrorMessage(errorBody) ?? 'プロジェクトの更新に失敗しました。',
-    response.status,
-  );
 }

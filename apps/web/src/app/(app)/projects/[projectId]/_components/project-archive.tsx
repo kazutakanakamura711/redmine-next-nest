@@ -69,6 +69,11 @@ export function ProjectArchive({
   const isConfirmationNameMatched = confirmationName === projectName;
 
   const handleOpenChange = (open: boolean) => {
+    // 閉じても送信は中断されないため、送信中は Escape キーによる閉じる操作も止める。
+    if (isSubmitting) {
+      return;
+    }
+
     setIsOpen(open);
 
     // 開き直したときに前回の入力・エラーを残さない。

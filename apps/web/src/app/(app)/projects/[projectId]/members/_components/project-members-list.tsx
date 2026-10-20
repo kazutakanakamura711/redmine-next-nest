@@ -1,4 +1,5 @@
 import { UserRound } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
 import {
@@ -18,6 +19,7 @@ import {
 type ProjectMembersListProps = {
   members: ProjectMember[];
   currentUserId?: string;
+  headerAction?: ReactNode;
 };
 
 const roleBadgeClassName = {
@@ -82,12 +84,18 @@ function RoleBadge({ role }: { role: ProjectRole }) {
 export function ProjectMembersList({
   members,
   currentUserId,
+  headerAction,
 }: ProjectMembersListProps) {
   return (
     <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-background">
-      <div className="border-b border-border px-4 py-4 sm:px-5">
-        <h2 className="text-sm font-semibold">プロジェクトメンバー</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{members.length}名</p>
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <h2 className="text-sm font-semibold">プロジェクトメンバー</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {members.length}名
+          </p>
+        </div>
+        {headerAction}
       </div>
 
       {members.length === 0 ? (

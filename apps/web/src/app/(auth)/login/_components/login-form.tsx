@@ -19,7 +19,7 @@ const loginSchema = z.object({
     .string()
     .trim()
     .min(1, 'メールアドレスを入力してください')
-    .email('有効なメールアドレスを入力してください'),
+    .pipe(z.email({ error: '有効なメールアドレスを入力してください' })),
   password: z.string().min(1, 'パスワードを入力してください'),
 });
 

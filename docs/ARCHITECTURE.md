@@ -85,6 +85,10 @@ Project 詳細または一覧の取得が `null` なら `notFound()` を呼び�
 本人の目印は `member.userId === currentUserId` で判断する。表示用の props に access token を含めない。
 設定リンクは詳細の `currentUserRole` が owner の場合だけ表示し、API 側の membership・role 検証も維持する。
 
+一覧の `headerAction` は JSX を受け取る表示枠とし、ページが owner の場合だけ `AddProjectMemberDialog` を渡す。ページから Dialog には `projectId` と `isArchived` を渡す。
+`AddProjectMemberDialog` は Client Component とし、開閉・入力検証・送信中の制御・結果の表示を扱う。`projects/_lib/add-project-member.ts` がブラウザーのセッションから token を取得して追加 API に渡す。
+追加成功後は `router.refresh()` で Server Component の一覧を再取得する。API の認証・認可・アーカイブ状態の検証も維持する。
+
 同じ route の `loading.tsx` は Server Component のスケルトンを定義し、Next.js がデータ取得中に表示する。
 `error.tsx` は Client Component とし、固定のエラー案内、Next.js から渡される `retry()` による再取得、`/projects` へ戻るリンクを表示する。
 Project 詳細・メンバー一覧 API の404は404画面、それ以外の取得失敗は共通のエラー案内で扱う。内部エラーの内容をそのまま画面へ出さない。
@@ -186,7 +190,7 @@ Repository を通じて Service とデータアクセスの責務を分離する
 
 - 用語とルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) に揃える。Project、owner、member、viewer の意味を文書・コード・テストで統一する。
 - 現在の Controller / Service / Repository で、処理順、認証・認可、DB 保存、transaction を実装・確認する。
-- Project 作成時の owner 登録と、既存 Project API の認証保護は実装済みである。Project と owner membership は同じ transaction で保存する。次は membership・role による認可とメンバー管理を進める。
+- Project 作成時の owner 登録、全 Project API の認証保護と membership・role による認可、メンバー管理 API は実装済みである。Project と owner membership は同じ transaction で保存する。Web のメンバー一覧・追加 UI は実装済みで、次は role変更・削除 UI を進める。
 - 現在の実装はこの段階にある。Project 権限・メンバー管理などの機能の実装順は、既存の要件とフォローアップタスクに従う。
 
 ### 段階2: 一部の操作にドメインモデルを導入する
