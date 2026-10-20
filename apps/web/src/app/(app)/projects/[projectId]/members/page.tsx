@@ -1,12 +1,14 @@
 import { notFound } from 'next/navigation';
 import { getProject } from '@/app/(app)/projects/_lib/get-project';
 import { getProjectMembers } from '@/app/(app)/projects/_lib/get-project-members';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import { ProjectDetailHeader } from '../_components/project-detail-header';
 import {
   ProjectDetailTabs,
   ProjectTabs,
 } from '../_components/project-detail-tabs';
 import { ProjectMembersList } from './_components/project-members-list';
+import { AddProjectMemberDialog } from './_components/add-project-member-dialog';
 import { getCurrentUser } from '@/lib/auth/get-current-user';
 import { createClient } from '@/lib/supabase/server';
 
@@ -60,6 +62,14 @@ export default async function ProjectMembersPage({
           <ProjectMembersList
             members={projectMembers}
             currentUserId={currentUser.id}
+            headerAction={
+              project.currentUserRole === ProjectRole.Owner ? (
+                <AddProjectMemberDialog
+                  projectId={project.id}
+                  isArchived={project.isArchived}
+                />
+              ) : undefined
+            }
           />
         </div>
       </div>

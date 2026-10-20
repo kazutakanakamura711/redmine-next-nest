@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -47,6 +47,7 @@ describe('ProjectArchive', () => {
     archiveProjectMock.mockReset();
     routerMocks.refresh.mockReset();
     toastMocks.add.mockReset();
+    defaultProps.onArchived.mockReset();
   });
 
   it('確認名が一致するまでアーカイブボタンを非活性にする', async () => {
@@ -106,6 +107,53 @@ describe('ProjectArchive', () => {
     expect(routerMocks.refresh).toHaveBeenCalledOnce();
   });
 
+  it('送信中は Escape キーや閉じるボタンで閉じず、成功後に閉じる', async () => {
+    let resolveRequest!: () => void;
+    archiveProjectMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+    render(<ProjectArchive {...defaultProps} />);
+    const user = await openDialog();
+    await user.type(
+      screen.getByLabelText(
+        /確認のため.*Task Management App.*と入力してください/,
+      ),
+      defaultProps.projectName,
+    );
+    await user.click(screen.getByRole('button', { name: 'アーカイブする' }));
+    await waitFor(() => expect(archiveProjectMock).toHaveBeenCalledTimes(1));
+
+    expect(
+      screen.getByRole('button', { name: 'アーカイブ中...' }),
+    ).toBeDisabled();
+    const cancelButton = screen.getByRole('button', { name: 'キャンセル' });
+    const closeButton = screen.getByRole('button', { name: '閉じる' });
+    expect(cancelButton).toBeDisabled();
+    expect(closeButton).toBeDisabled();
+    await user.click(cancelButton);
+    await user.click(closeButton);
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(defaultProps.onArchived).not.toHaveBeenCalled();
+    expect(toastMocks.add).not.toHaveBeenCalled();
+    expect(routerMocks.refresh).not.toHaveBeenCalled();
+
+    await act(async () => resolveRequest());
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+    expect(archiveProjectMock).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onArchived).toHaveBeenCalledTimes(1);
+    expect(toastMocks.add).toHaveBeenCalledExactlyOnceWith({
+      type: 'success',
+      title: 'プロジェクトをアーカイブしました',
+    });
+    expect(routerMocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it('APIエラーの場合はダイアログ内にメッセージを表示する', async () => {
     archiveProjectMock.mockRejectedValue(
       new ProjectRequestError('プロジェクトが見つかりません', 404),
@@ -126,5 +174,10 @@ describe('ProjectArchive', () => {
     ).toBeInTheDocument();
     expect(toastMocks.add).not.toHaveBeenCalled();
     expect(routerMocks.refresh).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'キャンセル' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
   });
 });

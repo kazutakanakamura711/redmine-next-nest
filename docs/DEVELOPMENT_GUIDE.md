@@ -2,7 +2,7 @@
 
 ## Project 基本操作の次に進める順番
 
-Project の作成・一覧・詳細・更新・アーカイブ・解除までは実装済み。外部公開を見据え、次は認証と Project 権限を整えてから Task CRUD に進む。
+Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API、Web のメンバー一覧・追加 UI は実装済み。次はメンバーの role変更・削除 UI を1操作ずつ実装し、Playwright → Storybook → Task CRUD の順で進む。
 
 | 順番 | 対象 | 到達点 |
 | --- | --- | --- |

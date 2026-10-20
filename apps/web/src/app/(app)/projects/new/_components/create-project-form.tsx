@@ -170,11 +170,11 @@ export function CreateProjectForm() {
               )}
             </div>
 
-            <div className="mt-6 flex flex-col gap-2 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-start">
+            <div className="mt-6 flex flex-col gap-2 border-t border-border pt-6 sm:flex-row-reverse sm:items-center sm:justify-end">
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="order-1 w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:order-2 sm:w-auto"
+                className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto"
               >
                 {isSubmitting ? '作成中...' : 'プロジェクトを作成'}
               </Button>
@@ -184,7 +184,7 @@ export function CreateProjectForm() {
                 variant="secondary"
                 disabled={isSubmitting}
                 onClick={() => router.push('/projects')}
-                className="order-2 w-full sm:order-1 sm:w-auto"
+                className="w-full sm:w-auto"
               >
                 キャンセル
               </Button>

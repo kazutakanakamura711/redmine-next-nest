@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-18
+最終更新: 2026-10-20
 
 ## 目的
 
@@ -15,9 +15,9 @@
 - Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
-- メンバー一覧・追加 API（PR #23・#24）、role 変更 API（PR #25）、削除 API（PR #26）は `develop` にマージ済み。引き継ぎ時点の HEAD は `eb8e65a`。ユーザーから API E2E 全件成功、Bruno による削除204・再削除404・owner削除409・member/viewerによる削除403・アーカイブ済みProjectでの削除409、Prisma Studioによる参加情報削除の確認を引き継いだ。
-- メンバー管理 Web UI は、Project 詳細・メンバー一覧・本人情報の実データ接続、本人の「（自分）」表示、PC・モバイルの一覧、取得中・0件・取得失敗・再試行まで実装済み。タブは URL に対応し、設定リンクとフォームは owner だけに表示する。メンバー一覧は owner・member・viewer が閲覧でき、アーカイブ済み Project も参照できる。追加・role変更・削除の UI は未実装で、後続で1操作ずつ扱う。
-- 作業ブランチでは、2026-10-17 に Figma に合わせて一覧 API の閲覧権限を参加者の3 role に広げ、Project 詳細 API に本人の `currentUserRole` を追加した。2026-10-18 の最終確認で、API E2E 全216件、通常の API テスト12件・Web テスト211件、lint・typecheck・format が成功した。Codex 環境の標準 Web Turbopack build はポート作成権限エラーとなったが、その後ユーザーのローカル環境で標準 `pnpm build` の成功報告を受け、確認待ちは解消した。Bruno の `runtime.variables` は、ユーザーの運用に合わせて `projectId` を空欄で定義し、コミット対象に含める方針で合意済み。詳細は最新の実施メモを参照する。
+- メンバー一覧・追加 API（PR #23・#24）、role 変更 API（PR #25）、削除 API（PR #26）、Web の一覧表示（PR #27）は `develop` にマージ済み。PR #27 には一覧 API の参加者3 role への開放と Project 詳細の `currentUserRole` 追加も含む。
+- メンバー管理 Web UI は、Project 詳細・メンバー一覧・本人情報の実データ接続、本人の「（自分）」表示、PC・モバイルの一覧、取得中・0件・取得失敗・再試行まで実装済み。タブは URL に対応し、設定リンクとフォームは owner だけに表示する。メンバー一覧は owner・member・viewer が閲覧でき、アーカイブ済み Project も参照できる。作業ブランチ `feat/phase-2/project-members-web-add` では owner 向けのメンバー追加 UI も実装済み。role変更・削除 UI は後続で1操作ずつ扱う。
+- 2026-10-20 に、ユーザーからメンバー追加 UI の動作と、`pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` の全てに問題がないとの報告を受けた。ドキュメントの更新漏れを確認し、コミット・push・`develop` 向け PR を作成する。PR・CI の状態は GitHub で確認する。詳細は最新の実施メモを参照する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
@@ -175,7 +175,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（区切り1〜4とメンバー一覧・追加・role変更・削除 API は PR #26 まで `develop` にマージ済み。作業ブランチで一覧の閲覧権限と詳細の `currentUserRole` を追加し、Web の一覧・本人情報の実データ接続、タブの URL 対応、owner 向け設定表示、取得中・0件・取得失敗・再試行まで実装済み。差分レビュー、通常テスト・API E2E 全件、lint・typecheck・format と、ユーザーによる標準 build の成功報告を確認済み。追加・role変更・削除の UI は後続で扱う。検証結果は最新の実施メモを参照）
+- 状態: 対応中（認証・Project 権限、メンバー管理 API、Web の一覧表示は PR #27 まで `develop` にマージ済み。作業ブランチで owner 向け追加 UI とテストを実装し、ユーザーによる動作・通常テスト・API E2E・lint・typecheck・format・build の成功報告を確認済み。role変更・削除 UI は後続で扱う。検証結果は最新の実施メモを参照）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -519,12 +519,22 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - ユーザーから、ローカルのターミナルで標準 `pnpm build` を実行し、問題なく成功したとの報告を受けた。Codex 環境の制限による標準 Web build の確認待ちは解消した。成功ログの再取得や、Codex 側での標準 build の再実行は行っていない。
 - ユーザーから今回の変更のコミット・push・develop 向け PR 作成の依頼を受けた。Bruno の `projectId` の空欄定義も含め、一覧表示の変更を1つの PR としてまとめる。
 
+#### メンバー追加 UI の実装・確認（2026-10-20）
+
+- 一覧表示の PR #27 は 2026-10-18 に `develop` へマージ済み。`feat/phase-2/project-members-web-add` で、owner の一覧ヘッダーから開く `AddProjectMemberDialog` と、Bearer token を付けて既存の追加 API を呼ぶ `addProjectMember()` を実装した。`projectId` は props で渡し、一覧部品は親から受け取る `headerAction` の配置を担当する。
+- メールアドレスと member・viewer の権限を React Hook Form / Zod で検証する。初回は送信時、その後は入力変更時に再検証し、閉じる際の blur では新しいエラーを出さない。メールアドレスは trim するが、大文字・小文字は変更しない。
+- 送信中は入力・追加・キャンセル・閉じる操作を無効にする。成功時は通知・初期化・Dialog を閉じる処理・一覧の再取得を行い、失敗時は入力を保持して API のメッセージまたは通信エラーの案内を表示する。アーカイブ済み Project では入口とフォームを無効にする。API 側の認証・認可・アーカイブ制約は既存実装を使う。
+- 既存フォームに合わせ、`useRef` による送信制御や `useId`、独自の blur ハンドラーは使わず、`handleSubmit(onSubmit)` と固定の項目 ID を使う。追加ボタンを先に記述し、PC は `sm:flex-row-reverse` でキャンセルを左・追加を右に、モバイルは追加を上・キャンセルを下に表示する。プロジェクト作成フォームのボタン配置も同じ形に揃えた。
+- 関連して、アーカイブ確認 Dialog も送信中の Escape による閉じる操作を止めた。`update-project.ts` はエラー応答を先に処理する形に揃え、ログイン・登録フォームの非推奨の `z.string().email()` は `z.email()` を使う形へ変更した。shadcn/ui の Dialog を追加したが、依存関係・Backend・DB・migration の変更はない。
+- helper・Dialog・ページのテストを追加し、アーカイブ Dialog の送信中の閉じる操作もテストした。対象テスト、lint・Web typecheck・format の確認は成功済み。Chrome で PC・モバイル表示、入力検証、既参加ユーザーを指定した409の表示と入力保持、キャンセル後の初期化を確認し、ユーザーから追加 UI の動作確認の報告も受けた。
+- 最終状態について、ユーザーから `pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` の全てが成功したとの報告を受けた。この全体確認はユーザーのローカル環境で実行したものであり、Codex 側で全件を再実行した記録ではない。
+
 #### 後続作業
 
-- 一覧表示の PR を作成後、GitHub Actions の結果を確認する。標準 `pnpm build` はユーザーによる成功報告で確認済み。Bruno の `projectId` の空欄定義はコミット対象に含める。マージはユーザーが依頼した段階で行う。
+- メンバー追加 UI の変更をコミット・push して `develop` 向け PR を作成し、GitHub Actions の結果を確認する。マージはユーザーが依頼した段階で行う。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- メンバー削除 API と owner 自身の削除・role変更の保護は実装・確認済み。Web の一覧表示は本ブランチで実装・対象確認済みで、追加・role変更・削除の UI はそれぞれ後続の操作として扱う。追加・role変更・削除は owner のみとし、アーカイブ済み Project では実行できない仕様を維持する。メンバー管理 UI を揃えた後、Playwright → Storybook → Task CRUD の順で進める。
+- メンバー削除 API と owner 自身の削除・role変更の保護は実装・確認済み。Web の一覧・追加 UI は実装済みで、role変更・削除 UI はそれぞれ後続の操作として扱う。追加・role変更・削除は owner のみとし、アーカイブ済み Project では実行できない仕様を維持する。メンバー管理 UI を揃えた後、Playwright → Storybook → Task CRUD の順で進める。
 - Projects API E2E のファイル分割・共通 helper の導入は、ユーザーがテスト構成を理解してから再検討する。現在は整理 PR を保留し、既存ファイルの構成を維持して機能追加を進める。
 - 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
@@ -587,7 +597,7 @@ shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story
 ## 推奨する着手順
 
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
-2. タスク 5: 一覧 UI の PR・CI を確認し、残るメンバー追加・role変更・削除の UI を1操作ずつ実装する。
+2. タスク 5: 追加 UI の PR・CI を確認し、残るメンバーの role変更・削除 UI を1操作ずつ実装する。
 3. タスク 6: 認証済み Project の主要導線を Playwright で確認し、CI に追加する。
 4. タスク 7: Storybook を導入し、既存の再利用 UI を登録する。
 5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
@@ -598,12 +608,12 @@ shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story
 
 新しいスレッドで、このリポジトリを開いて次のように依頼する。
 
-> `docs/REQUIREMENTS.md`、`docs/DOMAIN_MODEL.md`、`docs/UI_API.md`、`docs/ARCHITECTURE.md` と本書のタスク 5 を読んでください。PR #26 まで `develop` にマージ済みで、メンバー一覧・追加・role変更・削除 API は実装済みです。`feat/phase-2/project-members-web-list` では一覧の閲覧を参加者の owner・member・viewer に広げ、Project 詳細の `currentUserRole` も追加しました。2026-10-18 に、その後の最終状態で API E2E 全216件の成功を確認しました。
+> `docs/REQUIREMENTS.md`、`docs/DOMAIN_MODEL.md`、`docs/UI_API.md`、`docs/ARCHITECTURE.md` と本書のタスク 5 を読んでください。PR #27 まで `develop` にマージ済みで、認証・Project 権限、メンバー管理 API と Web の一覧表示は実装済みです。作業ブランチは `feat/phase-2/project-members-web-add` で、owner 向けメンバー追加 Dialog、API 呼び出し helper、関連テストを追加しました。まずブランチと PR・CI の最新状態を確認してください。
 >
-> Web のメンバー一覧は、Project 詳細・メンバー一覧・本人情報の実データに接続済みです。サンプルの一覧・本人 ID は削除し、`getCurrentUser(accessToken)` が返す User.id を `member.userId` と比較して「（自分）」を表示します。PC の表・モバイルのカード、名前未設定、3 role の表示名、参加日、0件、`loading.tsx`、`error.tsx` と `retry()` による復旧も実装済みです。role の表示名は `ProjectRoleDisplayText` です。ヘッダーは `name`・`projectKey`・`isArchived` を個別の props で受け取ります。共通タブはリンクで、メンバーは `/members`、設定は `?tab=setting` を使います。設定は owner だけに表示し、member・viewer の設定 URL への直接アクセスはタスク URL へ戻します。
+> `page.tsx` が owner の場合だけ `AddProjectMemberDialog` を `ProjectMembersList` の `headerAction` に渡し、`projectId` は props で受け渡します。React Hook Form は `mode: 'onSubmit'`、フォームは `handleSubmit(onSubmit)` を使い、独自の blur ハンドラー・送信制御用の useRef・useId は使いません。送信中は入力と通常の送信・閉じる操作を止め、成功時は通知・初期化・閉じる処理・`router.refresh()`、失敗時は入力保持とエラー表示を行います。404・409は原因が複数あるため、statusだけで項目エラーに変換しません。
 >
-> 最終確認の `pnpm test` は API 12件・Web 211件、`pnpm lint`・`pnpm typecheck`・`pnpm format:check` と API E2E 216件が成功しました。Bruno の引用符を整形しています。Codex 環境では API build と補助の Web webpack build が成功し、標準 Web build は環境制限で失敗しましたが、その後ユーザーから標準 `pnpm build` の成功報告を受け、確認待ちは解消しました。Chrome で PC・モバイル表示、エラー境界からの再試行による再取得・復旧を確認しました。ユーザーから member・viewer とアーカイブ済み Project の閲覧・表示確認の報告も受けています。確認用の `throw`・一時検証ページは削除済みです。
+> 対象テスト・lint・Web typecheck・format は成功済みです。2026-10-20 に、ユーザーから追加 UI の動作と `pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` の全てに問題がないとの報告を受けています。全体確認はユーザーのローカル環境での実行結果です。Chrome でも PC・モバイル表示、入力検証、409の表示・入力保持、キャンセル後の初期化を確認済みです。
 >
-> ユーザーから一覧表示の変更のコミット・push・develop 向け PR 作成の依頼を受けています。まず作業ブランチと PR・CI の最新状態を確認してください。Bruno の `add-project-member.yml` は、`runtime.variables` に `projectId` を空欄で定義する変更もコミット対象に含めることを了承済みです。差分レビューで新たな重大な実装不具合は見つかっていません。その後のメンバー追加・role変更・削除 UI は、1操作ずつ説明・実装・検証してください。追加・role変更・削除と設定タブは owner のみ、アーカイブ済み Project でも一覧は参照でき、メンバー追加・role変更・削除はできない仕様を維持します。メンバー管理 UI を揃えた後は Playwright → Storybook → Task CRUD の順です。マージはユーザーが依頼した段階で行ってください。
+> ユーザーから今回の変更のコミット・push・develop 向け PR 作成の依頼を受けています。残る role変更・削除 UI は1操作ずつ説明・実装・検証してください。追加・role変更・削除と設定タブは owner のみ、アーカイブ済み Project でも一覧は参照でき、メンバー追加・role変更・削除はできない仕様を維持します。メンバー管理 UI を揃えた後は Playwright → Storybook → Task CRUD の順です。マージはユーザーが依頼した段階で行ってください。
 
 最初のタスク以外に着手する場合は、依頼文でタスク名を指定する。この文書の状態と完了条件を、新しいスレッドの作業基準として使う。

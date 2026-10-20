@@ -19,7 +19,7 @@ const registerSchema = z
       .string()
       .trim()
       .min(1, 'メールアドレスを入力してください')
-      .email('有効なメールアドレスを入力してください'),
+      .pipe(z.email({ error: '有効なメールアドレスを入力してください' })),
     password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
     passwordConfirm: z.string().min(1, 'パスワード（確認）を入力してください'),
   })

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   getSession: vi.fn(),
   getCurrentUser: vi.fn(),
+  refresh: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
@@ -34,7 +35,10 @@ vi.mock('@/lib/auth/get-current-user', () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 
-vi.mock('next/navigation', () => ({ notFound: mocks.notFound }));
+vi.mock('next/navigation', () => ({
+  notFound: mocks.notFound,
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 
 const project: ProjectDetail = {
   id: 'project-id',
@@ -112,6 +116,9 @@ describe('ProjectMembersPage', () => {
     expect(within(table).getByText('取得したメンバー')).toBeInTheDocument();
     expect(within(table).getByText('owner@example.com')).toBeInTheDocument();
     expect(screen.getByText('1名')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'メンバーを追加' }),
+    ).toBeEnabled();
   });
 
   it('本人のUser.idに対応する行だけにPC・モバイルで「（自分）」を表示する', async () => {
@@ -169,8 +176,27 @@ describe('ProjectMembersPage', () => {
       expect(
         screen.queryByRole('link', { name: '設定' }),
       ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'メンバーを追加' }),
+      ).not.toBeInTheDocument();
     },
   );
+
+  it('アーカイブ済みでも一覧を表示し、ownerの追加ボタンを無効にする', async () => {
+    mocks.getProject.mockResolvedValue({ ...project, isArchived: true });
+
+    await renderPage();
+
+    expect(
+      screen.getByRole('table', { name: 'プロジェクトメンバー一覧' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'メンバーを追加' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText('アーカイブ済みのため、メンバーを追加できません。'),
+    ).toBeInTheDocument();
+  });
 
   it('Projectが存在しない、または非参加の場合はnotFoundを呼ぶ', async () => {
     mocks.getProject.mockResolvedValue(null);
