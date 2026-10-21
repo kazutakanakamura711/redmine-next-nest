@@ -2,7 +2,7 @@
 
 ## Project 基本操作の次に進める順番
 
-Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API、Web のメンバー一覧・追加 UI は実装済み。作業ブランチでは権限変更も、行内編集・入力検証・保存・送信中の操作制御・失敗時の選択保持とエラー表示・成功通知と一覧再取得まで実装済み。削除 UI はユーザーが依頼した段階で別の作業として進める。その後は Playwright → Storybook → Task CRUD の順で進む。
+Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API、Web のメンバー一覧・追加・権限変更 UI は PR #29 までマージ済み。別の作業ブランチ `feat/phase-2/project-members-web-delete` では削除 UI も、確認 Dialog・API 接続・送信中の操作制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済み。削除 UI の検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` の最新の実施メモを参照する。その後は Playwright → Storybook → Task CRUD の順で進む。
 
 | 順番 | 対象 | 到達点 |
 | --- | --- | --- |

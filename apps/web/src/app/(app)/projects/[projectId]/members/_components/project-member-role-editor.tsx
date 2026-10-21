@@ -14,6 +14,7 @@ export function ProjectMemberRoleEditor({
   isArchived,
   onSubmit,
   isSubmitting,
+  isDeleting,
   roleError,
   roleErrorId,
   submitError,
@@ -24,6 +25,7 @@ export function ProjectMemberRoleEditor({
   isArchived: boolean;
   onSubmit: SubmitEventHandler<HTMLFormElement>;
   isSubmitting: boolean;
+  isDeleting: boolean;
   roleError?: string;
   roleErrorId: string;
   submitError: string | null;
@@ -52,7 +54,7 @@ export function ProjectMemberRoleEditor({
           aria-describedby={roleError ? roleErrorId : undefined}
           value={role}
           onChange={(event) => onRoleChange(event.target.value as ProjectRole)}
-          disabled={isArchived || isSubmitting}
+          disabled={isArchived || isSubmitting || isDeleting}
           className="h-10 min-w-0 flex-1 rounded border border-input bg-background px-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 md:h-7 md:w-24 md:flex-none md:text-xs"
         >
           <option value={ProjectRole.Member}>
@@ -66,7 +68,7 @@ export function ProjectMemberRoleEditor({
           type="submit"
           variant="link"
           size="sm"
-          disabled={isArchived || isSubmitting}
+          disabled={isArchived || isSubmitting || isDeleting}
           className="h-10 px-2 text-xs text-indigo-600 md:h-7 md:px-0"
         >
           {isSubmitting ? '保存中...' : '保存'}
@@ -76,7 +78,7 @@ export function ProjectMemberRoleEditor({
           variant="link"
           size="sm"
           onClick={onCancel}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDeleting}
           className="h-10 px-2 text-xs text-muted-foreground md:h-7 md:px-0"
         >
           取消

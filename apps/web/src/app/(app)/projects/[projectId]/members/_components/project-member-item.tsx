@@ -20,10 +20,12 @@ type ProjectMemberItemProps = {
   editingMemberId: string | null;
   editingRole: ProjectRole;
   onEdit: () => void;
+  onDelete: () => void;
   onRoleChange: (role: ProjectRole) => void;
   onCancel: () => void;
   onSubmit: SubmitEventHandler<HTMLFormElement>;
   isSubmitting: boolean;
+  isDeleting: boolean;
   roleError?: string;
   submitError: string | null;
 };
@@ -86,10 +88,12 @@ export function ProjectMemberTableRow({
   editingMemberId,
   editingRole,
   onEdit,
+  onDelete,
   onRoleChange,
   onCancel,
   onSubmit,
   isSubmitting,
+  isDeleting,
   roleError,
   submitError,
 }: ProjectMemberItemProps) {
@@ -113,6 +117,7 @@ export function ProjectMemberTableRow({
             isArchived={isArchived}
             onSubmit={onSubmit}
             isSubmitting={isSubmitting}
+            isDeleting={isDeleting}
             roleError={roleError}
             roleErrorId={`project-member-role-${member.id}-desktop-error`}
             submitError={submitError}
@@ -127,21 +132,38 @@ export function ProjectMemberTableRow({
       {canManageMembers && (
         <TableCell className="px-4 py-3">
           {canEditRole && !isEditing && (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              disabled={isArchived || isSubmitting}
-              aria-describedby={
-                isArchived
-                  ? 'project-member-role-archived-description'
-                  : undefined
-              }
-              onClick={onEdit}
-              className="px-0 text-xs text-muted-foreground hover:text-indigo-600"
-            >
-              権限変更
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                disabled={isArchived || isSubmitting || isDeleting}
+                aria-describedby={
+                  isArchived
+                    ? 'project-member-actions-archived-description'
+                    : undefined
+                }
+                onClick={onEdit}
+                className="px-0 text-xs text-muted-foreground hover:text-indigo-600"
+              >
+                権限変更
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                disabled={isArchived || isSubmitting || isDeleting}
+                aria-describedby={
+                  isArchived
+                    ? 'project-member-actions-archived-description'
+                    : undefined
+                }
+                onClick={onDelete}
+                className="px-0 text-xs text-destructive hover:text-destructive/80"
+              >
+                削除
+              </Button>
+            </div>
           )}
         </TableCell>
       )}
@@ -157,10 +179,12 @@ export function ProjectMemberCard({
   editingMemberId,
   editingRole,
   onEdit,
+  onDelete,
   onRoleChange,
   onCancel,
   onSubmit,
   isSubmitting,
+  isDeleting,
   roleError,
   submitError,
 }: ProjectMemberItemProps) {
@@ -189,6 +213,7 @@ export function ProjectMemberCard({
             isArchived={isArchived}
             onSubmit={onSubmit}
             isSubmitting={isSubmitting}
+            isDeleting={isDeleting}
             roleError={roleError}
             roleErrorId={`project-member-role-${member.id}-mobile-error`}
             submitError={submitError}
@@ -200,16 +225,31 @@ export function ProjectMemberCard({
             type="button"
             variant="link"
             size="sm"
-            disabled={isArchived || isSubmitting}
+            disabled={isArchived || isSubmitting || isDeleting}
             aria-describedby={
               isArchived
-                ? 'project-member-role-archived-description'
+                ? 'project-member-actions-archived-description'
                 : undefined
             }
             onClick={onEdit}
             className="h-10 px-3 text-xs text-muted-foreground hover:text-indigo-600"
           >
             権限変更
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            disabled={isArchived || isSubmitting || isDeleting}
+            aria-describedby={
+              isArchived
+                ? 'project-member-actions-archived-description'
+                : undefined
+            }
+            onClick={onDelete}
+            className="h-10 px-3 text-xs text-destructive hover:text-destructive/80"
+          >
+            削除
           </Button>
         </div>
       ) : null}

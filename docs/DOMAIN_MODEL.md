@@ -123,7 +123,7 @@ priority: low  | normal      | high
 - 操作する本人は、クライアントから渡された `userId` ではなく、認証済み token から特定する。
 
 全 Project API の認証保護、membership・role による認可、Project 作成時の owner 登録は実装済みである。
-メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧・追加・role変更 UI は実装済みであり、削除 UI は別の作業として扱う。Task CRUD は、この認証・認可の基盤を使って進める。
+メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧・追加・role変更 UI は実装済みであり、削除 UI も別の作業ブランチで API への接続まで実装済みである。Task CRUD は、この認証・認可の基盤を使って進める。
 
 ## 後続段階で追加するもの
 

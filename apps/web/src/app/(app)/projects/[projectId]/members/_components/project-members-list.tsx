@@ -1,9 +1,9 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, SubmitEventHandler } from 'react';
 
 import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
-import type { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import {
   Table,
   TableBody,
@@ -12,11 +12,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { useProjectMembersList } from '../_lib/use-project-members-list';
+import { useDeleteProjectMemberDialog } from '../_lib/use-delete-project-member-dialog';
+import { useProjectMemberRoleEditor } from '../_lib/use-project-member-role-editor';
 import {
   ProjectMemberCard,
   ProjectMemberTableRow,
 } from './project-member-item';
+import { DeleteProjectMemberDialog } from './delete-project-member-dialog';
 
 type ProjectMembersListProps = {
   projectId: string;
@@ -35,22 +37,55 @@ export function ProjectMembersList({
   isArchived,
   headerAction,
 }: ProjectMembersListProps) {
-  const {
-    canManageMembers,
-    editingMemberId,
-    editingRole,
-    isSubmitting,
-    roleError,
-    submitError,
-    handleEditRole,
-    handleRoleChange,
-    handleCancelEdit,
-    handleSave,
-  } = useProjectMembersList({
+  // 各 Hook を1回ずつ呼び、PC・モバイルで同じ状態を共有する。
+  const roleEditor = useProjectMemberRoleEditor({
     projectId,
     currentUserRole,
     isArchived,
   });
+  const deleteDialog = useDeleteProjectMemberDialog({
+    projectId,
+    currentUserRole,
+    isArchived,
+  });
+  const canManageMembers = currentUserRole === ProjectRole.Owner;
+
+  // 操作同士の送信中の制御は、両方の状態が分かる List で行う。
+  function handleEditRole(member: ProjectMember) {
+    if (deleteDialog.isDeleting) {
+      return;
+    }
+    roleEditor.handleEditRole(member);
+  }
+
+  function handleCancelEdit() {
+    if (deleteDialog.isDeleting) {
+      return;
+    }
+    roleEditor.handleCancelEdit();
+  }
+
+  const handleSave: SubmitEventHandler<HTMLFormElement> = (event) => {
+    if (deleteDialog.isDeleting) {
+      event.preventDefault();
+      return;
+    }
+    return roleEditor.handleSave(event);
+  };
+
+  function handleOpenDeleteDialog(member: ProjectMember) {
+    if (roleEditor.isSubmitting) {
+      return;
+    }
+    deleteDialog.handleOpenDeleteDialog(member);
+  }
+
+  function handleDeleteMember() {
+    if (roleEditor.isSubmitting) {
+      return;
+    }
+    return deleteDialog.handleDeleteMember();
+  }
 
   return (
     <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-background">
@@ -66,10 +101,10 @@ export function ProjectMembersList({
 
       {canManageMembers && isArchived && (
         <p
-          id="project-member-role-archived-description"
+          id="project-member-actions-archived-description"
           className="border-b border-border px-4 py-3 text-xs text-muted-foreground sm:px-5"
         >
-          アーカイブ済みのため、メンバーの権限を変更できません。
+          アーカイブ済みのため、メンバーの権限変更・削除はできません。
         </p>
       )}
 
@@ -103,7 +138,7 @@ export function ProjectMembersList({
                     参加日
                   </TableHead>
                   {canManageMembers && (
-                    <TableHead className="w-20 px-4 text-xs text-muted-foreground">
+                    <TableHead className="w-28 px-4 text-xs text-muted-foreground">
                       操作
                     </TableHead>
                   )}
@@ -117,15 +152,17 @@ export function ProjectMembersList({
                     isCurrentUser={member.userId === currentUserId}
                     canManageMembers={canManageMembers}
                     isArchived={isArchived}
-                    editingMemberId={editingMemberId}
-                    editingRole={editingRole}
+                    editingMemberId={roleEditor.editingMemberId}
+                    editingRole={roleEditor.editingRole}
                     onEdit={() => handleEditRole(member)}
-                    onRoleChange={handleRoleChange}
+                    onRoleChange={roleEditor.handleRoleChange}
                     onCancel={handleCancelEdit}
                     onSubmit={handleSave}
-                    isSubmitting={isSubmitting}
-                    roleError={roleError}
-                    submitError={submitError}
+                    isSubmitting={roleEditor.isSubmitting}
+                    isDeleting={deleteDialog.isDeleting}
+                    roleError={roleEditor.roleError}
+                    submitError={roleEditor.submitError}
+                    onDelete={() => handleOpenDeleteDialog(member)}
                   />
                 ))}
               </TableBody>
@@ -143,20 +180,31 @@ export function ProjectMembersList({
                 isCurrentUser={member.userId === currentUserId}
                 canManageMembers={canManageMembers}
                 isArchived={isArchived}
-                editingMemberId={editingMemberId}
-                editingRole={editingRole}
+                editingMemberId={roleEditor.editingMemberId}
+                editingRole={roleEditor.editingRole}
                 onEdit={() => handleEditRole(member)}
-                onRoleChange={handleRoleChange}
+                onDelete={() => handleOpenDeleteDialog(member)}
+                onRoleChange={roleEditor.handleRoleChange}
                 onCancel={handleCancelEdit}
                 onSubmit={handleSave}
-                isSubmitting={isSubmitting}
-                roleError={roleError}
-                submitError={submitError}
+                isSubmitting={roleEditor.isSubmitting}
+                isDeleting={deleteDialog.isDeleting}
+                roleError={roleEditor.roleError}
+                submitError={roleEditor.submitError}
               />
             ))}
           </ul>
         </>
       )}
+      <DeleteProjectMemberDialog
+        isOpen={deleteDialog.isDeleteDialogOpen}
+        memberName={deleteDialog.memberToDelete?.user.name ?? null}
+        memberEmail={deleteDialog.memberToDelete?.user.email ?? ''}
+        isDeleting={deleteDialog.isDeleting}
+        deleteError={deleteDialog.deleteError}
+        onClose={deleteDialog.handleCloseDeleteDialog}
+        onDelete={handleDeleteMember}
+      />
     </section>
   );
 }
