@@ -1,8 +1,16 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
+import { deleteProjectMember } from '@/app/(app)/projects/_lib/delete-project-member';
 import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import { updateProjectMemberRole } from '@/app/(app)/projects/_lib/update-project-member-role';
@@ -15,6 +23,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/app/(app)/projects/_lib/update-project-member-role', () => ({
   updateProjectMemberRole: vi.fn(),
+}));
+
+vi.mock('@/app/(app)/projects/_lib/delete-project-member', () => ({
+  deleteProjectMember: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -51,6 +63,7 @@ const members: ProjectMember[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(deleteProjectMember).mockReset().mockResolvedValue(undefined);
   vi.mocked(updateProjectMemberRole)
     .mockReset()
     .mockResolvedValue({ ...members[1], role: ProjectRole.Viewer });
@@ -212,7 +225,7 @@ describe('ProjectMembersList', () => {
 });
 
 describe('ProjectMembersList の権限変更の表示', () => {
-  it('ownerには操作列を表示し、owner以外の行とカードだけに権限変更ボタンを表示する', () => {
+  it('ownerには操作列を表示し、owner以外の行とカードだけに権限変更・削除ボタンを表示する', () => {
     render(
       <ProjectMembersList
         projectId="project-id"
@@ -248,13 +261,13 @@ describe('ProjectMembersList の権限変更の表示', () => {
     expect(
       within(cards[2]).getByRole('button', { name: '権限変更' }),
     ).toBeEnabled();
-    expect(
-      screen.queryByRole('button', { name: '削除' }),
-    ).not.toBeInTheDocument();
+    for (const item of [...rows.slice(1), ...cards.slice(1)]) {
+      expect(within(item).getByRole('button', { name: '削除' })).toBeEnabled();
+    }
   });
 
   it.each([ProjectRole.Member, ProjectRole.Viewer])(
-    '%sには操作列と権限変更ボタンを表示しない',
+    '%sには操作列と権限変更・削除ボタンを表示しない',
     (currentUserRole) => {
       render(
         <ProjectMembersList
@@ -270,6 +283,9 @@ describe('ProjectMembersList の権限変更の表示', () => {
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: '権限変更' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '削除' }),
       ).not.toBeInTheDocument();
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     },
@@ -395,7 +411,7 @@ describe('ProjectMembersList の権限変更の表示', () => {
     expect(within(rows[2]).getByText('閲覧者')).toBeInTheDocument();
   });
 
-  it('アーカイブ済みでは権限変更ボタンを無効にして理由を伝える', async () => {
+  it('アーカイブ済みでは権限変更・削除ボタンを無効にして理由を伝える', async () => {
     render(
       <ProjectMembersList
         projectId="project-id"
@@ -405,16 +421,424 @@ describe('ProjectMembersList の権限変更の表示', () => {
       />,
     );
 
-    for (const button of screen.getAllByRole('button', { name: '権限変更' })) {
+    for (const button of screen.getAllByRole('button', {
+      name: /^(権限変更|削除)$/,
+    })) {
       expect(button).toBeDisabled();
       expect(button).toHaveAccessibleDescription(
-        'アーカイブ済みのため、メンバーの権限を変更できません。',
+        'アーカイブ済みのため、メンバーの権限変更・削除はできません。',
       );
       await userEvent.setup().click(button);
     }
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(updateProjectMemberRole).not.toHaveBeenCalled();
   });
+});
+
+describe('ProjectMembersList の削除確認', () => {
+  it.each([
+    ['PC', 1],
+    ['PC', 2],
+    ['モバイル', 1],
+    ['モバイル', 2],
+  ] as const)(
+    '%sの%d番目の削除ボタンで対象を確認し、キャンセルで閉じる',
+    async (layout, memberIndex) => {
+      const user = userEvent.setup();
+      render(
+        <ProjectMembersList
+          projectId="project-id"
+          members={members}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      const target = members[memberIndex];
+      const item = getMemberItems(layout)[memberIndex];
+      const deleteButton = within(item).getByRole('button', { name: '削除' });
+      await user.click(deleteButton);
+
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'メンバーを削除',
+      });
+      expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+      expect(dialog).toHaveTextContent(target.user.name ?? '名前未設定');
+      expect(dialog).toHaveTextContent(target.user.email);
+      expect(dialog).toHaveTextContent('ユーザーアカウントは削除されません。');
+      expect(
+        within(dialog).getByRole('button', { name: '削除' }),
+      ).toBeEnabled();
+
+      await user.click(
+        within(dialog).getByRole('button', { name: 'キャンセル' }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+      );
+      await waitFor(() => expect(deleteButton).toHaveFocus());
+      expect(getMemberItems(layout)).toHaveLength(members.length);
+      expect(screen.getByText('3名')).toBeInTheDocument();
+      expect(deleteProjectMember).not.toHaveBeenCalled();
+      expect(updateProjectMemberRole).not.toHaveBeenCalled();
+      expect(mocks.refresh).not.toHaveBeenCalled();
+      expect(mocks.toastAdd).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['閉じるボタン', 'Escape キー'])(
+    '%sでも閉じて削除ボタンへフォーカスを戻す',
+    async (method) => {
+      const user = userEvent.setup();
+      render(
+        <ProjectMembersList
+          projectId="project-id"
+          members={members}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      const item = getMemberItems('モバイル')[1];
+      const deleteButton = within(item).getByRole('button', { name: '削除' });
+      await user.click(deleteButton);
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'メンバーを削除',
+      });
+
+      if (method === '閉じるボタン') {
+        await user.click(
+          within(dialog).getByRole('button', { name: '閉じる' }),
+        );
+      } else {
+        await user.keyboard('{Escape}');
+      }
+
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+      );
+      await waitFor(() => expect(deleteButton).toHaveFocus());
+    },
+  );
+
+  it('PCで閉じた後にモバイルから別の対象を開くと、その人の情報を表示する', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectMembersList
+        projectId="project-id"
+        members={members}
+        currentUserRole={ProjectRole.Owner}
+        isArchived={false}
+      />,
+    );
+    await user.click(
+      within(getMemberItems('PC')[1]).getByRole('button', { name: '削除' }),
+    );
+    const firstDialog = await screen.findByRole('alertdialog', {
+      name: 'メンバーを削除',
+    });
+    expect(firstDialog).toHaveTextContent(members[1].user.email);
+    await user.click(
+      within(firstDialog).getByRole('button', { name: 'キャンセル' }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+    );
+
+    await user.click(
+      within(getMemberItems('モバイル')[2]).getByRole('button', {
+        name: '削除',
+      }),
+    );
+    const nextDialog = await screen.findByRole('alertdialog', {
+      name: 'メンバーを削除',
+    });
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+    expect(nextDialog).toHaveTextContent(members[2].user.email);
+    expect(nextDialog).not.toHaveTextContent(members[1].user.email);
+  });
+});
+
+describe('ProjectMembersList の削除', () => {
+  it.each([
+    ['PC', 1],
+    ['PC', 2],
+    ['モバイル', 1],
+    ['モバイル', 2],
+  ] as const)(
+    '%sで%d番目の参加情報を削除し、成功通知と一覧再取得を行う',
+    async (layout, memberIndex) => {
+      const user = userEvent.setup();
+      const target = members[memberIndex];
+      const { rerender } = render(
+        <ProjectMembersList
+          projectId="project-id"
+          members={members}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      await user.click(
+        within(getMemberItems(layout)[memberIndex]).getByRole('button', {
+          name: '削除',
+        }),
+      );
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: '削除' }));
+
+      await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+      expect(deleteProjectMember).toHaveBeenCalledExactlyOnceWith(
+        'project-id',
+        target.id,
+      );
+      expect(mocks.toastAdd).toHaveBeenCalledExactlyOnceWith({
+        type: 'success',
+        title: 'メンバーを削除しました',
+      });
+      expect(updateProjectMemberRole).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+      );
+      // 一覧は手元で削らず、router.refresh() 後の API の配列で更新する。
+      expect(screen.getByText('3名')).toBeInTheDocument();
+      const remainingMembers = members.filter(
+        (member) => member.id !== target.id,
+      );
+      rerender(
+        <ProjectMembersList
+          projectId="project-id"
+          members={remainingMembers}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      expect(screen.getByText('2名')).toBeInTheDocument();
+      for (const currentLayout of ['PC', 'モバイル'] as const) {
+        const items = getMemberItems(currentLayout);
+        expect(items).toHaveLength(2);
+        expect(items.map((item) => item.textContent)).toEqual(
+          remainingMembers.map((member) =>
+            expect.stringContaining(member.user.email),
+          ),
+        );
+        for (const item of items) {
+          expect(
+            within(item).queryByText(target.user.email),
+          ).not.toBeInTheDocument();
+        }
+      }
+    },
+  );
+
+  it.each(['PC', 'モバイル'] as const)(
+    '%sから削除中は二重送信・閉じる操作・権限変更を無効にする',
+    async (layout) => {
+      let resolveRequest!: () => void;
+      vi.mocked(deleteProjectMember).mockReturnValue(
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+      );
+      const user = userEvent.setup();
+      render(
+        <ProjectMembersList
+          projectId="project-id"
+          members={members}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      // 別のメンバーの権限編集中でも、削除中は背景の編集操作を止める。
+      await user.click(
+        within(getMemberItems(layout)[1]).getByRole('button', {
+          name: '権限変更',
+        }),
+      );
+      const roleForms = screen.getAllByRole('form', {
+        name: 'メンバーの権限変更',
+      });
+      const actionButtons = screen.getAllByRole('button', {
+        name: /^(権限変更|削除)$/,
+      });
+      await user.click(
+        within(getMemberItems(layout)[2]).getByRole('button', { name: '削除' }),
+      );
+      const dialog = await screen.findByRole('alertdialog');
+      await user.dblClick(within(dialog).getByRole('button', { name: '削除' }));
+
+      expect(deleteProjectMember).toHaveBeenCalledExactlyOnceWith(
+        'project-id',
+        members[2].id,
+      );
+      expect(dialog).toHaveAttribute('aria-busy', 'true');
+      const deletingButton = within(dialog).getByRole('button', {
+        name: '削除中...',
+      });
+      expect(deletingButton).toBeDisabled();
+      await user.click(deletingButton);
+      for (const name of ['キャンセル', '閉じる']) {
+        const button = within(dialog).getByRole('button', { name });
+        expect(button).toBeDisabled();
+        await user.click(button);
+      }
+      await user.keyboard('{Escape}');
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      for (const button of actionButtons) {
+        expect(button).toBeDisabled();
+      }
+      for (const form of roleForms) {
+        expect(
+          within(form).getByRole('combobox', { hidden: true }),
+        ).toBeDisabled();
+        expect(
+          within(form).getByRole('button', { name: '保存', hidden: true }),
+        ).toBeDisabled();
+        expect(
+          within(form).getByRole('button', { name: '取消', hidden: true }),
+        ).toBeDisabled();
+        // disabled を経由せず submit が届いても、List 側で権限保存を止める。
+        fireEvent.submit(form);
+      }
+      expect(deleteProjectMember).toHaveBeenCalledTimes(1);
+      expect(updateProjectMemberRole).not.toHaveBeenCalled();
+      expect(mocks.refresh).not.toHaveBeenCalled();
+      expect(mocks.toastAdd).not.toHaveBeenCalled();
+
+      await act(async () => resolveRequest());
+      await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+      );
+      expect(
+        within(getMemberItems(layout)[1]).getByRole('combobox'),
+      ).toBeEnabled();
+    },
+  );
+
+  it.each([
+    [401, '認証に失敗しました。'],
+    [403, 'プロジェクトのメンバーを削除する権限がありません'],
+    [404, 'プロジェクトが見つかりません'],
+    [404, '削除対象のメンバーが見つかりません'],
+    [409, 'アーカイブ済みのプロジェクトではメンバーを削除できません'],
+    [409, 'owner は削除できません'],
+  ])(
+    '%iの業務エラー「%s」を表示し、対象と一覧を保持する',
+    async (status, message) => {
+      vi.mocked(deleteProjectMember).mockRejectedValue(
+        new ProjectRequestError(message, status),
+      );
+      const user = userEvent.setup();
+      render(
+        <ProjectMembersList
+          projectId="project-id"
+          members={members}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      await user.click(
+        within(getMemberItems('モバイル')[1]).getByRole('button', {
+          name: '削除',
+        }),
+      );
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: '削除' }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+        message,
+      );
+      expect(dialog).toHaveTextContent(members[1].user.email);
+      expect(dialog).toHaveAttribute('aria-busy', 'false');
+      for (const name of ['削除', 'キャンセル', '閉じる']) {
+        expect(within(dialog).getByRole('button', { name })).toBeEnabled();
+      }
+      expect(mocks.refresh).not.toHaveBeenCalled();
+      expect(mocks.toastAdd).not.toHaveBeenCalled();
+      await user.click(
+        within(dialog).getByRole('button', { name: 'キャンセル' }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText('3名')).toBeInTheDocument();
+      expect(getMemberItems('モバイル')).toHaveLength(3);
+    },
+  );
+
+  it('通信失敗では内部エラーを表示せず、再試行で成功した場合だけ通知と再取得を行う', async () => {
+    vi.mocked(deleteProjectMember)
+      .mockRejectedValueOnce(new TypeError('internal delete error'))
+      .mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(
+      <ProjectMembersList
+        projectId="project-id"
+        members={members}
+        currentUserRole={ProjectRole.Owner}
+        isArchived={false}
+      />,
+    );
+    await user.click(
+      within(getMemberItems('PC')[1]).getByRole('button', { name: '削除' }),
+    );
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: '削除' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '通信に失敗しました。ネットワーク接続を確認して、もう一度お試しください。',
+    );
+    expect(screen.queryByText('internal delete error')).not.toBeInTheDocument();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(mocks.toastAdd).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: '削除' }));
+
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));
+    expect(deleteProjectMember).toHaveBeenCalledTimes(2);
+    expect(deleteProjectMember).toHaveBeenNthCalledWith(
+      2,
+      'project-id',
+      members[1].id,
+    );
+    expect(mocks.toastAdd).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it.each([1, 2])(
+    '失敗後に閉じて%d番目の対象を開くと前回のエラーを消す',
+    async (memberIndex) => {
+      vi.mocked(deleteProjectMember).mockRejectedValue(
+        new ProjectRequestError('削除に失敗しました', 409),
+      );
+      const user = userEvent.setup();
+      render(
+        <ProjectMembersList
+          projectId="project-id"
+          members={members}
+          currentUserRole={ProjectRole.Owner}
+          isArchived={false}
+        />,
+      );
+      await user.click(
+        within(getMemberItems('PC')[1]).getByRole('button', { name: '削除' }),
+      );
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: '削除' }));
+      await within(dialog).findByRole('alert');
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
+      );
+
+      await user.click(
+        within(getMemberItems('モバイル')[memberIndex]).getByRole('button', {
+          name: '削除',
+        }),
+      );
+      const nextDialog = await screen.findByRole('alertdialog');
+      expect(nextDialog).toHaveTextContent(members[memberIndex].user.email);
+      expect(within(nextDialog).queryByRole('alert')).not.toBeInTheDocument();
+      expect(deleteProjectMember).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe('ProjectMembersList の権限変更の保存', () => {
@@ -544,12 +968,13 @@ describe('ProjectMembersList の権限変更の保存', () => {
         await user.click(cancel);
       }
       for (const button of screen.getAllByRole('button', {
-        name: '権限変更',
+        name: /^(権限変更|削除)$/,
       })) {
         expect(button).toBeDisabled();
         await user.click(button);
       }
       expect(screen.getAllByRole('combobox')).toHaveLength(2);
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       expect(updateProjectMemberRole).toHaveBeenCalledTimes(1);
       expect(mocks.refresh).not.toHaveBeenCalled();
       expect(mocks.toastAdd).not.toHaveBeenCalled();

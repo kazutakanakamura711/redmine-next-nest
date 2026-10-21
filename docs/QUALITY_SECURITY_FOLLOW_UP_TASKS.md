@@ -16,7 +16,7 @@
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
 - メンバー一覧・追加 API（PR #23・#24）、role 変更 API（PR #25）、削除 API（PR #26）、Web の一覧表示（PR #27）・追加 UI（PR #28）は `develop` にマージ済み。PR #27 には一覧 API の参加者3 role への開放と Project 詳細の `currentUserRole` 追加も含む。
-- メンバー管理 Web UI は、Project 詳細・メンバー一覧・本人情報の実データ接続、本人の「（自分）」表示、PC・モバイルの一覧、取得中・0件・取得失敗・再試行、owner 向けのメンバー追加まで実装済み。タブは URL に対応し、設定リンクとフォームは owner だけに表示する。メンバー一覧は owner・member・viewer が閲覧でき、アーカイブ済み Project も参照できる。作業ブランチ `feat/phase-2/project-members-web-role-update` では、権限変更 helper、行内編集・入力検証・保存・送信中の制御・失敗時の選択保持とエラー表示・成功通知と一覧再取得まで実装・確認済み。表示は List・Item・Editor に分け、編集・保存処理は一覧専用の `useProjectMembersList` に切り出している。Hook の命名方針の整理と日付表示の共通化も完了している。削除 UI は別の作業とする。
+- メンバー管理 Web UI は一覧・追加・権限変更まで PR #29 でマージ済み。作業ブランチ `feat/phase-2/project-members-web-delete` では削除も、確認 Dialog・API 接続・送信中の制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済みである。List は `useProjectMemberRoleEditor`・`useDeleteProjectMemberDialog` を1回ずつ直接呼んで PC・モバイルで状態を共有し、操作間の送信中の制御を担当する。owner だけの操作・owner 保護・アーカイブ済み Project での閲覧と更新不可、`headerAction` の配置、日付表示の共通化を維持する。検証範囲は最新の実施メモを参照する。
 - 2026-10-20 に、ユーザーからメンバー追加 UI の動作と、`pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` の全てに問題がないとの報告を受けた。その後、PR #28 のマージと Quality checks・API E2E の成功報告を受け、ローカルの `develop`・`origin/develop` がマージコミット `6034e45` を指すことを確認した。今回の helper の検証結果とは区別し、詳細は最新の実施メモを参照する。
 - 2026-10-21 に、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が成功したとの報告をユーザーから受けた。最終レビューではコード側に修正必須の問題は見つからず、API README の古い実装状況を修正した。関連64件・対象 lint・format・Web typecheck はエージェントによる確認、今回の API E2E・build はユーザーのローカル環境での確認結果として区別する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
@@ -176,7 +176,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（認証・Project 権限、メンバー管理 API、Web の一覧・追加 UI は PR #28 まで `develop` にマージ済み。作業ブランチで権限変更 UI を保存・結果表示・一覧再取得まで実装・確認済み。削除 UI は別作業とする。検証結果は最新の実施メモを参照）
+- 状態: 対応中（認証・Project 権限、メンバー管理 API、Web の一覧・追加・権限変更 UI は PR #29 まで `develop` にマージ済み。別の作業ブランチで削除 UI を API・結果表示・一覧再取得まで実装済み。検証範囲と未実行の確認は最新の実施メモを参照）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -609,12 +609,79 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - 軽微な文書の指摘として、API README に追加・role変更 UI を後続とする古い記載が残っていた。Web の一覧・追加 UI は実装済み、作業ブランチでは権限変更 UI も保存・一覧更新まで実装済み、削除 UI は別作業という記載へ修正した。
 - ユーザーから、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が両方成功したとの報告を受けた。これらはユーザーのローカル環境での実行結果であり、レビュー時にエージェントが再実行した結果ではない。関連64件・対象 lint・format・Web typecheck の既存の確認結果と併せて記録する。
 
+#### メンバー削除 helper のレビューとテスト（2026-10-21）
+
+- PR #29 の権限変更 UI は `develop` にマージ済みで、Quality checks・API E2E の成功報告をユーザーから受けた。ローカルの `develop`・`origin/develop` がともに `5b86dd2`、作業ツリーに差分がないことを確認し、削除 UI 用に `feat/phase-2/project-members-web-delete` を作成した。上の「権限変更 UI は作業ブランチ」という記載はマージ前の記録として扱う。
+- ユーザーが `projects/_lib/delete-project-member.ts` を実装した。レビュー後に戻り値を `Promise<void>` とし、成功時の `response.json()` と不要な型 import を削除した。ブラウザーのセッションから Bearer token を取得し、Project.id と ProjectMember.id を URL エンコードして、本文なしの DELETE を既存 API に送る。helper 本体はエージェントによるテスト追加では変更していない。
+- `delete-project-member.test.ts` に、既存の追加・権限変更 helper と同じ構成で Vitest 17件を追加した。本文なしの204で正常終了し、`json()` を呼ばないこと、URL・DELETE・Bearer token・リクエスト本文なし、両 ID のエンコードを確認する。セッションなし・取得エラー・通信失敗時の API 呼び出し停止、401・403・理由の異なる404・409のメッセージと statusCode、message 配列・非JSON・空本文での汎用案内、API 通信失敗、API URL 未設定も確認する。
+- `pnpm --filter @redmine-next-nest/web exec vitest run 'src/app/(app)/projects/_lib/delete-project-member.test.ts'` の17件、helper とテストの ESLint・Prettier check、Web 全体の typecheck が成功した。Prettier check の初回は新規テストの整形差分で失敗し、そのファイルだけを整形した後の再確認で成功した。セッションと fetch をモックした helper の確認に限定し、実際の API・DB・画面の検証、全テスト・API E2E・build は今回実行していない。削除ボタン・確認 Dialog・Hook への接続は未実装である。
+
+#### メンバー削除ボタンの配置（2026-10-21）
+
+- ユーザーの依頼により、Item の PC の行・モバイルのカードで「権限変更」の隣に赤い「削除」を追加した。owner だけに操作を表示し、対象が owner の場合と権限編集中の対象には表示しない。今回は配置までとし、確認 Dialog を接続するまでは削除ボタンを無効にする。ユーザーが作成した空の `delete-project-member-dialog.tsx`、Hook、API helper は変更していない。
+- PC の操作列を `w-20` から `w-28` に広げ、ボタンを横並びにした。アーカイブ時の案内と `aria-describedby` を権限変更・削除で共有する。既存の一覧テストを更新し、owner だけの表示、owner 自身の保護、未接続ボタンの無効化、アーカイブ時の理由を確認する。
+- 一覧33件・ページ13件の計46件、変更した3ファイルの ESLint・Prettier check、Web 全体の typecheck が成功した。Chrome のログイン済み owner で PC の表と390px幅のカードの配置を確認し、モバイルの document の幅と scrollWidth はともに375pxだった。確認用の表示幅は解除済み。今回の変更は配置だけであり、削除操作、API E2E・全テスト・build は実行していない。
+
+#### メンバー削除確認 Dialog の見た目（2026-10-21）
+
+- ユーザーが作成した `members/_components/delete-project-member-dialog.tsx` に、Figma Make の削除確認画面を参照して見た目を実装した。既存の AlertDialog・Button を使い、PC は幅480pxの中央、モバイルは下寄せとする。右上の閉じるボタン、対象の名前・メール、ユーザーアカウントは削除されない案内、キャンセルと赤い削除ボタンを表示する。名前が未設定・空白だけなら「名前未設定」とする。
+- 表示用の `memberName`・`memberEmail` と、開閉用の `isOpen`・`onOpenChange` を props で受け取る。コンポーネント内に開閉 state・API 呼び出し・通知・一覧更新は持たせない。削除の確定ボタンは無効とし、一覧ボタン・Hook との接続はまだ行っていない。
+- ローカルの一時プレビューで、PC の幅480pxと中央配置、390px幅の下寄せ・ボタンの縦並び、横スクロールなしを確認した。キャンセル・閉じるボタン・Escape で閉じることも確認した。表示幅の設定を解除し、一時プレビューのタブ・route は削除済み。対象ファイルの ESLint・Prettier check、Web 全体の typecheck が成功した。見た目の確認に絞り、Vitest の追加・実行、API E2E・全テスト・build は今回行っていない。
+
+#### 削除確認の対象・開閉状態の Hook 管理（2026-10-21）
+
+- `useProjectMembersList` に削除確認の対象 `memberToDelete` と開閉状態 `isDeleteDialogOpen` を追加した。`handleOpenDeleteDialog(member)` は対象を選んで開き、owner 以外・アーカイブ済み・対象が owner・権限変更の保存中は拒否する。`handleDeleteDialogOpenChange(false)` で閉じ、開く操作は対象選択を伴う関数に限定する。閉じるアニメーション中も名前・メールが空にならないよう、対象は次に開くまで保持する。
+- ユーザーが List の末尾に追加した Dialog の配置を維持し、Hook から開閉状態・名前・メール・閉じる処理を props で渡した。Item の削除ボタンはまだ無効で、クリックによる対象選択・Dialog の表示と、削除 API・送信中・エラー・成功通知・一覧更新への接続は後続とする。既存の権限変更処理と headerAction の構成は維持する。
+- `use-project-members-list.test.ts` に公開する操作を確認する8件を追加した。member・viewer の対象選択と開閉、閉鎖中の表示内容の保持と対象の切り替え、実行者の role・アーカイブ状態・owner 保護、対象なしでの開閉通知、権限保存中の開く操作の拒否を確認する。既存の一覧33件・ページ13件と合わせた54件、Hook・新規テスト・List の ESLint・Prettier check、Web 全体の typecheck が成功した。今回の確認は Hook と既存 UI の回帰テストに限定し、ブラウザ操作・API E2E・全テスト・build は実行していない。
+
+#### 削除確認を閉じる処理の命名整理（2026-10-21）
+
+- ユーザーの提案に合わせ、Hook の閉じる処理を引数なしの `handleCloseDeleteDialog()` に変更した。Dialog の props も `onClose: () => void` とし、List からこの関数を渡す。AlertDialog の開閉通知を解釈する処理は Dialog 内へ移し、false の通知だけを `onClose()` に変換する。Hook は開く・閉じるの役割が名前から分かる形になった。
+- Hook の閉じる操作のテストを更新し、Hook が開く通知の boolean を受け取る旧契約のテスト1件を削除した。Hook 7件・一覧33件・ページ13件の計53件、対象4ファイルの ESLint・Prettier check、Web 全体の typecheck が成功した。今回の確認は命名と通知の受け渡しの整理に限定し、ブラウザ・API E2E・全テスト・build は実行していない。
+
+#### 一覧の削除ボタンと確認 Dialog の接続（2026-10-21）
+
+- ユーザーが追加した PC の `onDelete` を、描画時に実行する形から `onDelete={() => handleOpenDeleteDialog(member)}` へ修正し、モバイルにも同じ形で渡した。Item は `onDelete: () => void` を受け取り、各削除ボタンの `onClick` で呼ぶ。入口を有効にし、アーカイブ済み・権限保存中は無効にする。owner だけの表示・owner 自身の保護・権限編集中の対象での非表示は維持する。
+- ユーザーが選んだ `handleCloseDeleteDialog(open: boolean)` と `onClose: (open: boolean) => void` の構成を維持する。Dialog が AlertDialog の開閉通知をそのまま渡し、Hook が true を無視して false のときだけ閉じる。ユーザーによるテストの false 引数の修正も確認した。構成・画面仕様の文書を現在の形へ更新した。
+- 一覧に操作テスト7件を追加した。PC・モバイルから member・viewer の確認を開くこと、名前未設定の表示、Dialog が1つであること、キャンセル・閉じる・Escape による閉鎖と入口へのフォーカス復帰、閉じて別の対象を開くこと、確定ボタンが無効であることを確認する。既存の表示・権限保存中・ページのテストも削除の入口に合わせて更新した。Hook の既存テストには true の通知で閉じない確認を加えた。
+- 一覧40件・Hook 7件・ページ13件の計60件、対象5ファイルの ESLint・Prettier check、Web 全体の typecheck が成功した。新規テストで React Testing Library の `getByRole` に存在しない `exact` を指定したため typecheck の初回は失敗したが、その指定を除去して再確認は成功した。
+- Chrome の owner で PC から「テスト」、390px幅のカードから「テストA」を指定し、正しい対象の表示、確定ボタンの無効化、キャンセル・Escape での閉鎖、入口へのフォーカス復帰を確認した。モバイルに横スクロールはなく、確認用の表示幅は解除済み。削除 API の呼び出し・DB の削除、API E2E・全テスト・build は今回行っていない。次は削除確定の API 接続を、送信中・失敗・成功通知・一覧更新と合わせて進める。
+
+#### 削除確定の API 接続・結果表示・一覧更新（2026-10-21）
+
+- `useProjectMembersList` に `isDeleting`・`deleteError`・`handleDeleteMember` を追加した。owner・アーカイブ状態・対象・Dialog の開閉・送信中の状態を確認し、選択した ProjectMember.id を `deleteProjectMember` に渡す。既存 helper は204で本文を読まない。API の認証・認可・対象の Project 所属確認・owner 保護・transaction は変更していない。
+- List から Dialog へ削除の状態・エラー・確定処理を渡した。確定中は「削除中...」を表示し、削除・キャンセル・閉じるを無効にする。ユーザーが選んだ boolean 引数の `onClose` を維持し、Hook で送信中の Escape による閉じる通知も拒否する。PC・モバイル両方の入口と権限編集欄も無効にし、Hook でも権限の保存・取消・対象切り替えを拒否する。
+- 失敗時は対象と Dialog を保持し、`ProjectRequestError` のメッセージ、その他の失敗では固定の通信案内を Alert に表示する。404・409 を status だけで分類しない。`finally` で送信中を解除し、再試行・閉じる操作を許可する。成功時だけ通知・Dialog の閉鎖・`router.refresh()` を行い、件数と順序は再取得した API の配列に従う。
+- 一覧に削除操作15件、Hook に送信制御5件を追加した。一覧55件・Hook 12件・ページ13件・削除 helper 17件・権限 helper 18件・追加 Dialog 39件の計154件が成功した。対象7ファイルの ESLint、Web 全体の typecheck、対象コード・文書の Prettier check、`git diff --check` も成功した。PC・モバイル、member・viewer、二重送信防止、送信中の閉鎖拒否、401・403・異なる理由の404・409、通信失敗・再試行、エラーの初期化、一覧と件数の更新を確認している。
+- Supabase コンテナの起動を確認し、Chrome の owner で PC・390px幅の確認画面を開いて、正しい対象と有効になった確定ボタン、キャンセル・Escape とフォーカス復帰、横スクロールがないことを確認した。表示幅は解除済み。既存の参加情報を保持するため実画面では確定ボタンを押しておらず、実 API を通したブラウザ削除は未確認である。変更は Web の操作に限定され API・DB・構成に変更がないため、関連テストを選び、API E2E・全テスト・build は今回実行していない。Playwright と Storybook は未導入のため実行していない。
+
+#### 操作別 Hook の実装・単体確認（2026-10-21、List への接続前）
+
+- ユーザーが作成した空の `use-project-member-role-editor.ts` と `use-delete-project-member-dialog.ts` に処理を実装した。権限側は編集対象・React Hook Form と Zod の検証・保存・エラー・通知・一覧再取得、削除側は対象・開閉・送信中・削除・エラー・通知・一覧再取得を扱う。既存の関数名とコメント、boolean 引数の閉じる処理、404・409 のメッセージの扱いを引き継ぐ。
+- 両 Hook は `projectId`・`currentUserRole`・`isArchived` を受け取り、各操作の権限・owner 保護・アーカイブ状態・自身の送信中の制御を持つ。相手の送信状態は持たない。List はまだ既存の `useProjectMembersList` を呼んでおり、次の段階で2つの Hook を直接1回ずつ呼ぶ形に置き換え、List のボタン・イベント処理で送信中の相互制御を維持する。
+- 各 Hook のテストを追加し、権限10件・削除13件の計23件が成功した。編集と取消、対象選択と開閉、入力検証、権限・アーカイブ・owner 保護、ProjectMember.id の送信、各操作の送信中の制御、業務エラー・通信失敗・再試行、成功通知と再取得を確認した。初回は権限変更テストで非同期の `handleRoleChange` を待たずに `act` を終了して失敗したため、テスト側で `await act(...)` に修正し、権限10件の再確認が成功した。
+- 対象4ファイルの ESLint、Web 全体の typecheck が成功した。今回は呼び出し元への接続前の Hook 単体実装に限定し、既存の UI・API・DB を変更していないため、ブラウザ・API E2E・全テスト・build は実行していない。
+
+#### List から操作別 Hook を直接呼ぶ構成へ置き換え（2026-10-21）
+
+- `ProjectMembersList` の `useProjectMembersList` を、`useProjectMemberRoleEditor`・`useDeleteProjectMemberDialog` の直接呼び出しへ置き換えた。各 Hook は1回ずつ呼び、`roleEditor`・`deleteDialog` の値と関数を PC・モバイル両方へ渡す。owner の表示判定は List が行い、各 Hook の操作時の権限チェックと API の認証・認可も維持する。
+- List のハンドラーで、削除中の権限編集開始・取消・保存と、権限保存中の削除確認・削除実行を拒否する。権限保存を拒否する場合も form の既定動作を止める。各 Hook の責務とボタンの送信中の制御、Dialog の boolean 引数の閉じる処理、成功通知・一覧更新は維持した。
+- 未使用になった `use-project-members-list.ts` と専用テストを削除した。旧テストのうち「確認後に権限・アーカイブ状態が変化した場合」の3件を削除 Hook のテストへ移した。他の開閉・送信中・権限チェックは新 Hook と List の既存テストで引き続き確認する。List の削除中テストには、disabled を経由せず submit が届いても権限 API を呼ばない確認を追加した。
+- `vitest run` で一覧55件・権限 Hook 10件・削除 Hook 16件・ページ13件・削除 helper 17件・権限 helper 18件・追加 Dialog 39件の計168件が成功した。変更した3ファイルの ESLint と Web 全体の typecheck も成功した。`apps/web` に旧 Hook の参照は残っていない。
+- 今回は Web 内の責務の分割と呼び出し元の置き換えに限定し、API・DB・再利用 UI 部品に変更がないため、ブラウザ・API E2E・全テスト・build は実行していない。PC・モバイルの表示・保存・削除・送信中の相互制御は上記の操作テストで確認した。
+
+#### PR 作成前の全体確認（2026-10-21）
+
+- 操作別 Hook への置き換え後、ユーザーからブラウザでメンバー削除が正しく動作したとの報告を受けた。続いて `pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` が全て成功したとの報告を受けた。全体確認はユーザーのローカル実行結果であり、エージェントによる関連168件・対象 lint・Web typecheck・format の結果と区別する。
+- 最終差分のレビューで修正必須の問題は見つからなかった。PR テンプレートに合わせて、エージェントが現在の実装で PC・390px幅の削除確認画面を開き、対象・キャンセル・Escape と入口へのフォーカス復帰を再確認し、PR 添付用の画像を取得した。表示幅は解除済みで、撮影時には削除を確定していない。
+- 今回のコミット・push・develop 向け PR 作成はユーザーから依頼を受けた。全体チェックの再実行は行わず、上記の成功報告を PR に記録する。
+
 #### 後続作業
 
-- 権限変更 UI は入力検証・保存・送信中の制御・失敗時の選択保持とエラー表示・成功通知と一覧再取得まで実装済み。削除 UI はユーザーが依頼した段階で別の作業として扱う。コミット・push・PR 作成も今回の作業についてユーザーから依頼を受けた段階で行う。
+- 権限変更 UI は PR #29 でマージ済み。削除 UI は別ブランチで API・送信中の制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済み。コミット・push・PR 作成は今回の作業についてユーザーから依頼を受けた段階で行う。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- メンバー削除 API と owner 自身の削除・role変更の保護は実装・確認済み。Web の一覧・追加・role変更 UI は実装済みで、削除 UI は後続の操作として扱う。追加・role変更・削除は owner のみとし、アーカイブ済み Project では実行できない仕様を維持する。メンバー管理 UI を揃えた後、Playwright → Storybook → Task CRUD の順で進める。
+- メンバー削除 API と owner 自身の削除・role変更の保護は実装・確認済み。Web の一覧・追加・role変更 UI はマージ済みで、削除 UI は別ブランチで実装済みである。追加・role変更・削除は owner のみとし、アーカイブ済み Project では実行できない仕様を維持する。メンバー管理 UI を揃えた後、Playwright → Storybook → Task CRUD の順で進める。
 - Projects API E2E のファイル分割・共通 helper の導入は、ユーザーがテスト構成を理解してから再検討する。現在は整理 PR を保留し、既存ファイルの構成を維持して機能追加を進める。
 - 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
 
@@ -677,7 +744,7 @@ shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story
 ## 推奨する着手順
 
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
-2. タスク 5: PR #28 の追加 UI はマージ・CI 成功済み。作業ブランチで権限変更 UI を保存まで実装・確認済み。削除 UI は別作業として実装する。
+2. タスク 5: PR #29 の権限変更 UI までマージ済み。削除 UI は別ブランチで API・結果表示・一覧再取得まで実装済み。検証範囲と未実行の確認は最新の実施メモを参照する。
 3. タスク 6: 認証済み Project の主要導線を Playwright で確認し、CI に追加する。
 4. タスク 7: Storybook を導入し、既存の再利用 UI を登録する。
 5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
@@ -685,6 +752,10 @@ shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
 
 ## 次の Codex スレッドへの引き継ぎ
+
+最新（2026-10-21）: PR #29 はマージ済み。`feat/phase-2/project-members-web-delete` で削除 UI を API・送信中の制御・エラー表示・成功通知・一覧再取得まで実装済みである。ユーザーからブラウザ確認と全体チェック6コマンドの成功報告、コミット・push・PR 作成の依頼を受けた。検証範囲は上記の最新メモを参照する。以下の引用は権限変更 UI 作業時点の記録として残す。
+
+List は `useProjectMemberRoleEditor`・`useDeleteProjectMemberDialog` を直接呼ぶ構成へ置き換え済み。送信中の相互制御は List に置き、未使用の旧 Hook と専用テストは削除した。Hook 単体と一覧・ページ・helper・追加 Dialog の関連168件が成功している。現在の構成と確認範囲は上記の最新メモを参照する。
 
 新しいスレッドで、このリポジトリを開いて次のように依頼する。
 

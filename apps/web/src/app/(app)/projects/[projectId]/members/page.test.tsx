@@ -185,7 +185,7 @@ describe('ProjectMembersPage', () => {
     expect(within(list).getAllByText('（自分）')).toHaveLength(1);
   });
 
-  it('ownerのページではowner以外のメンバーに権限変更ボタンを表示する', async () => {
+  it('ownerのページではowner以外のメンバーに権限変更・削除ボタンを表示する', async () => {
     mocks.getProjectMembers.mockResolvedValue([...members, editableMember]);
 
     await renderPage();
@@ -200,12 +200,17 @@ describe('ProjectMembersPage', () => {
     expect(
       within(rows[1]).getByRole('button', { name: '権限変更' }),
     ).toBeEnabled();
+    expect(
+      within(rows[0]).queryByRole('button', { name: '削除' }),
+    ).not.toBeInTheDocument();
+    expect(within(rows[1]).getByRole('button', { name: '削除' })).toBeEnabled();
     const list = screen.getByRole('list', {
       name: 'プロジェクトメンバー一覧（モバイル）',
     });
     expect(
       within(list).getByRole('button', { name: '権限変更' }),
     ).toBeEnabled();
+    expect(within(list).getByRole('button', { name: '削除' })).toBeEnabled();
   });
 
   it('ページから取得済みのProject.idをListへ渡し、対象メンバーの権限を保存する', async () => {
@@ -253,10 +258,13 @@ describe('ProjectMembersPage', () => {
       expect(
         screen.queryByRole('button', { name: '権限変更' }),
       ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '削除' }),
+      ).not.toBeInTheDocument();
     },
   );
 
-  it('アーカイブ済みでも一覧を表示し、ownerの追加と権限変更のボタンを無効にする', async () => {
+  it('アーカイブ済みでも一覧を表示し、ownerの追加・権限変更・削除のボタンを無効にする', async () => {
     mocks.getProject.mockResolvedValue({ ...project, isArchived: true });
     mocks.getProjectMembers.mockResolvedValue([...members, editableMember]);
 
@@ -271,7 +279,9 @@ describe('ProjectMembersPage', () => {
     expect(
       screen.getByText('アーカイブ済みのため、メンバーを追加できません。'),
     ).toBeInTheDocument();
-    for (const button of screen.getAllByRole('button', { name: '権限変更' })) {
+    for (const button of screen.getAllByRole('button', {
+      name: /^(権限変更|削除)$/,
+    })) {
       expect(button).toBeDisabled();
     }
   });

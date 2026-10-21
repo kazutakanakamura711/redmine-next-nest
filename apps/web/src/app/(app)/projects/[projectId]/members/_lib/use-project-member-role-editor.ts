@@ -21,17 +21,17 @@ type UpdateProjectMemberRoleFormValues = z.infer<
   typeof updateProjectMemberRoleSchema
 >;
 
-type UseProjectMembersListOptions = {
+type UseProjectMemberRoleEditorOptions = {
   projectId: string;
   currentUserRole: ProjectRole;
   isArchived: boolean;
 };
 
-export function useProjectMembersList({
+export function useProjectMemberRoleEditor({
   projectId,
   currentUserRole,
   isArchived,
-}: UseProjectMembersListOptions) {
+}: UseProjectMemberRoleEditorOptions) {
   const router = useRouter();
   // 編集中のメンバーの ID。編集中でなければ null。
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -52,15 +52,12 @@ export function useProjectMembersList({
     },
   });
 
-  // 編集欄で選択中の権限。
   // PC・モバイルの選択欄に、同じフォームの値と変更処理を渡す。
   const { field: roleField } = useController({ control, name: 'role' });
-
-  // メンバーの権限の操作を行えるか。
   const canManageMembers = currentUserRole === ProjectRole.Owner;
 
   function handleEditRole(member: ProjectMember) {
-    // 送信中に対象を切り替えず、変更できるメンバーだけをフォームに渡す。
+    // 保存中は対象を切り替えず、変更できるメンバーだけをフォームに渡す。
     if (
       isSubmitting ||
       !canManageMembers ||
@@ -76,7 +73,7 @@ export function useProjectMembersList({
   }
 
   function handleCancelEdit() {
-    // 閉じても送信は中断されないため、送信中は編集欄を閉じない。
+    // 閉じても保存は中断されないため、送信中は編集欄を閉じない。
     if (isSubmitting) {
       return;
     }
@@ -113,7 +110,6 @@ export function useProjectMembersList({
   };
 
   return {
-    canManageMembers,
     editingMemberId,
     editingRole: roleField.value,
     isSubmitting,
