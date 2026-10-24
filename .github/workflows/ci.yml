@@ -164,3 +164,64 @@ jobs:
         if: always()
         timeout-minutes: 5
         run: pnpm exec supabase stop --no-backup
+
+  # 実際のブラウザで主要導線を確認する job。API E2E とは別の runner で実行する。
+  browser_e2e:
+    name: Browser E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Linux 上で Chromium の実行に必要な OS のライブラリも追加する。
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # ローカルと同じ専用 DB・Supabase・migration・ビルドを使う。
+      # 認証キーは既存スクリプトが専用 Supabase から取得し、管理キーは fixture 内だけで使う。
+      - name: Prepare browser E2E environment
+        timeout-minutes: 15
+        run: pnpm test:browser:prepare
+
+      - name: Typecheck browser tests
+        run: pnpm typecheck:browser
+
+      # Playwright がテスト用 Web/API を起動し、テスト後に終了する。
+      - name: Run browser E2E
+        timeout-minutes: 10
+        run: pnpm test:browser
+
+      # 成否どちらでも HTML レポートを保存する。失敗時は screenshot・trace も含む。
+      # 一時的なテスト認証情報を含み得るため、対象ディレクトリと保存期間を限定する。
+      - name: Upload browser E2E report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-e2e-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # 準備・型チェック・テスト・artifact 保存の失敗時も専用環境を片付ける。
+      - name: Stop browser E2E environment
+        if: always()
+        timeout-minutes: 5
+        run: node e2e/stop.mjs
