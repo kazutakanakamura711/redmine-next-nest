@@ -10,3 +10,5 @@ bruno/redmine-next-nest-api/environments/Local.yml
 *.tsbuildinfo
 playwright-report/
 test-results/
+apps/web/.next-e2e/
+apps/api/dist-e2e/

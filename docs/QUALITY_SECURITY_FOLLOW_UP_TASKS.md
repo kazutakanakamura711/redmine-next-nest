@@ -20,7 +20,7 @@
 - 2026-10-20 に、ユーザーからメンバー追加 UI の動作と、`pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` の全てに問題がないとの報告を受けた。その後、PR #28 のマージと Quality checks・API E2E の成功報告を受け、ローカルの `develop`・`origin/develop` がマージコミット `6034e45` を指すことを確認した。今回の helper の検証結果とは区別し、詳細は最新の実施メモを参照する。
 - 2026-10-21 に、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が成功したとの報告をユーザーから受けた。最終レビューではコード側に修正必須の問題は見つからず、API README の古い実装状況を修正した。関連64件・対象 lint・format・Web typecheck はエージェントによる確認、今回の API E2E・build はユーザーのローカル環境での確認結果として区別する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
-- Playwright と Storybook は未導入。API E2E（Supertest）だけでは、画面遷移やユーザー操作を通した確認はできない。
+- Playwright は作業ブランチで専用環境・ログイン・Project作成・設定更新・アーカイブ・解除と再読み込み、登録・メール確認のテストを導入中。GitHub Actionsに専用jobを追加済みで、GitHub上での実行確認はこれから行う。Storybook は未導入。詳細はタスク6の実施メモを参照する。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
 - タスク 4 の更新後も Prisma CLI 経由の監査警告 3 件が残る。保留理由と再確認の時期はタスク 4 の実施メモに記録した。
 
@@ -695,12 +695,12 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 6. Playwright で主要なユーザー操作をブラウザE2Eテストする
 
-- 状態: 未着手
+- 状態: 着手（作業ブランチで専用環境・主要Project操作と再読み込み・登録からメール確認のテスト、CI jobを実装。GitHub上での実行は未確認）
 - 優先度: 高（タスク 5 の後、Task CRUD の前に導入する）
 
 #### 背景
 
-現在の `pnpm test:e2e` は Supertest を使った API 結合テストであり、ブラウザ上の画面遷移、入力、表示更新までは確認しない。Playwright の設定やテストもまだないため、フロントエンドと API をつないだ主要導線を自動で回帰確認できるようにする。
+既存の `pnpm test:e2e` は Supertest を使った API 結合テストであり、ブラウザ上の画面遷移、入力、表示更新までは確認しない。Playwright でフロントエンドと API をつないだ主要導線を自動で回帰確認できるようにする。
 
 #### 作業内容
 
@@ -711,6 +711,60 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - 画面表示だけでなく、保存後のヘッダー・パンくず・サイドバーへの反映、再読み込み後の永続性、成功・失敗時の表示を確認する。
 - Task CRUD 実装後はタスクの主要導線も追加する。
 - GitHub Actions で必要なアプリ/API/DBを起動し、Playwright テストを実行する。CI に組み込む際は、失敗時に原因を調べられるよう Playwright のレポートや trace を必要に応じて保存する。
+
+#### 実施メモ（2026-10-22）
+
+- `test/phase-2/playwright-foundation` で、専用DB（127.0.0.1:5434）・専用Supabase（API 127.0.0.1:55321）の設定と、起動・migration・ビルド・終了スクリプトを追加した。Webは `.next-e2e`、APIは `dist-e2e` に出力する。ユーザーから専用DBへのmigrationと専用ビルドの成功報告を受け、エージェントでも出力先を確認した。
+- `pnpm test:browser` を追加し、Chromium・1 workerでログイン画面の見出し・入力欄2つ・ログインボタンを確認する。PlaywrightのwebServerが専用Web/APIを起動・終了する。一括準備用の `pnpm test:browser:prepare` は起動・migration・ビルドを順に実行し、途中で失敗したら後続を実行しない。既存の `pnpm test:e2e` はAPI結合テストとして維持した。
+- 初回失敗時のスクリーンショットとtraceを調査し、label内の必須記号 `*` がgetByLabelの完全一致を妨げることを確認した。必須記号を許容する正規表現へ変更し、残っていた修正前の確認処理を除去した後、エージェント実行の `pnpm test:browser` が1件成功した（`1 passed`）。対象テストのPrettier checkと `git diff --check` も成功した。
+- HTMLレポート、失敗時のtrace・スクリーンショットを設定し、上記の失敗実行で調査用の保存を確認した。一時認証ユーザー・セッション・データの準備と後片付け、実ログイン、Project操作と永続性、メール確認、GitHub Actionsへの組み込みは未対応である。
+
+#### 実施メモ（2026-10-23）
+
+- `e2e/fixtures/test-user.ts` にテスト単位の一時ユーザーを用意した。専用Supabaseの管理APIで確認済みのメール・ランダムなパスワードを作り、ブラウザから既存のログインフォームを操作する。アプリ側のUserは既存の認証APIが作成する。メール確認の導線は別の段階で追加する。
+- `e2e/environment.mjs` の接続先・CLI出力の検証を共通化し、管理キーを取得する関数を追加した。管理キーはNode.jsのfixtureだけで使い、Web/APIへ渡す環境変数に含めない。`start.mjs` もSupabase起動結果の標準出力を表示しないようにした。
+- テスト終了時はブラウザのcontextを閉じ、今回のIDに一致するアプリ側UserとAuthユーザーだけを削除し、Prismaの接続を閉じる。アプリ側の削除が失敗した場合もAuth側の削除を試みる。Projectを作成するテストの関連データ削除は、その導入時に追加する。
+- ログイン後のProject一覧への遷移と、再読み込みの前後で本人の名前・メールが表示されるテストを追加した。エージェント実行の `pnpm test:browser` が2件成功した（`2 passed`）。さらに、ログイン後に意図的に失敗させる一時テストを実行し、成功・失敗の両方でアプリ側User・Authユーザー・Authセッションが0件に戻ることを専用DBで確認した。一時テストは削除済みである。
+- `pnpm typecheck:browser` を追加し、対象TypeScriptの型チェック・対象ファイルのOxlint・Prettier checkが成功した。既存の `pnpm test` も393件、`pnpm typecheck` も成功した。全体lintで `.next-e2e` の生成物が検査対象になることを確認し、WebのESLint設定へ専用出力先の除外を追加した後、`pnpm lint` も成功した。開発DB・API E2E DB・異なるDB名・開発Supabase・外部Supabaseの接続設定を拒否することも確認した。
+- 失敗時traceに専用Supabaseの管理キーが含まれないことを確認した。検証後は `node e2e/stop.mjs` で専用Supabase・DBを停止し、Web/APIのテスト用ポートに待ち受けが残っていないことも確認した。
+- Project操作と永続性、メール確認、GitHub Actionsへの組み込みは引き続き未対応である。既存の `pnpm test:e2e` はAPI結合テストとして維持する。
+
+#### 実施メモ（2026-10-24）
+
+- `e2e/tests/create-project.spec.ts` に、一時ユーザーでログインし、一覧から新規作成画面へ移動してProjectを作成するテストを追加した。作成直後と再読み込み後に、一覧の名前・キー・説明と、サイドバーのProject表示を確認する。キーは実行ごとに異なる英数字14文字とする。
+- `e2e/fixtures/test-user.ts` の後片付けを拡張した。今回のユーザーの参加情報と、そのユーザーがownerのProjectの参加情報を削除し、ownerIdで限定したProject、本人のUserの順にtransaction内で削除する。Authユーザーの削除とPrismaの切断は既存のfinally処理を維持する。
+- 初回は「新規プロジェクト」をlinkとして取得して失敗した。ブラウザのアクセシビリティsnapshotでbuttonとして公開されていることを確認し、テストの取得方法を修正した。その後の `pnpm test:browser` は既存分を含めて3件成功した（`3 passed`）。成功後、専用DBのUser・Project・ProjectMember、専用SupabaseのAuthユーザー・セッションがすべて0件へ戻ることを確認した。
+- Project作成・再読み込みの確認後に意図的に失敗させる一時テストでも、同じ5種類のデータが0件へ戻ることを確認した。一時テストは削除済みである。`pnpm typecheck:browser`、対象ファイルのOxlint・Prettier check、`git diff --check` も成功した。アプリ本体は変更していないため、既存のAPI E2EとVitest全件の再実行は行っていない。
+- VS Codeのテスト一覧読み込みで専用Supabaseへの接続が必要だったため、認証キー取得を `playwright.config.mjs` の読み込み時から、新しい `e2e/serve.mjs` によるWeb/API起動時へ移した。子プロセスのPATHを空にしてSupabase CLIが使えない状態でも3件の一覧取得が成功し、起動中の専用環境ではブラウザテスト3件が成功した。実行後に3100・3101番ポートが終了することも確認した。接続先の検証、管理キーのfixture内限定、既存のAPI E2Eコマンドは維持する。
+- `e2e/tests/update-project.spec.ts` に、一時ユーザーで専用Projectを作成し、一覧から詳細・設定へ進んで名前と説明を保存するテストを追加した。保存直後のヘッダー・パンくず・サイドバーへの反映、設定URLでの再読み込み後のフォーム値・名前表示、一覧へ戻った後と再読み込み後の名前・キー・説明を確認する。既存のfixtureを使い、後片付けの条件やアプリ本体は変更していない。
+- `pnpm test:browser:prepare` と `pnpm typecheck:browser`、追加ファイルのOxlint・Prettier checkが成功した。既存分を含むブラウザテストは4件成功した（`4 passed`）。終了後に専用DBのUser・Project・ProjectMember、専用SupabaseのAuthユーザー・セッションがすべて0件であることを確認した。テスト追加だけのため、既存のAPI E2EとVitest全件は再実行していない。
+- `e2e/tests/archive-project.spec.ts` に、一時ユーザーで専用Projectを作成し、確認Dialogからアーカイブして設定画面で解除する1本のテストを追加した。確認名が空・不一致の場合の実行不可、成功後に設定URLからタスクURLへ戻ること、詳細の案内・一覧の状態・サイドバーのアーカイブ表示を確認する。アーカイブ後と解除後のそれぞれで詳細と一覧を再読み込みし、状態が残ることと、一覧の名前・キー・説明が保持されることを確認した。
+- 専用環境の準備・ビルド、追加テストを含むブラウザテスト5件（`5 passed`）、`pnpm typecheck:browser`、対象のOxlint・Prettier checkが成功した。実行前後で専用DBのUser・Project・ProjectMember、専用SupabaseのAuthユーザー・セッションがすべて0件であり、実行後にWeb/APIの3100・3101番ポートが終了していることも確認した。変更はテストとドキュメントのみのため、既存のAPI E2EとVitest全件は再実行していない。
+- `e2e/tests/email-confirmation.spec.ts` に、ブラウザから新規登録し、確認待ちの案内、確認前の保護画面からのリダイレクト、専用Mailpitで受け取った確認リンクを経た自動ログイン、再読み込み後の本人表示までを確認する1件を追加した。`registration-user.ts` は入力値だけを用意し、管理APIでユーザー作成・メール確認を代行しない。管理キーは後片付け用のNode.js内に限定する。
+- 専用Mailpit v1.30.2の検索・本文取得・ID指定削除を使い、ランダムな今回の宛先と受信結果の宛先を完全一致で照合する。削除IDは重複を除き、0件ならDELETEを送信しない。`environment.mjs` にメールAPIの55324番ポートの検証を追加し、開発用54324番と外部URLの拒否を確認した。未確認のAuthユーザーもメールで探して削除し、アプリ側Userが0件でも後片付けできる。
+- 追加検証の確認後の初回表示で、並行するUser保存が `users_email_key` のP2002になり、Server Componentが失敗することを再現した。AuthRepositoryで同じID・同じメールの行が先に保存された場合だけ更新する処理を追加した。修正前に回帰単体テストが失敗し、修正後はRepository・Guardの11件、認証APIの14件が成功した。同時8リクエストの成功と、別IDのUserを上書きしないことを確認している。
+- 共通認証処理への変更のため、専用DB・専用Supabaseを接続先に指定して既存の `pnpm test:e2e` も実行し、API結合テスト全220件が成功した。コマンドの役割はVitest + SupertestのAPI結合テストのまま維持する。専用ビルドとAPIのtypecheck、対象lintも成功した。
+- 修正後の通常の `pnpm test:browser` は全6件成功した（`6 passed`）。登録前・未確認・確認後の3段階で意図的に失敗させる一時テストにより後片付けを確認し、別宛先の検証用メールが保持されることも確認した。検証用メールは最後にそのIDだけを指定して削除し、専用DBのUser・Project・ProjectMember、専用SupabaseのAuthユーザー・セッション、メール件数がすべて0件へ戻った。一時テストは削除済みである。
+- 確認後の失敗traceに管理キーが含まれないことを確認した。確認URLのtoken_hash自体はブラウザの遷移としてtraceに記録されるため、レポートとtraceは一時的なテスト認証情報を含むものとして扱う。メールAPIのHTTP処理はNode.jsのfetchを使い、メール本文・管理キーをPlaywrightのrequestで取得しない。ブラウザ用typecheck、対象format check、`git diff --check` も成功した。Webの実装は変更していないため、WebのVitest全件とStorybookは実行していない。
+- GitHub Actionsへの組み込みは引き続き未対応である。Task作成・更新の実操作はTask CRUD導入後に追加し、現段階ではアーカイブ済みの案内表示を確認している。
+
+#### GitHub Actionsへの組み込み（2026-10-24）
+
+- `.github/workflows/ci.yml` に `Browser E2E` jobを追加した。既存のQuality checks・API E2Eとは別のUbuntu runnerを使い、Node.js 24・pnpm 11.9.0・Chromiumと実行に必要なOSのライブラリを準備する。既存の `pnpm test:e2e` の役割とjobは変更していない。
+- ローカルと同じ `pnpm test:browser:prepare` → `pnpm typecheck:browser` → `pnpm test:browser` を実行する。専用DB・Supabase・Mailpitをrunner上で作り、認証キーは既存スクリプトから取得する。本番・開発用のSecretsやデータを渡さない。
+- 成否どちらでも `playwright-report/` と `test-results/` を `browser-e2e-report` artifactへ保存する。保存期間は7日、キャンセル時はuploadを省略し、テスト前の失敗で成果物がない場合はuploadをスキップする。テストの失敗はjobの失敗として報告し、失敗を許容する設定は追加していない。
+- 最後の `node e2e/stop.mjs` は `if: always()` で、準備・テスト・uploadの失敗後も専用環境の終了を試みる。Web/APIはPlaywrightのwebServerが管理する。手順とレポートの開き方は [Playwright導入ガイド](./PLAYWRIGHT_SETUP_GUIDE.md) に記載した。
+- actionlint、YAMLの読み取りと既存2 job・共通設定の維持、全19個のrun stepのbash構文、ブラウザ用typecheck、CI指定時の6件のテスト一覧、対象format・`git diff --check` が成功した。今回の変更はworkflowとドキュメントのため、ブラウザ・API E2E・Vitest全件とビルドは再実行していない。
+- GitHub上でのjob実行・artifactのuploadとダウンロードは未確認である。今回の作業ではコミット・push・PR作成を行わず、タスク6はCIの実行結果を確認するまで「着手」のままとする。
+
+#### PR作成前のレビューと全体確認（2026-10-24）
+
+- 専用DB・Supabase・メール受信先の固定、migration・Web/API・fixtureへの環境変数の受け渡し、生成物と認証状態ファイルのGit除外を確認した。正しい専用環境だけを許可し、開発DB・API E2E用DB・異なるDB名やschema・外部DB・開発用および外部Supabase・開発用および外部メールAPIの9種類を拒否した。変更・新規37ファイルに `.env`・CLI状態JSON・実管理キー・秘密鍵・JWTが含まれないことも確認した。
+- 削除対象は一時ユーザーID、所有Project、今回の登録宛先に限定されている。Project作成後に意図的に失敗させる一時テストでもUser・Project・ProjectMember・Authユーザー・セッションが0件へ戻り、失敗traceに専用Supabaseの管理キーが含まれないことを確認した。登録前・未確認・確認後の失敗と別宛先メールの保持は、上記の登録テスト追加時にも確認済みである。一時テストはリポジトリ外で実行し、commit対象に含めない。
+- 認証のP2002回復は同じID・同じメールの行に限定され、別IDのUserを採用・上書きしない。認証済みtokenとメール確認の検証、Projectの認可・transaction・既存API契約は維持されている。既存2 jobと共通CI設定の維持、actionlint、全run stepのbash構文も確認し、修正が必要な問題は見つからなかった。
+- `pnpm format:check`・`pnpm lint`・`pnpm typecheck`・`pnpm typecheck:browser`、E2E用ファイルのOxlint、対象ドキュメントのformat、通常ビルドと `pnpm test:browser:prepare` が成功した。通常ビルドはCIと同じ公開用の仮設定を使い、Google Fonts取得の通信制限を外して確認した。
+- `pnpm test` はAPI 16件・Web 381件の合計397件、専用DB・専用Supabaseを指定した `pnpm test:e2e` は220件、通常の `pnpm test:browser` は6件が成功した。成功後も専用環境のUser・Project・ProjectMember・Authユーザー・セッション・受信メールは0件であり、専用環境は `node e2e/stop.mjs` で終了した。Storybookは未導入のため実行していない。
+- ユーザーから、この3点の確認後に問題がなければコミット・push・develop向けPRを作成するよう依頼を受けた。GitHub上の3 jobとartifactの実行結果はPRで確認する。マージは今回の依頼に含まれない。
 
 #### 完了条件
 

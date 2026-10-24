@@ -189,6 +189,62 @@ describe('Auth endpoint', () => {
     );
   });
 
+  it('初回に本人取得とProject一覧を並行取得しても、同じUserを保存して成功する', async () => {
+    await withTestUser(
+      { name: '並行登録ユーザー' },
+      async ({ id, email, accessToken, prisma }) => {
+        expect(await prisma.user.findUnique({ where: { id } })).toBeNull();
+        // HTTP応答をすべて待ってから検証し、失敗時にも通信完了後に片付ける。
+        const responses = await Promise.all(
+          Array.from({ length: 8 }, (_, index) =>
+            request(app.getHttpServer())
+              .get(index % 2 === 0 ? '/api/auth/me' : '/api/projects')
+              .set('Authorization', `Bearer ${accessToken}`),
+          ),
+        );
+        for (const [index, response] of responses.entries()) {
+          expect(response.status).toBe(200);
+          if (index % 2 === 0) {
+            expect(response.body).toMatchObject({
+              id,
+              email,
+              name: '並行登録ユーザー',
+            });
+          } else {
+            expect(response.body).toEqual([]);
+          }
+        }
+        expect(await prisma.user.findMany({ where: { email } })).toEqual([
+          expect.objectContaining({ id, email, name: '並行登録ユーザー' }),
+        ]);
+      },
+    );
+  });
+
+  it('別IDのUserが同じメールを持つ場合は、そのUserを上書きしない', async () => {
+    await withTestUser(
+      { name: '新しい認証ユーザー' },
+      async ({ id, email, accessToken, prisma }) => {
+        const otherId = randomUUID();
+        const existingUser = await prisma.user.create({
+          data: { id: otherId, email, name: '既存の別ユーザー' },
+        });
+        try {
+          await request(app.getHttpServer())
+            .get('/api/auth/me')
+            .set('Authorization', `Bearer ${accessToken}`)
+            .expect(500);
+          expect(
+            await prisma.user.findUnique({ where: { id: otherId } }),
+          ).toEqual(existingUser);
+          expect(await prisma.user.findUnique({ where: { id } })).toBeNull();
+        } finally {
+          await prisma.user.deleteMany({ where: { id: otherId } });
+        }
+      },
+    );
+  });
+
   it('名前の前後の空白を除いて返し、DB に保存する', async () => {
     await withTestUser(
       { name: ' \t山田 太郎\u3000\n' },
