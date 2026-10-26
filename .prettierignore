@@ -12,3 +12,4 @@ apps/web/.next-e2e/
 apps/api/dist-e2e/
 playwright-report/
 test-results/
+storybook-static/

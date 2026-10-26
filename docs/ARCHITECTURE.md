@@ -215,7 +215,7 @@ Repository を通じて Service とデータアクセスの責務を分離する
 
 - 用語とルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) に揃える。Project、owner、member、viewer の意味を文書・コード・テストで統一する。
 - 現在の Controller / Service / Repository で、処理順、認証・認可、DB 保存、transaction を実装・確認する。
-- Project 作成時の owner 登録、全 Project API の認証保護と membership・role による認可、メンバー管理 API は実装済みである。Project と owner membership は同じ transaction で保存する。Web のメンバー一覧・追加・role変更 UI はマージ済みで、削除 UI も別の作業ブランチで API・結果表示・一覧再取得まで実装済みである。
+- Project 作成時の owner 登録、全 Project API の認証保護と membership・role による認可、メンバー管理 API は実装済みである。Project と owner membership は同じ transaction で保存する。Web のメンバー一覧・追加・role変更・削除 UI はマージ済みで、API・結果表示・一覧再取得まで実装済みである。
 - 現在の実装はこの段階にある。Project 権限・メンバー管理などの機能の実装順は、既存の要件とフォローアップタスクに従う。
 
 ### 段階2: 一部の操作にドメインモデルを導入する

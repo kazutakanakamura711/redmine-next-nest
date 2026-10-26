@@ -2,7 +2,9 @@
 
 ## Project 基本操作の次に進める順番
 
-Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API、Web のメンバー一覧・追加・権限変更 UI は PR #29 までマージ済み。別の作業ブランチ `feat/phase-2/project-members-web-delete` では削除 UI も、確認 Dialog・API 接続・送信中の操作制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済み。削除 UI の検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` の最新の実施メモを参照する。その後は Playwright → Storybook → Task CRUD の順で進む。
+Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API と Web の一覧・追加・権限変更・削除 UI は PR #30 まで `develop` にマージ済み。Playwright の専用環境・ブラウザテスト6件・CIはPR #31でマージ済みで、マージ後のCIも3 jobが成功している。
+
+現在は `chore/phase-2/storybook-foundation` でStorybookを導入している。最小設定とButtonの通常・disabledはローカルで確認済みで、CIのbuild stepと[Storybookの手順書](./STORYBOOK_SETUP_GUIDE.md)も追加済みである。最初のPRはこの範囲とし、GitHub上のCI実行結果はPRのChecksで確認する。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。その後はInput＋Labelなどのstoryを1部品ずつ追加し、Task CRUDへ進む。
 
 | 順番 | 対象 | 到達点 |
 | --- | --- | --- |

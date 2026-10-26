@@ -555,4 +555,10 @@ pnpm exec playwright show-trace /展開先/test-results/対象テスト/trace.zi
 
 2026-10-24に、actionlint、YAMLの読み取りと既存job・共通設定の維持、全19個のrun stepのbash構文、ブラウザ用typecheck、CI指定時の6件のテスト一覧、対象format・`git diff --check` を確認しました。今回はworkflowとドキュメントだけの変更なので、ブラウザ・API E2E・Vitest全件とビルドは再実行していません。
 
-GitHub上での実行・artifactの保存確認は、今回の変更をPRへ反映した後に行います。既存の `pnpm test:e2e` と `API E2E` jobは引き続きVitest + SupertestによるAPI結合テストです。
+**2026-10-25の引き継ぎ確認**
+
+PR #31は `develop` にマージ済みです。ユーザーからの引き継ぎでは、[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104272147)で3 jobの成功、環境終了step、レポートの保存・7日の保存期限・ダウンロードを確認済みです。HTMLレポートは6件成功・失敗0・flaky 0でした。
+
+エージェントは、別の[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)でもQuality checks・API E2E・Browser E2Eの3 jobが成功したことを確認しました。上の日付付きメモは、それぞれの確認時点の記録です。
+
+既存の `pnpm test:e2e` と `API E2E` jobは引き続きVitest + SupertestによるAPI結合テストです。

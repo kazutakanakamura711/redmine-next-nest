@@ -30,6 +30,13 @@ pnpm dev:web
 
 ブラウザで `http://localhost:3000` を開きます。
 
+## Storybook
+
+再利用UIの状態は、リポジトリのルートで `pnpm storybook` を実行し、
+`http://127.0.0.1:6006` で確認します。終了は `Ctrl+C`、静的buildは `pnpm storybook:build` です。
+現在はButtonの通常・disabledを用意しています。設定とstoryの読み方、CIでのbuild確認は
+[Storybookの手順書](../../docs/STORYBOOK_SETUP_GUIDE.md)を参照してください。
+
 ## Web の認証基盤
 
 `@supabase/supabase-js` と `@supabase/ssr` を使い、セッションを Cookie に保存します。
