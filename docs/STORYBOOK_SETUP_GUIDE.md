@@ -1,6 +1,6 @@
 # Storybookで再利用UIの状態を確認する
 
-コマンドは、指定がなければリポジトリのルートで実行します。現在の対象は、既存Buttonの通常・disabledの2状態です。
+コマンドは、指定がなければリポジトリのルートで実行します。現在の対象は、既存Buttonの通常・disabledと、Input＋Labelの通常・disabled・入力エラーです。
 
 ## Storybookの役割
 
@@ -35,6 +35,7 @@ Storybook側のビルドにViteを使います。既存のNext.jsの開発・bui
 | [preview.ts](../apps/web/.storybook/preview.ts)                        | 全storyへ適用するCSSと、中央に配置する設定を読み込む                   |
 | [preview.css](../apps/web/.storybook/preview.css)                      | Storybook用のシステムフォントを指定する                                |
 | [button.stories.tsx](../apps/web/src/components/ui/button.stories.tsx) | 既存Buttonの通常・disabledを定義する                                   |
+| [input.stories.tsx](../apps/web/src/components/ui/input.stories.tsx)   | 既存InputとLabelを組み合わせ、通常・disabled・入力エラーを定義する     |
 
 `preview.ts` はアプリと同じ `src/app/globals.css` を読み込みます。Tailwind CSS 4の処理には既存の `postcss.config.mjs` を使い、色・余白・枠などを共有します。
 
@@ -48,7 +49,7 @@ Storybook側のビルドにViteを使います。既存のNext.jsの開発・bui
 pnpm install --frozen-lockfile
 ```
 
-次にStorybookを起動します。現在のButtonのstoryには、Web/APIの開発サーバー、Docker、Supabaseの起動や接続設定は不要です。
+次にStorybookを起動します。現在のButton・Inputのstoryには、Web/APIの開発サーバー、Docker、Supabaseの起動や接続設定は不要です。
 
 ```bash
 pnpm storybook
@@ -61,6 +62,8 @@ pnpm storybook
 3. `Disabled` を選び、薄く表示され、操作できないことを確認する。
 4. 通常ボタンにTabでフォーカスでき、disabledボタンがフォーカス対象にならないことを確認する。
 5. ブラウザの開発者ツールで390px程度に幅を変え、部品に横スクロールや欠けがないことを確認する。
+
+Inputは `UI → Input` の `Default`・`Disabled`・`Invalid` を選びます。通常はラベルとplaceholder、disabledは入力済みで操作できない状態、Invalidは枠線と固定のエラーメッセージを確認します。通常のラベルを押すと入力欄へフォーカスが移り、文字を入力できます。
 
 下部のControlsでpropsを変えると表示も変わります。上の確認は各storyの初期値で行います。別のターミナルで重複起動せず、起動中のターミナルで `Ctrl+C` を押して終了します。
 
@@ -109,6 +112,32 @@ export const Disabled: Story = {
 
 書き方の詳細は[TypeScriptによるstoryの公式ガイド](https://storybook.js.org/docs/writing-stories/typescript)を参照してください。
 
+## InputとLabelのstoryを読む
+
+Inputのstoryは、既存のInput・Labelをそれぞれのファイルから直接importして組み合わせています。
+
+| story      | 表示する状態                                                     |
+| ---------- | ---------------------------------------------------------------- |
+| `Default`  | 空のメールアドレス欄とplaceholder。入力できる                    |
+| `Disabled` | `disabled: true` と `defaultValue` による入力済みの欄            |
+| `Invalid`  | 不正な形式の入力例、`aria-invalid: true`、固定のエラーメッセージ |
+
+共通の `render` はLabelとInputの配置を定義し、Default・Disabledで使います。Invalidは、エラーメッセージも表示する `render` をstory側に定義します。ラベルの `htmlFor` と入力欄の `id` を揃え、各storyには異なるIDを指定しています。
+
+Invalidでは、入力欄の `aria-describedby` とメッセージの `id` を同じ `input-invalid-error` にして、入力欄の説明として関連付けています。`aria-invalid` は既存Inputのエラー用スタイルにも使います。
+
+`defaultValue` は初期値です。`value` で入力値を固定しないため、通常とInvalidの入力欄では文字を編集できます。Invalidは入力を変えても固定のエラーを表示し続けます。入力検証の処理は追加せず、フォームの検証は既存のVitestで確認します。
+
+### Inputの表示例
+
+通常状態のStorybook全体と、390px幅のdisabled、320px幅の入力エラーです。
+
+![Inputの通常表示とControls](./images/storybook-input-default.png)
+
+<img src="./images/storybook-input-disabled-mobile.png" alt="390px幅でのdisabledのInput" width="240" />
+
+<img src="./images/storybook-input-invalid-mobile.png" alt="320px幅での入力エラーのInput" width="240" />
+
 ## ローカルbuildと変更後の確認
 
 起動中のStorybookを終了してから、次を実行します。
@@ -151,4 +180,6 @@ GitHub上の確認は、この変更をpush・PRへ反映した後に行いま�
 
 2026-10-26に、エージェントが通常・disabledの表示、PC幅1280px・390px、フォーカス、外部HTTPリクエストがないこと、ローカルbuildを確認しました。ユーザーからも `pnpm storybook` の起動とButton表示の確認報告を受けています。CIのstepは追加済みです。ローカル確認時点ではGitHub上の実行結果は未確認で、PRのChecksで確認します。
 
-最初のPRの範囲は、最小設定・Buttonの2状態・CI・本手順書です。その後、Input＋Labelの通常・disabled・固定の入力エラー表示、Badge、Alert、AlertDialogを1部品ずつ追加します。Task CRUDはStorybookの導入後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
+最小設定・Buttonの2状態・CI・本手順書は[PR #32](https://github.com/kazutakanakamura711/redmine-next-nest/pull/32)でdevelopへマージ済みです。[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40270876759)と[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40271421115)は成功しています。
+
+現在の作業ブランチではInput＋Labelの3状態を追加しています。後続はBadge、Alert、AlertDialogを1部品ずつ追加します。Task CRUDはStorybookの導入後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。

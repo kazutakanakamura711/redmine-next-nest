@@ -4,7 +4,7 @@
 
 Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API と Web の一覧・追加・権限変更・削除 UI は PR #30 まで `develop` にマージ済み。Playwright の専用環境・ブラウザテスト6件・CIはPR #31でマージ済みで、マージ後のCIも3 jobが成功している。
 
-現在は `chore/phase-2/storybook-foundation` でStorybookを導入している。最小設定とButtonの通常・disabledはローカルで確認済みで、CIのbuild stepと[Storybookの手順書](./STORYBOOK_SETUP_GUIDE.md)も追加済みである。最初のPRはこの範囲とし、GitHub上のCI実行結果はPRのChecksで確認する。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。その後はInput＋Labelなどのstoryを1部品ずつ追加し、Task CRUDへ進む。
+Storybookの最小設定・Buttonの通常とdisabled・CIのbuild step・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32で `develop` にマージ済みで、PR時点とマージ後のCIも成功している。現在は `chore/phase-2/storybook-input` でInput＋Labelの通常・disabled・固定の入力エラーを追加している。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。その後はBadge・Alert・AlertDialogを1部品ずつ追加し、Task CRUDへ進む。
 
 | 順番 | 対象 | 到達点 |
 | --- | --- | --- |
