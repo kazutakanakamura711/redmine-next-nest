@@ -4,7 +4,7 @@
 
 Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API と Web の一覧・追加・権限変更・削除 UI は PR #30 まで `develop` にマージ済み。Playwright の専用環境・ブラウザテスト6件・CIはPR #31でマージ済みで、マージ後のCIも3 jobが成功している。
 
-Storybookの最小設定・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みで、PRのCIは各3 jobが成功している。AlertのstoryはPR #35で追加し、PRのCIも3 job成功している。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。その後はAlertDialogを追加し、Task CRUDへ進む。
+Storybookの最小設定・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みで、PRのCIは各3 jobが成功している。AlertのstoryはPR #35で追加・マージ済みで、CIも3 job成功している。AlertDialogの開閉・長文・確定ボタン無効のstoryを現在の作業ブランチに追加している。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。Storybookの部品追加後にTask CRUDへ進む。
 
 | 順番 | 対象 | 到達点 |
 | --- | --- | --- |

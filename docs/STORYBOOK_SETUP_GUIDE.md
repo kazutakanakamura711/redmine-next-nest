@@ -1,6 +1,6 @@
 # Storybookで再利用UIの状態を確認する
 
-コマンドは、指定がなければリポジトリのルートで実行します。現在の対象は、既存Buttonの通常・disabled、Input＋Labelの通常・disabled・入力エラー、Badgeのvariantと長文、Alertのvariantとaction付き表示です。
+コマンドは、指定がなければリポジトリのルートで実行します。現在の対象は、既存Buttonの通常・disabled、Input＋Labelの通常・disabled・入力エラー、Badgeのvariantと長文、Alertのvariantとaction付き表示、AlertDialogの開閉・長文・確定ボタン無効状態です。
 
 ## Storybookの役割
 
@@ -29,15 +29,16 @@ Storybook側のビルドにViteを使います。既存のNext.jsの開発・bui
 
 `pnpm-workspace.yaml` の `allowBuilds` では、Storybookが利用する `esbuild@0.28.2` のpostinstallを許可しています。この処理はビルド用バイナリを準備・確認します。
 
-| ファイル                                                               | 責務                                                                   |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [main.ts](../apps/web/.storybook/main.ts)                              | frameworkと `src` 配下のstoryの検索先を指定する。telemetryも無効にする |
-| [preview.ts](../apps/web/.storybook/preview.ts)                        | 全storyへ適用するCSSと、中央に配置する設定を読み込む                   |
-| [preview.css](../apps/web/.storybook/preview.css)                      | Storybook用のシステムフォントを指定する                                |
-| [button.stories.tsx](../apps/web/src/components/ui/button.stories.tsx) | 既存Buttonの通常・disabledを定義する                                   |
-| [input.stories.tsx](../apps/web/src/components/ui/input.stories.tsx)   | 既存InputとLabelを組み合わせ、通常・disabled・入力エラーを定義する     |
-| [badge.stories.tsx](../apps/web/src/components/ui/badge.stories.tsx)   | 既存Badgeの6種類のvariantと長文の表示を定義する                        |
-| [alert.stories.tsx](../apps/web/src/components/ui/alert.stories.tsx)   | 既存Alertの2種類のvariantとaction付き表示を定義する                    |
+| ファイル                                                                           | 責務                                                                   |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [main.ts](../apps/web/.storybook/main.ts)                                          | frameworkと `src` 配下のstoryの検索先を指定する。telemetryも無効にする |
+| [preview.ts](../apps/web/.storybook/preview.ts)                                    | 全storyへ適用するCSSと、中央に配置する設定を読み込む                   |
+| [preview.css](../apps/web/.storybook/preview.css)                                  | Storybook用のシステムフォントを指定する                                |
+| [button.stories.tsx](../apps/web/src/components/ui/button.stories.tsx)             | 既存Buttonの通常・disabledを定義する                                   |
+| [input.stories.tsx](../apps/web/src/components/ui/input.stories.tsx)               | 既存InputとLabelを組み合わせ、通常・disabled・入力エラーを定義する     |
+| [badge.stories.tsx](../apps/web/src/components/ui/badge.stories.tsx)               | 既存Badgeの6種類のvariantと長文の表示を定義する                        |
+| [alert.stories.tsx](../apps/web/src/components/ui/alert.stories.tsx)               | 既存Alertの2種類のvariantとaction付き表示を定義する                    |
+| [alert-dialog.stories.tsx](../apps/web/src/components/ui/alert-dialog.stories.tsx) | 既存AlertDialogの開閉・長文・確定ボタン無効状態を定義する              |
 
 `preview.ts` はアプリと同じ `src/app/globals.css` を読み込みます。Tailwind CSS 4の処理には既存の `postcss.config.mjs` を使い、色・余白・枠などを共有します。
 
@@ -51,7 +52,7 @@ Storybook側のビルドにViteを使います。既存のNext.jsの開発・bui
 pnpm install --frozen-lockfile
 ```
 
-次にStorybookを起動します。現在のButton・Input・Badge・Alertのstoryには、Web/APIの開発サーバー、Docker、Supabaseの起動や接続設定は不要です。
+次にStorybookを起動します。現在のButton・Input・Badge・Alert・AlertDialogのstoryには、Web/APIの開発サーバー、Docker、Supabaseの起動や接続設定は不要です。
 
 ```bash
 pnpm storybook
@@ -70,6 +71,8 @@ Inputは `UI → Input` の `Default`・`Disabled`・`Invalid` を選びます�
 Badgeは `UI → Badge` の各variantと `Long Text` を選びます。色・枠と、狭い幅での長文の収まりを確認します。
 
 Alertは `UI → Alert` の `Default`・`Destructive`・`With Action` を選びます。通常とエラーの配色、タイトル・説明の間隔、action付きの場合の右上のボタン配置を確認します。`With Action` のボタンは配置の表示例で、操作は実装していません。
+
+AlertDialogは `UI → AlertDialog` を選びます。初期表示のダイアログをキャンセルまたは確定ボタンで閉じ、トリガーから再度開けることを確認します。`Long Description` では説明文の折り返しと狭い幅での表示、`Confirm Action Disabled` では確定ボタンが無効でキャンセルは操作できることを確認します。Story内の確定操作は表示確認用で、アプリのデータは変更しません。
 
 下部のControlsでpropsを変えると表示も変わります。上の確認は各storyの初期値で行います。別のターミナルで重複起動せず、起動中のターミナルで `Ctrl+C` を押して終了します。
 
@@ -226,7 +229,7 @@ UIの振る舞いを変更した場合は、関連するVitestも実行します
   run: pnpm storybook:build
 ```
 
-既存のNode.js 24・pnpm 11.9.0・`pnpm install --frozen-lockfile` の準備を利用します。現在のButton・Input・Badge・Alertのstoryをbuildするstepには、追加のDB・Supabase・GitHub Secretsは不要です。直前のアプリbuildにある公開用の仮設定は、そのstepだけの設定です。
+既存のNode.js 24・pnpm 11.9.0・`pnpm install --frozen-lockfile` の準備を利用します。現在のButton・Input・Badge・Alert・AlertDialogのstoryをbuildするstepには、追加のDB・Supabase・GitHub Secretsは不要です。直前のアプリbuildにある公開用の仮設定は、そのstepだけの設定です。
 
 develop向けPRとdevelopへのpushで実行され、Storybook buildが失敗すれば `Quality checks` も失敗します。ここではカタログの公開やartifactへの保存は行いません。
 
@@ -234,8 +237,8 @@ GitHub上の確認は、この変更をpush・PRへ反映した後に行いま�
 
 ## 現在の確認範囲と次の作業
 
-2026-10-26に、Storybookの最小設定・Button・CI・手順書はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みです。PR #32・#33・#34のCIではQuality checks・API E2E・Browser E2Eの3 jobがそれぞれ成功しています。Button・Input・Badgeのローカル表示とbuildも確認済みです。AlertのDefault・Destructive・With Actionは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加し、Storybook buildとPRの3 job成功を確認しています。
+2026-10-26に、Storybookの最小設定・Button・CI・手順書はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みです。PR #32・#33・#34のCIではQuality checks・API E2E・Browser E2Eの3 jobがそれぞれ成功しています。Button・Input・Badgeのローカル表示とbuildも確認済みです。AlertのDefault・Destructive・With Actionは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加・マージ済みで、[PR CI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40279927188)の3 jobも成功しています。AlertDialogには現在の作業ブランチで3つのstoryを追加しています。
 
 最小設定・Buttonの2状態・CI・本手順書は[PR #32](https://github.com/kazutakanakamura711/redmine-next-nest/pull/32)でdevelopへマージ済みです。[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40270876759)と[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40271421115)は成功しています。
 
-Input＋Labelの3状態は[PR #33](https://github.com/kazutakanakamura711/redmine-next-nest/pull/33)、Badgeの7表示例は[PR #34](https://github.com/kazutakanakamura711/redmine-next-nest/pull/34)でdevelopへマージ済みです。Alertのstoryは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加し、ローカルlint・typecheck・buildと320px幅の表示、PR CIの3 job成功を確認しています。後続はAlertDialogを追加し、Task CRUDはStorybookの部品追加後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
+Input＋Labelの3状態は[PR #33](https://github.com/kazutakanakamura711/redmine-next-nest/pull/33)、Badgeの7表示例は[PR #34](https://github.com/kazutakanakamura711/redmine-next-nest/pull/34)でdevelopへマージ済みです。Alertのstoryは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加・マージされ、ローカルlint・typecheck・buildと320px幅の表示、PR CIの3 job成功を確認しています。AlertDialogにはDefault・Long Description・Confirm Action Disabledを追加し、開閉・disabled状態・320px幅の長文表示を確認しています。Task CRUDはStorybookの部品追加後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
