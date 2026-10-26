@@ -34,7 +34,7 @@ pnpm dev:web
 
 再利用UIの状態は、リポジトリのルートで `pnpm storybook` を実行し、
 `http://127.0.0.1:6006` で確認します。終了は `Ctrl+C`、静的buildは `pnpm storybook:build` です。
-現在はButtonの通常・disabledを用意しています。設定とstoryの読み方、CIでのbuild確認は
+現在はButtonの通常・disabledと、Input＋Labelの通常・disabled・入力エラーを用意しています。設定とstoryの読み方、CIでのbuild確認は
 [Storybookの手順書](../../docs/STORYBOOK_SETUP_GUIDE.md)を参照してください。
 
 ## Web の認証基盤
