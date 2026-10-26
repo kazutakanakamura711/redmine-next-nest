@@ -21,7 +21,7 @@
 - 2026-10-21 に、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が成功したとの報告をユーザーから受けた。最終レビューではコード側に修正必須の問題は見つからず、API README の古い実装状況を修正した。関連64件・対象 lint・format・Web typecheck はエージェントによる確認、今回の API E2E・build はユーザーのローカル環境での確認結果として区別する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright はPR #31を `develop` にマージ済み。専用環境でログイン・Project作成・設定更新・アーカイブ・解除と再読み込み、登録・メール確認を6件のブラウザテストで確認する。マージ後の[CI実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)も3 jobが成功している。詳細はタスク6の実施メモを参照する。
-- Storybookの最小設定・Buttonの2状態・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32で `develop` にマージ済み。PR時点とマージ後のCIも3 jobすべて成功している。現在は別ブランチでInput＋Labelの通常・disabled・入力エラーを追加し、ローカルで確認済み。詳細はタスク7の実施メモを参照する。
+- Storybookの基盤・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋Labelの3状態はPR #33で `develop` にマージ済み。各PRとマージ後のCIも3 jobすべて成功している。現在は別ブランチでBadgeのvariantと長文を追加し、ローカルで確認済み。詳細はタスク7の実施メモを参照する。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
 - タスク 4 の更新後も Prisma CLI 経由の監査警告 3 件が残る。保留理由と再確認の時期はタスク 4 の実施メモに記録した。
 
@@ -783,7 +783,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 7. Storybook で再利用 UI の状態を確認できるようにする
 
-- 状態: 対応中（基盤・Button・CI・手順書はPR #32でマージ済み。Input＋Labelの3状態は別ブランチでローカル確認済み。後続はBadge・Alert・AlertDialog）
+- 状態: 対応中（基盤・Button・Input＋Label・CI・手順書はPR #33までマージ済み。Badgeの7表示例は別ブランチでローカル確認済み。後続はAlert・AlertDialog）
 - 優先度: Task 画面を増やす前に導入する。
 
 #### 背景
@@ -840,6 +840,23 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - storyと文書の差分をレビューし、修正が必要な問題は見つからなかった。実装は上の表示・入力・フォーカス・lint・typecheck・Storybook build成功時から変更していないため、その結果を使用する。Vitest・アプリbuild・API E2E・既存のブラウザE2EはPRのCIで確認する。
 - PRテンプレートの画面確認用に、確認済みの通常・disabled・入力エラーの3画像を `docs/images` に保存し、手順書にも表示例を追加した。Input変更のGitHub上のCI実行結果はPRのChecksに記録する。
 
+#### Badgeの実施メモ（2026-10-26）
+
+- ユーザーからPR #33のマージとdevelop更新の報告を受け、HEAD・develop・origin/developが `6aa8e5ee1f1d9f8c3337a5d12a9a146392f60471` で一致し、作業ツリーに差分がないことを確認した。最新developから `chore/phase-2/storybook-badge` を作成した。
+- Inputの[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40274254526)と[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40274848399)は、Quality checks・API E2E・Browser E2Eの3 jobすべてが成功している。
+- `apps/web/src/components/ui/badge.stories.tsx` に、既存Badgeを直接使うDefault・Secondary・Destructive・Outline・Ghost・LinkとLongTextを追加した。共通のargsからvariantなど必要なpropsだけを上書きする。renderは指定せずspanとして表示し、Linkも文字装飾の確認例とする。
+- LongTextはstory側のclassNameで画面幅を上限にして左寄せにする。狭い幅では既存Badgeのoverflow-hiddenで収まらない文言を隠す。Badge本体や画面固有の権限・ステータスの配色、アプリ画面・API・依存・CI設定の変更はない。
+- 既存の6006番StorybookがこのWebディレクトリから起動されていることと、story一覧に新しいBadgeと既存Button・Inputがあることを確認し、表示確認に再利用した。既存プロセスは停止していない。
+- 一時的なPlaywright確認で7表示例を1280px・390px・320px幅で確認した。配色と枠線の違い、Ghostのホバー背景、Linkのホバー下線、spanがTabの対象にならないこと、長文が枠内に収まり横スクロールがないことを確認した。ページエラー・console error・外部HTTPリクエストは0件で、スクリーンショットでも確認した。一時スクリプトはリポジトリ外に置いている。
+- 対象storyのESLint、Web全体のtypecheck、`pnpm format:check`、手順書を明示したPrettier check、`CI=true pnpm storybook:build` が成功した。500 kB超チャンクの警告は基盤導入時と同じで、buildは完了している。
+- 手順書・Web README・開発ガイド・現在の引き継ぎを更新した。表示カタログと文書だけの変更なので、Vitest・アプリbuild・API E2E・既存のブラウザE2Eは再実行していない。このBadge作業のコミット・push・PR作成は行っていない。
+
+#### BadgeのPR作成準備（2026-10-26）
+
+- ユーザーから変更に問題ないとの確認と、コミット・push・develop向けPR作成の依頼を受けた。最新のorigin/developが作業基点の `6aa8e5e` と一致することを再確認した。マージは依頼に含まれない。
+- storyと文書の差分をレビューし、修正が必要な問題は見つからなかった。実装は上の表示・ホバー・lint・typecheck・Storybook build成功時から変更していないため、その結果を使用する。Vitest・アプリbuild・API E2E・既存のブラウザE2EはPRのCIで確認する。
+- PRテンプレートの画面確認用に、確認済みの通常・Destructive・長文の3画像を `docs/images` に保存し、手順書にも表示例を追加した。Badge変更のGitHub上のCI実行結果はPRのChecksに記録する。
+
 #### 完了条件
 
 - ローカルで Storybook を起動し、対象部品の状態を確認できる。
@@ -851,7 +868,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
 2. タスク 5: 完了。認証・Project権限、メンバー管理APIとWeb UIをPR #30までマージ済み。
 3. タスク 6: 完了。ブラウザテスト6件と専用環境・CIをPR #31でマージ済み。
-4. タスク 7: 基盤・Button・CI・手順書はPR #32でマージ済み。Input＋Labelの3状態は別ブランチでローカル確認済み。後続はBadge、Alert、AlertDialogを1部品ずつ追加する。
+4. タスク 7: 基盤・Button・Input＋Label・CI・手順書はPR #33までマージ済み。Badgeの7表示例は別ブランチでローカル確認済み。後続はAlert、AlertDialogを1部品ずつ追加する。
 5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
 
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
@@ -860,10 +877,10 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 現在（2026-10-26）
 
-- PR #30・#31・#32は `develop` にマージ済み。現在の作業基点は `8f2deba`、作業ブランチは `chore/phase-2/storybook-input` である。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
-- Storybook基盤とButtonはPR #32でマージ済みで、PR時点・マージ後のCIが成功している。現在はInput＋Labelの通常・disabled・固定の入力エラーを追加し、ローカル表示・対象lint・Web typecheck・Storybook buildを確認済み。設定とstoryの読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、検証結果はタスク7の最新メモを参照する。
-- ユーザーからInput変更のコミット・push・develop向けPR作成の依頼を受けた。GitHub上のCI実行結果はPRのChecksで確認する。マージはユーザーが依頼した段階で行う。
-- 後続はBadge・Alert・AlertDialogを1部品ずつ進める。Task CRUDはStorybook導入後とする。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
+- PR #30・#31・#32・#33は `develop` にマージ済み。現在の作業基点は `6aa8e5e`、作業ブランチは `chore/phase-2/storybook-badge` である。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
+- Storybook基盤・Button・Input＋LabelはPR #33までマージ済みで、各PRとマージ後のCIが成功している。現在はBadgeの6種類のvariantと長文を追加し、ローカル表示・対象lint・Web typecheck・Storybook buildを確認済み。設定とstoryの読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、検証結果はタスク7の最新メモを参照する。
+- ユーザーからBadge変更のコミット・push・develop向けPR作成の依頼を受けた。GitHub上のCI実行結果はPRのChecksで確認する。マージはユーザーが依頼した段階で行う。
+- 後続はAlert・AlertDialogを1部品ずつ進める。Task CRUDはStorybook導入後とする。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
 
 ### 過去の引き継ぎ（2026-10-21時点）
 
