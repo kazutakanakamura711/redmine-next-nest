@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "storybook": "storybook dev --host 127.0.0.1 -p 6006 --no-open",
+    "storybook:build": "storybook build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -28,6 +30,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@storybook/nextjs-vite": "10.6.3",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
@@ -38,8 +41,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "jsdom": "^27.0.0",
+    "storybook": "10.6.3",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vite": "8.3.0",
     "vitest": "^4.1.2"
   },
   "packageManager": "pnpm@11.9.0"

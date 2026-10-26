@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-21
+最終更新: 2026-10-26
 
 ## 目的
 
@@ -16,11 +16,12 @@
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
 - メンバー一覧・追加 API（PR #23・#24）、role 変更 API（PR #25）、削除 API（PR #26）、Web の一覧表示（PR #27）・追加 UI（PR #28）は `develop` にマージ済み。PR #27 には一覧 API の参加者3 role への開放と Project 詳細の `currentUserRole` 追加も含む。
-- メンバー管理 Web UI は一覧・追加・権限変更まで PR #29 でマージ済み。作業ブランチ `feat/phase-2/project-members-web-delete` では削除も、確認 Dialog・API 接続・送信中の制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済みである。List は `useProjectMemberRoleEditor`・`useDeleteProjectMemberDialog` を1回ずつ直接呼んで PC・モバイルで状態を共有し、操作間の送信中の制御を担当する。owner だけの操作・owner 保護・アーカイブ済み Project での閲覧と更新不可、`headerAction` の配置、日付表示の共通化を維持する。検証範囲は最新の実施メモを参照する。
+- メンバー管理 Web UI は一覧・追加・権限変更・削除までPR #30で `develop` にマージ済み。削除は確認 Dialog・API 接続・送信中の制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済みである。List は `useProjectMemberRoleEditor`・`useDeleteProjectMemberDialog` を1回ずつ直接呼んで PC・モバイルで状態を共有し、操作間の送信中の制御を担当する。owner だけの操作・owner 保護・アーカイブ済み Project での閲覧と更新不可、`headerAction` の配置、日付表示の共通化を維持する。
 - 2026-10-20 に、ユーザーからメンバー追加 UI の動作と、`pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm format:check`・`pnpm test:e2e`・`pnpm build` の全てに問題がないとの報告を受けた。その後、PR #28 のマージと Quality checks・API E2E の成功報告を受け、ローカルの `develop`・`origin/develop` がマージコミット `6034e45` を指すことを確認した。今回の helper の検証結果とは区別し、詳細は最新の実施メモを参照する。
 - 2026-10-21 に、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が成功したとの報告をユーザーから受けた。最終レビューではコード側に修正必須の問題は見つからず、API README の古い実装状況を修正した。関連64件・対象 lint・format・Web typecheck はエージェントによる確認、今回の API E2E・build はユーザーのローカル環境での確認結果として区別する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
-- Playwright は作業ブランチで専用環境・ログイン・Project作成・設定更新・アーカイブ・解除と再読み込み、登録・メール確認のテストを導入中。GitHub Actionsに専用jobを追加済みで、GitHub上での実行確認はこれから行う。Storybook は未導入。詳細はタスク6の実施メモを参照する。
+- Playwright はPR #31を `develop` にマージ済み。専用環境でログイン・Project作成・設定更新・アーカイブ・解除と再読み込み、登録・メール確認を6件のブラウザテストで確認する。マージ後の[CI実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)も3 jobが成功している。詳細はタスク6の実施メモを参照する。
+- Storybook は作業ブランチで最小設定とButtonの通常・disabledをローカル確認済み。ユーザーも起動とButton表示を確認済みで、CIへのbuild stepと[手順書](./STORYBOOK_SETUP_GUIDE.md)も追加した。GitHub上のCI実行結果はPRのChecksで確認する。詳細はタスク7の実施メモを参照する。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
 - タスク 4 の更新後も Prisma CLI 経由の監査警告 3 件が残る。保留理由と再確認の時期はタスク 4 の実施メモに記録した。
 
@@ -176,7 +177,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 5. Supabase Auth と Project 権限を実装する
 
-- 状態: 対応中（認証・Project 権限、メンバー管理 API、Web の一覧・追加・権限変更 UI は PR #29 まで `develop` にマージ済み。別の作業ブランチで削除 UI を API・結果表示・一覧再取得まで実装済み。検証範囲と未実行の確認は最新の実施メモを参照）
+- 状態: 完了（認証・Project権限、メンバー管理APIとWebの一覧・追加・権限変更・削除UIをPR #30まで `develop` にマージ済み）
 - 優先度: 高。Task CRUD と外部公開より前に完了する。
 
 #### 背景
@@ -678,12 +679,12 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 #### 後続作業
 
-- 権限変更 UI は PR #29 でマージ済み。削除 UI は別ブランチで API・送信中の制御・失敗時の対象保持とエラー表示・成功通知と一覧再取得まで実装済み。コミット・push・PR 作成は今回の作業についてユーザーから依頼を受けた段階で行う。
+- メンバー管理UIは削除までPR #30でマージ済み。PlaywrightもPR #31でマージ済みであり、現在はStorybookの導入を進めている。
 - 確認待ちの画面でフォームを残す現在の構成は、今後、案内を中心とした表示や確認メールの再送導線を必要に応じて検討する。
 - `token_hash` は秘密の値として扱う。本番では HTTPS とアクセスログのクエリ除外・マスキングを確認する。現在のテストはログ収集基盤の設定までは検証していない。
-- メンバー削除 API と owner 自身の削除・role変更の保護は実装・確認済み。Web の一覧・追加・role変更 UI はマージ済みで、削除 UI は別ブランチで実装済みである。追加・role変更・削除は owner のみとし、アーカイブ済み Project では実行できない仕様を維持する。メンバー管理 UI を揃えた後、Playwright → Storybook → Task CRUD の順で進める。
+- メンバー削除 API と owner 自身の削除・role変更の保護、Webの一覧・追加・role変更・削除UIは実装・確認済み。追加・role変更・削除は owner のみとし、アーカイブ済み Project では実行できない仕様を維持する。Storybookの導入後にTask CRUDへ進む。
 - Projects API E2E のファイル分割・共通 helper の導入は、ユーザーがテスト構成を理解してから再検討する。現在は整理 PR を保留し、既存ファイルの構成を維持して機能追加を進める。
-- 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作るため、メール確認そのもののブラウザ E2E は Playwright 導入時に追加する。
+- 現在のローカル設定は `[auth.email].enable_confirmations = true` である。Auth / Project の API E2E は管理 API の `email_confirm: true` で一時ユーザーを作る。メール確認そのものは、PR #31で追加したPlaywrightの新規登録・確認メール・自動ログインのブラウザE2Eで確認する。
 
 #### 完了条件
 
@@ -695,7 +696,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 6. Playwright で主要なユーザー操作をブラウザE2Eテストする
 
-- 状態: 着手（作業ブランチで専用環境・主要Project操作と再読み込み・登録からメール確認のテスト、CI jobを実装。GitHub上での実行は未確認）
+- 状態: 完了（PR #31を `develop` にマージ済み。ブラウザテスト6件とPR・マージ後のCI成功を確認済み）
 - 優先度: 高（タスク 5 の後、Task CRUD の前に導入する）
 
 #### 背景
@@ -774,20 +775,54 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - Pull Request の CI で Playwright が実行され、失敗時は CI が失敗として報告する。
 - Task CRUD の導入後も、該当する重要なユーザー導線を追加・更新する。
 
+#### PR #31のマージとCI確認（2026-10-25の引き継ぎ）
+
+- PR #30のメンバー削除UI、PR #31のPlaywright導入は `develop` にマージ済み。ローカルのHEAD・develop・origin/developが `6a7df07848190d99897f1d281bffac9e32250b3e` で一致し、Storybook作業前の差分がないことを確認した。
+- ユーザーの引き継ぎでは、[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104272147)のQuality checks・API E2E・Browser E2Eがすべて成功した。Browser E2Eの環境終了、レポートの保存・7日の保存期限・ダウンロードも確認済みで、HTMLレポートは6件成功・失敗0・flaky 0である。
+- エージェントは、別の[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)でも3 jobすべての成功を確認した。上の実施メモにあるPR作成・CI確認待ちは、その日付時点の記録であり解消済みである。
+
 ### 7. Storybook で再利用 UI の状態を確認できるようにする
 
-- 状態: 未着手
+- 状態: 対応中（最小設定とButtonの2状態、CIのbuild stepと手順書を追加済み。CI結果はPRのChecksで確認し、Input＋Label以降のstoryは後続で進める）
 - 優先度: Task 画面を増やす前に導入する。
 
 #### 背景
 
-shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story・実行コマンドはまだない。画面の操作テストとは別に、再利用 UI の代表的な状態を確認する場所を用意する。
+導入前は、shadcn/uiを土台にしたUI部品はあったが、Storybookの設定・story・実行コマンドがなかった。画面の操作テストとは別に、再利用UIの代表的な状態を確認する場所を用意する。
 
 #### 作業内容
 
 - Web に Storybook の設定と実行・build コマンドを追加する。
 - 既存の再利用 UI（例: Button、Badge、AlertDialog）から対象を絞り、通常・disabled・長文など必要な状態の story を作る。
 - CI で Storybook の build を確認する。Task UI を実装するときは、再利用する部品の story を追加する。
+
+#### 最小導入とButtonの実施メモ（2026-10-26）
+
+- 最新の `develop`（`6a7df07`）から作成した `chore/phase-2/storybook-foundation` で、最初の区切りとしてStorybookとButtonの2状態を追加した。Storybook・`@storybook/nextjs-vite` は10.6.3、Viteは既存lockfileと同じ8.3.0をWebの開発用依存に指定した。追加addonはない。
+- `apps/web/.storybook/main.ts` でframeworkとstoryの検索先を指定し、telemetryを無効にした。`preview.ts` は既存の `src/app/globals.css` と専用の `preview.css` を読み込む。専用CSSはシステムフォントの変数だけを補い、Google Fontsには接続しない。アプリのGeistとの完全一致は今回の確認範囲に含めない。
+- `apps/web/src/components/ui/button.stories.tsx` の `Default`・`Disabled` は、既存Buttonを直接importし、共通の「保存」という文言と `disabled` の違いだけを定義する。既存Buttonやアプリの画面・API・認証・認可は変更していない。
+- ルートの `pnpm storybook` で `http://127.0.0.1:6006` に起動し、`pnpm storybook:build` で `apps/web/storybook-static` に静的ファイルを出力する。生成物をGit・format・lint・Webの型チェックから除外し、`.storybook` の設定はWebの型チェックに含めた。ブラウザE2E用tsconfigにも生成物の除外だけを追加した。
+- 初回の依存追加はpnpmの未許可buildとしてesbuildのpostinstallで停止した。Storybookが利用する `esbuild@0.28.2` に限定して `allowBuilds` を設定した後、`pnpm install --frozen-lockfile` が成功した。
+- `pnpm format:check`、Webのlint・typecheck、`pnpm test`（API 16件・Web 381件、計397件）、`pnpm storybook:build` が成功した。Storybook buildには500 kBを超えるチャンクの警告があるが、buildは完了している。
+- 一時的なPlaywright確認で、Storybookの一覧と2状態の表示、1280px・390px幅、通常ボタンへのTabフォーカス、disabledのフォーカス除外、横スクロールがないことを確認した。ページエラーと外部HTTPリクエストは0件だった。スクリーンショットでも確認し、一時スクリプトはリポジトリに追加していない。起動確認にはサンドボックス外でのlocalhost待ち受けとChromium起動が必要だった。確認後はStorybookを終了し、6006番ポートの解放を確認した。
+- 今回は最小導入のみであり、CIへのStorybook build追加と手順書は次の区切り、Input・Badge・Alert・AlertDialogのstoryはその後に1部品ずつ進める。アプリのbuild・API E2E・既存のブラウザE2Eは今回再実行していない。コミット・push・PR作成は行っていない。
+
+#### CIと手順書の実施メモ（2026-10-26）
+
+- ユーザーから `pnpm storybook` の起動とButton表示を確認できたとの報告を受け、手順2のCIと手順書へ進んだ。
+- `.github/workflows/ci.yml` の `Quality checks` に、既存のアプリbuildの次に `Build Storybook`（`pnpm storybook:build`）を追加した。追加の環境変数・DB・Supabase・Secretsは不要で、失敗時はjobも失敗する。既存3 job、起動条件、権限、concurrency、API E2E・Browser E2Eの処理は維持した。
+- [STORYBOOK_SETUP_GUIDE.md](./STORYBOOK_SETUP_GUIDE.md) に起動・終了・build、依存と設定の役割、Buttonのstoryの読み方、Vitest・Playwrightとの使い分け、システムフォントの範囲、CIでの確認方法を記録した。Web READMEと開発ガイドから参照できるようにした。
+- メンバー削除UIとPlaywrightを未マージ・CI未確認とする現在状況を、PR #30・#31マージ済みに更新した。PR時点のレポート確認はユーザーの引き継ぎ、マージ後の3 job成功はエージェントの確認結果として区別した。日付付きの過去メモと以前の引き継ぎは当時の記録として残した。
+- actionlint 1.7.12、YAMLの読み取りと既存設定にStorybookの1 stepだけを追加したことの比較、全20個のrun stepのbash構文が成功した。手順書のTSX例・YAML例は実ファイルと一致し、関連文書のローカルリンク・コードブロックも確認した。`pnpm format:check`、新しい手順書を明示したPrettier check、`git diff --check` が成功した。
+- `CI=true pnpm storybook:build` が成功した。500 kBを超えるチャンクの警告は手順1と同じであり、buildは完了している。この区切りはworkflowと文書だけの変更で、UI・依存・アプリの処理を変えていないため、Vitest・アプリbuild・API E2E・既存のブラウザE2Eは再実行していない。手順1の397件のVitestと表示確認の結果を使用する。
+- Storybook変更のGitHub上でのCI実行は、コミット・push・PR作成後に確認する。現時点では未確認であり、タスク7は対応中のままとする。コミット・push・PR作成・マージは行っていない。
+
+#### PR作成前の確認（2026-10-26）
+
+- ユーザーからコミット・push・develop向けPR作成の依頼を受けた。最新の `origin/develop` が作業基点の `6a7df07` と一致することを再確認した。マージは依頼に含まれない。
+- 設定・story・依存・CI・文書の差分をレビューし、修正が必要な問題は見つからなかった。ルートの `pnpm lint`・`pnpm typecheck` と、CI相当の公開用仮設定を指定した `pnpm build` が成功した。アプリbuildはWeb・APIともに成功している。
+- UIとテストの実装は手順1から変えていないため、Vitest 397件と表示・フォーカス確認の成功結果を使用する。Storybook buildとworkflowの確認は手順2の成功結果を使用し、API E2E・既存のブラウザE2EはPRのCIで確認する。
+- PRテンプレートの画面確認用に、手順1で取得した通常表示と390px幅のdisabled表示の画像を `docs/images` に保存し、手順書にも表示例を追加した。GitHub上の実行結果はPRのChecksに記録する。
 
 #### 完了条件
 
@@ -798,16 +833,27 @@ shadcn/ui を土台にした UI 部品はあるが、Storybook の設定・story
 ## 推奨する着手順
 
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
-2. タスク 5: PR #29 の権限変更 UI までマージ済み。削除 UI は別ブランチで API・結果表示・一覧再取得まで実装済み。検証範囲と未実行の確認は最新の実施メモを参照する。
-3. タスク 6: 認証済み Project の主要導線を Playwright で確認し、CI に追加する。
-4. タスク 7: Storybook を導入し、既存の再利用 UI を登録する。
+2. タスク 5: 完了。認証・Project権限、メンバー管理APIとWeb UIをPR #30までマージ済み。
+3. タスク 6: 完了。ブラウザテスト6件と専用環境・CIをPR #31でマージ済み。
+4. タスク 7: 最小設定・Button・CI・手順書を追加済み。GitHub上のCI確認を経て、Input＋Label、Badge、Alert、AlertDialogのstoryを1部品ずつ追加する。
 5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
 
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
 
 ## 次の Codex スレッドへの引き継ぎ
 
-最新（2026-10-21）: PR #29 はマージ済み。`feat/phase-2/project-members-web-delete` で削除 UI を API・送信中の制御・エラー表示・成功通知・一覧再取得まで実装済みである。ユーザーからブラウザ確認と全体チェック6コマンドの成功報告、コミット・push・PR 作成の依頼を受けた。検証範囲は上記の最新メモを参照する。以下の引用は権限変更 UI 作業時点の記録として残す。
+### 現在（2026-10-26）
+
+- PR #30・#31は `develop` にマージ済み。Storybook作業の基点は `6a7df07` で、現在の作業ブランチは `chore/phase-2/storybook-foundation` である。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
+- 手順1の最小設定・Buttonの通常とdisabled、手順2のCIのbuild stepと[Storybookの手順書](./STORYBOOK_SETUP_GUIDE.md)を追加した。手順1では397件のVitest、Webのlint・型チェック、ローカルbuildと表示を確認済み。ユーザーも `pnpm storybook` の起動とButton表示を確認済みである。今回の検証結果はタスク7の最新メモを参照する。
+- 最初のPRの範囲は最小設定・Button・CI・手順書である。ユーザーからコミット・push・develop向けPR作成の依頼を受けた。GitHub上のCI実行結果はPRのChecksで確認する。マージはユーザーが依頼した段階で行う。
+- 後続はInput＋Labelの通常・disabled・固定の入力エラー、その後はBadge・Alert・AlertDialogを1部品ずつ進める。Task CRUDはStorybook導入後とする。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
+
+### 過去の引き継ぎ（2026-10-21時点）
+
+以下は当時の記録であり、現在の作業は上の「現在」と最新の実施メモに従う。
+
+2026-10-21時点: PR #29 はマージ済み。`feat/phase-2/project-members-web-delete` で削除 UI を API・送信中の制御・エラー表示・成功通知・一覧再取得まで実装済みである。ユーザーからブラウザ確認と全体チェック6コマンドの成功報告、コミット・push・PR 作成の依頼を受けた。検証範囲は上記の2026-10-21のメモを参照する。以下の引用は権限変更 UI 作業時点の記録として残す。
 
 List は `useProjectMemberRoleEditor`・`useDeleteProjectMemberDialog` を直接呼ぶ構成へ置き換え済み。送信中の相互制御は List に置き、未使用の旧 Hook と専用テストは削除した。Hook 単体と一覧・ページ・helper・追加 Dialog の関連168件が成功している。現在の構成と確認範囲は上記の最新メモを参照する。
 
