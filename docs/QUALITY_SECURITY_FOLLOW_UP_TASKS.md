@@ -21,7 +21,7 @@
 - 2026-10-21 に、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が成功したとの報告をユーザーから受けた。最終レビューではコード側に修正必須の問題は見つからず、API README の古い実装状況を修正した。関連64件・対象 lint・format・Web typecheck はエージェントによる確認、今回の API E2E・build はユーザーのローカル環境での確認結果として区別する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright はPR #31を `develop` にマージ済み。専用環境でログイン・Project作成・設定更新・アーカイブ・解除と再読み込み、登録・メール確認を6件のブラウザテストで確認する。マージ後の[CI実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)も3 jobが成功している。詳細はタスク6の実施メモを参照する。
-- Storybookの基盤・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済み。3つのPRのCIはそれぞれ3 jobすべて成功している。現在は別ブランチでAlertの3 storyを追加し、ローカル確認済み。詳細はタスク7の実施メモを参照する。
+- Storybookの基盤・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済み。3つのPRのCIはそれぞれ3 jobすべて成功している。Alertの3 storyはPR #35にあり、PRのCIも3 jobすべて成功している。詳細はタスク7の実施メモを参照する。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
 - タスク 4 の更新後も Prisma CLI 経由の監査警告 3 件が残る。保留理由と再確認の時期はタスク 4 の実施メモに記録した。
 
@@ -783,7 +783,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 7. Storybook で再利用 UI の状態を確認できるようにする
 
-- 状態: 対応中（基盤・Button・Input＋Label・Badge・CI・手順書はPR #34までマージ済み。Alertの3 storyを追加してローカル確認済み。後続はAlertDialog）
+- 状態: 対応中（基盤・Button・Input＋Label・Badge・CI・手順書はPR #34までマージ済み。Alertの3 storyはPR #35にあり、PR CI成功済み。後続はAlertDialog）
 - 優先度: Task 画面を増やす前に導入する。
 
 #### 背景
@@ -865,6 +865,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - 既にChromeで起動していた `127.0.0.1:6006` のStorybookを再利用した。3 storyの描画と、Small mobileの320px幅でタイトル・説明が折り返し、Actionボタンと重ならないことを確認した。利用者の既存Storybookプロセスは停止していない。
 - Alert storyのESLint、Web typecheck、`pnpm format:check`、Storybook手順書のPrettier check、`CI=true pnpm storybook:build` が成功した。buildに500 kB超チャンクの警告が出たが、buildは完了している。Storybookの表示カタログと文書のみの変更なので、Vitest・アプリbuild・API E2E・Playwrightは再実行していない。
 - PR用の通常表示・destructive・action付き画像を `docs/images` に保存し、手順書にも追加した。Storybook手順書、Web README、開発ガイド、現在の引き継ぎを更新した。`pnpm format:check` は成功し、手順書の明示的なPrettier checkも成功した。開発ガイドと本書は全体に対する追加のPrettier checkでは書式警告が出たが、文書全体の整形変更は避けた。Storybook出力 `apps/web/storybook-static` はGit管理対象外で、差分には含まれない。
+- コミット `e16b4c2` をpushし、PR #35を作成した。PR [CI run 40278780171](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40278780171) はQuality checks・API E2E・Browser E2Eの3 jobが成功した。PR本文には確認画像とローカル確認結果を記載した。
 
 #### 完了条件
 
@@ -877,7 +878,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
 2. タスク 5: 完了。認証・Project権限、メンバー管理APIとWeb UIをPR #30までマージ済み。
 3. タスク 6: 完了。ブラウザテスト6件と専用環境・CIをPR #31でマージ済み。
-4. タスク 7: 基盤・Button・Input＋Label・Badge・CI・手順書はPR #34までマージ済み。Alertのstoryは別ブランチでローカル確認済み。次にAlertDialogを追加する。
+4. タスク 7: 基盤・Button・Input＋Label・Badge・CI・手順書はPR #34までマージ済み。AlertはPR #35にあり、CI成功済み。次にAlertDialogを追加する。
 5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
 
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
@@ -886,9 +887,9 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 現在（2026-10-26）
 
-- PR #30・#31・#32・#33・#34は `develop` にマージ済み。現在の作業基点は `cfd7737`、作業ブランチは `chore/phase-2/storybook-alert` である。Alert storyと関連文書に未コミット変更がある。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
-- Storybook基盤・Button・Input＋Label・Badgeがマージ済みで、PR #32・#33・#34のCIは各3 jobが成功している。現在はAlertのDefault・Destructive・WithActionを追加し、ローカルlint・typecheck・build・320px幅の表示を確認済み。設定とstoryの読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、検証結果はタスク7の最新メモを参照する。
-- 後続はAlertDialogを追加する。Task CRUDはStorybookの部品追加後とする。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
+- PR #30・#31・#32・#33・#34は `develop` にマージ済み。PR #35は `chore/phase-2/storybook-alert` からopenである。最新のPR statusとCIはPR #35を参照する。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
+- Storybook基盤・Button・Input＋Label・Badgeがマージ済みで、PR #32・#33・#34のCIは各3 jobが成功している。AlertのDefault・Destructive・WithActionはPR #35で追加し、ローカルlint・typecheck・build・320px幅の表示とPR CI 3 job成功を確認済み。設定とstoryの読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、検証結果はタスク7の最新メモを参照する。
+- 次はAlertDialogを追加する。Task CRUDはStorybookの部品追加後とする。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
 
 ### 過去の引き継ぎ（2026-10-21時点）
 

@@ -234,8 +234,8 @@ GitHub上の確認は、この変更をpush・PRへ反映した後に行いま�
 
 ## 現在の確認範囲と次の作業
 
-2026-10-26に、Storybookの最小設定・Button・CI・手順書はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みです。PR #32・#33・#34のCIではQuality checks・API E2E・Browser E2Eの3 jobがそれぞれ成功しています。Button・Input・Badgeのローカル表示とbuildも確認済みです。現在の作業ブランチではAlertのDefault・Destructive・With Actionを追加し、Storybookで表示を確認しています。
+2026-10-26に、Storybookの最小設定・Button・CI・手順書はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みです。PR #32・#33・#34のCIではQuality checks・API E2E・Browser E2Eの3 jobがそれぞれ成功しています。Button・Input・Badgeのローカル表示とbuildも確認済みです。AlertのDefault・Destructive・With Actionは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加し、Storybook buildとPRの3 job成功を確認しています。
 
 最小設定・Buttonの2状態・CI・本手順書は[PR #32](https://github.com/kazutakanakamura711/redmine-next-nest/pull/32)でdevelopへマージ済みです。[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40270876759)と[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40271421115)は成功しています。
 
-Input＋Labelの3状態は[PR #33](https://github.com/kazutakanakamura711/redmine-next-nest/pull/33)、Badgeの7表示例は[PR #34](https://github.com/kazutakanakamura711/redmine-next-nest/pull/34)でdevelopへマージ済みです。現在の作業ブランチではAlertの3表示例を追加し、ローカルlint・typecheck・buildと320px幅の表示を確認しています。後続はAlertDialogを追加し、Task CRUDはStorybookの部品追加後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
+Input＋Labelの3状態は[PR #33](https://github.com/kazutakanakamura711/redmine-next-nest/pull/33)、Badgeの7表示例は[PR #34](https://github.com/kazutakanakamura711/redmine-next-nest/pull/34)でdevelopへマージ済みです。Alertのstoryは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加し、ローカルlint・typecheck・buildと320px幅の表示、PR CIの3 job成功を確認しています。後続はAlertDialogを追加し、Task CRUDはStorybookの部品追加後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
