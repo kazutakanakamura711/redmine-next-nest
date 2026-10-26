@@ -783,7 +783,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 7. Storybook で再利用 UI の状態を確認できるようにする
 
-- 状態: 対応中（基盤・Button・Input＋Label・Badge・CI・手順書はPR #34までマージ済み。Alertの3 storyはPR #35にあり、PR CI成功済み。後続はAlertDialog）
+- 状態: 対応中（基盤・Button・Input＋Label・Badge・CI・手順書はdevelopにマージ済み。AlertはPR #35でマージ済み。AlertDialogの3 storyを現在の作業ブランチで追加）
 - 優先度: Task 画面を増やす前に導入する。
 
 #### 背景
@@ -867,6 +867,14 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - PR用の通常表示・destructive・action付き画像を `docs/images` に保存し、手順書にも追加した。Storybook手順書、Web README、開発ガイド、現在の引き継ぎを更新した。`pnpm format:check` は成功し、手順書の明示的なPrettier checkも成功した。開発ガイドと本書は全体に対する追加のPrettier checkでは書式警告が出たが、文書全体の整形変更は避けた。Storybook出力 `apps/web/storybook-static` はGit管理対象外で、差分には含まれない。
 - コミット `e16b4c2` をpushし、PR #35を作成した。PR [CI run 40278780171](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40278780171) はQuality checks・API E2E・Browser E2Eの3 jobが成功した。PR本文には確認画像とローカル確認結果を記載した。
 
+#### AlertDialogのStorybook実施メモ（2026-10-26）
+
+- PR #35のマージ後、`develop`・`origin/develop`・HEADが `d36b895` で一致し、作業ツリーがcleanであることを確認して `chore/phase-2/storybook-alert-dialog` を作成した。PR #35の最新CI run `40279927188` はQuality checks・API E2E・Browser E2Eの3 jobがすべて成功している。
+- `apps/web/src/components/ui/alert-dialog.stories.tsx` にDefault・LongDescription・ConfirmActionDisabledを追加した。Default状態でダイアログを開き、キャンセルと確定ボタンで閉じ、トリガーから再度開ける。長文と確定ボタンのdisabled状態もstoryごとに確認できる。
+- 既存のAlertDialog・Buttonだけを使い、Story helper内のopen stateで表示を操作する。確定処理はstory内で閉じるだけで、アプリのデータを変更しない。既存UI、依存、CI、認証・APIには変更がない。
+- Storybookは既に起動していたため、Chromeの既存Storybookタブを再利用した。開閉、確定後の閉じる動作、disabledボタン、320px幅での長文折り返しとボタン配置を目視確認した。PRの画面確認用に、Default・320px幅のLongDescription・disabled状態の画像を `docs/images/storybook-alert-dialog-*.png` として保存した。
+- storyのESLint、Web typecheck、`pnpm format:check`、Storybook手順書の明示的なPrettier check、`CI=true pnpm storybook:build` が成功した。buildには500 kB超チャンクの既存警告が出たが完了している。Storybook storyと文書のみの変更のため、Vitest・アプリbuild・API E2E・Playwrightは追加実行していない。
+
 #### 完了条件
 
 - ローカルで Storybook を起動し、対象部品の状態を確認できる。
@@ -878,7 +886,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
 2. タスク 5: 完了。認証・Project権限、メンバー管理APIとWeb UIをPR #30までマージ済み。
 3. タスク 6: 完了。ブラウザテスト6件と専用環境・CIをPR #31でマージ済み。
-4. タスク 7: 基盤・Button・Input＋Label・Badge・CI・手順書はPR #34までマージ済み。AlertはPR #35にあり、CI成功済み。次にAlertDialogを追加する。
+4. タスク 7: 基盤・Button・Input＋Label・Badge・CI・手順書はマージ済み。AlertはPR #35でマージ済み。AlertDialogのstoryを追加中で、完了後にTask CRUDへ進む。
 5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
 
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
@@ -887,9 +895,9 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 現在（2026-10-26）
 
-- PR #30・#31・#32・#33・#34は `develop` にマージ済み。PR #35は `chore/phase-2/storybook-alert` からopenである。最新のPR statusとCIはPR #35を参照する。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
-- Storybook基盤・Button・Input＋Label・Badgeがマージ済みで、PR #32・#33・#34のCIは各3 jobが成功している。AlertのDefault・Destructive・WithActionはPR #35で追加し、ローカルlint・typecheck・build・320px幅の表示とPR CI 3 job成功を確認済み。設定とstoryの読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、検証結果はタスク7の最新メモを参照する。
-- 次はAlertDialogを追加する。Task CRUDはStorybookの部品追加後とする。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
+- PR #30〜#35は `develop` にマージ済み。PR #35の最新CI run `40279927188` は3 jobが成功している。最新develop `d36b895` から作成した `chore/phase-2/storybook-alert-dialog` にAlertDialog storyを追加し、Storybook buildとローカル確認が成功している。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
+- Storybook基盤・Button・Input＋Label・Badge・Alertがマージ済み。AlertDialogのDefault・LongDescription・ConfirmActionDisabledを追加し、開閉・disabled状態・320px幅の表示を確認した。Storybookの設定と読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、変更内容と検証結果はタスク7の最新メモを参照する。
+- AlertDialogのstory追加後にTask CRUDへ進む。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
 
 ### 過去の引き継ぎ（2026-10-21時点）
 
