@@ -872,7 +872,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - PR #35のマージ後、`develop`・`origin/develop`・HEADが `d36b895` で一致し、作業ツリーがcleanであることを確認して `chore/phase-2/storybook-alert-dialog` を作成した。PR #35の最新CI run `40279927188` はQuality checks・API E2E・Browser E2Eの3 jobがすべて成功している。
 - `apps/web/src/components/ui/alert-dialog.stories.tsx` にDefault・LongDescription・ConfirmActionDisabledを追加した。Default状態でダイアログを開き、キャンセルと確定ボタンで閉じ、トリガーから再度開ける。長文と確定ボタンのdisabled状態もstoryごとに確認できる。
 - 既存のAlertDialog・Buttonだけを使い、Story helper内のopen stateで表示を操作する。確定処理はstory内で閉じるだけで、アプリのデータを変更しない。既存UI、依存、CI、認証・APIには変更がない。
-- Storybookは既に起動していたため、Chromeの既存Storybookタブを再利用した。開閉、確定後の閉じる動作、disabledボタン、320px幅での長文折り返しとボタン配置を目視確認した。
+- Storybookは既に起動していたため、Chromeの既存Storybookタブを再利用した。開閉、確定後の閉じる動作、disabledボタン、320px幅での長文折り返しとボタン配置を目視確認した。PRの画面確認用に、Default・320px幅のLongDescription・disabled状態の画像を `docs/images/storybook-alert-dialog-*.png` として保存した。
 - storyのESLint、Web typecheck、`pnpm format:check`、Storybook手順書の明示的なPrettier check、`CI=true pnpm storybook:build` が成功した。buildには500 kB超チャンクの既存警告が出たが完了している。Storybook storyと文書のみの変更のため、Vitest・アプリbuild・API E2E・Playwrightは追加実行していない。
 
 #### 完了条件
