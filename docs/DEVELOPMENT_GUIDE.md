@@ -4,7 +4,7 @@
 
 Project の作成・一覧・詳細・更新・アーカイブ・解除、認証と Project 権限、メンバー管理 API と Web の一覧・追加・権限変更・削除 UI は PR #30 まで `develop` にマージ済み。Playwright の専用環境・ブラウザテスト6件・CIはPR #31でマージ済みで、マージ後のCIも3 jobが成功している。
 
-Storybookの最小設定・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みで、PRのCIは各3 jobが成功している。AlertのstoryはPR #35で追加・マージ済みで、CIも3 job成功している。AlertDialogの開閉・長文・確定ボタン無効のstoryを現在の作業ブランチに追加している。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。Storybookの部品追加後にTask CRUDへ進む。
+Storybookの最小設定・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34、AlertはPR #35、AlertDialogはPR #36で `develop` にマージ済みである。今回予定した代表部品まで導入が完了し、PR #36のマージ後CIも3 jobが成功している。検証結果は `QUALITY_SECURITY_FOLLOW_UP_TASKS.md` のタスク7を参照する。
 
 | 順番 | 対象 | 到達点 |
 | --- | --- | --- |
@@ -17,6 +17,13 @@ Storybookの最小設定・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)
 
 各段階は複数の小さな Pull Request に分けてよい。Task の権限判定は Task API と同じ変更で入れ、認証なしの Task endpoint を新たに追加しない。
 Task は一覧・詳細、作成、更新、削除を操作ごとに進め、対応する画面と API E2E を追加する。主要導線が増えた時点で Playwright、再利用 UI が増えた時点で Storybook も更新する。
+
+### Task の現在の区切り（2026-10-27）
+
+`feat/phase-2/task-list-api` では、Task モデル・migration と `GET /api/projects/:projectId/tasks` を実装済みである。Task 一覧の API E2E は25件、既存を含む API E2E 全体は245件が専用環境で成功した。ユーザーは Swagger で token なしの401、参加 Project の200と空配列、存在しない Project の404を確認している。詳細・作成・更新・削除 API と Web は後続で、現在の変更はまだ未コミット・未マージである。
+
+この区切りは文書と差分のレビュー、PR前の全体確認を終えてからまとめる。次の機能は Task 一覧画面 → 詳細 → 作成 → 更新 → 削除の順で、小さく進める。
+一覧画面を作るときに Table、フォームを作るときに Textarea の story を追加し、Task 作成の主要導線ができた段階で Playwright を拡張する。一覧 API だけの変更では story を追加しない。
 
 ## 例: プロジェクト作成 API
 

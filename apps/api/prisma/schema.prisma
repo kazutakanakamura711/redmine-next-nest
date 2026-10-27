@@ -19,6 +19,18 @@ enum ProjectMemberRole {
   viewer
 }
 
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  low
+  normal
+  high
+}
+
 model User {
   id        String   @id @db.Uuid //Supabase AuthのユーザーID
   email     String   @unique // ユーザーのメールアドレス
@@ -46,10 +58,11 @@ model Project {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // ownerId が User.id を参照し、このプロジェクトの owner を表す。
-  owner User @relation(fields: [ownerId], references: [id])
-
+  owner          User            @relation(fields: [ownerId], references: [id])
   // このプロジェクトの参加者と role の一覧。
   projectMembers ProjectMember[]
+  // このプロジェクトのタスクの一覧
+  tasks          Task[]
 
   @@map("projects")
 }
@@ -70,4 +83,23 @@ model ProjectMember {
 
   @@unique([projectId, userId]) // 同じユーザーが同じプロジェクトに複数回参加できないようにする
   @@map("project_members")
+}
+
+model Task {
+  id          String       @id @default(cuid()) // タスクのID
+  projectId   String       @map("project_id") // プロジェクトのID
+  title       String // タイトル
+  description String? // 詳細説明
+  status      TaskStatus   @default(todo) // ステータス
+  priority    TaskPriority @default(normal) // 優先度
+  startDate   DateTime?    @map("start_date") @db.Date // 開始日
+  dueDate     DateTime?    @map("due_date") @db.Date // 期限
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // タスクが所属するプロジェクト
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt, id])
+  @@map("tasks")
 }

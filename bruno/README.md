@@ -16,6 +16,7 @@ Bruno で [redmine-next-nest-api](./redmine-next-nest-api/) をコレクショ�
 | [get-project-members](./redmine-next-nest-api/get-project-members.yml)               | NestJS: `GET /api/projects/:projectId/members`             | 参加者がメンバー一覧を取得                 |
 | [add-project-member](./redmine-next-nest-api/add-project-member.yml)                 | NestJS: `POST /api/projects/:projectId/members`            | owner が登録済み User を追加               |
 | [update-project-member-role](./redmine-next-nest-api/update-project-member-role.yml) | NestJS: `PATCH /api/projects/:projectId/members/:memberId` | owner がメンバーの role を変更             |
+| [get-tasks](./redmine-next-nest-api/get-tasks.yml)                                   | NestJS: `GET /api/projects/:projectId/tasks`               | 参加者がタスク一覧を取得                   |
 | [supabase-update-password](./redmine-next-nest-api/supabase-update-password.yml)     | Supabase: `PUT /auth/v1/user`                              | ログインユーザーのパスワードを変更         |
 
 NestJS は `http://localhost:3001`、ローカル Supabase は `http://127.0.0.1:54321` で動きます。
@@ -115,6 +116,13 @@ Project の基本6リクエストとメンバー一覧・追加・role変更に�
 Project の一覧・詳細とメンバー一覧は参加者の owner・member・viewer が取得でき、更新・アーカイブ・解除とメンバー追加・role変更・削除は owner のみ操作できます。
 存在しない Project と非参加者は同じ404、参加者の権限不足は403になります。
 認証・認可の仕様と確認範囲は [API README](../apps/api/README.md#project-api-の認証と-owner-登録) を参照してください。
+
+`get-tasks` も **Bearer Token** の `{{accessToken}}` を使います。
+URL は `http://localhost:3001/api/projects/{{projectId}}/tasks` です。
+`projectId` に参加している Project の ID を設定し、リクエストの Variables で同名の変数を使う場合は、そちらにも対象 ID を設定してください。
+owner・member・viewer が取得でき、アーカイブ済み Project も閲覧できます。
+成功時は `200 OK` と作成日時の降順（同じ日時なら ID の降順）のタスク配列を返し、タスクがなければ `[]` を返します。
+認証 token がない・無効な場合は `401`、Project が存在しない・参加していない場合は `404` です。
 
 ## 5. メンバー一覧・追加を確認する
 

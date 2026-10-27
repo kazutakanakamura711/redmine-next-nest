@@ -156,18 +156,30 @@ src/
     │   ├── auth.service.ts
     │   ├── auth.repository.ts
     │   └── auth.module.ts
-    └── projects/
+    ├── projects/
+    │   ├── dto/
+    │   │   ├── create-project.dto.ts
+    │   │   ├── update-project.dto.ts
+    │   │   └── project-response.dto.ts
+    │   ├── projects.controller.ts
+    │   ├── projects.service.ts
+    │   ├── projects.repository.ts
+    │   └── projects.module.ts
+    └── tasks/
         ├── dto/
-        │   ├── create-project.dto.ts
-        │   ├── update-project.dto.ts
-        │   └── project-response.dto.ts
-        ├── projects.controller.ts
-        ├── projects.service.ts
-        ├── projects.repository.ts
-        └── projects.module.ts
+        │   └── task-response.dto.ts
+        ├── tasks.controller.ts
+        ├── tasks.service.ts
+        ├── tasks.repository.ts
+        └── tasks.module.ts
 ```
 
-上記は現在の主な構成である。`tasks` は Task CRUD の実装時に追加する。DDD やクリーンアーキテクチャへの移行は、対象操作を決めてから行う。
+上記は現在の主な構成である。現在の作業ブランチでは `tasks` を追加し、Task の DB 定義と一覧 API を実装している。DDD やクリーンアーキテクチャへの移行は、対象操作を決めてから行う。
+
+`TasksModule` は `PrismaModule` と `AuthModule` を import し、`TaskController`・`TasksService`・`TasksRepository` を登録する。`AppModule` から `TasksModule` を読み込む。
+一覧は AuthGuard による token・メール確認と User 同期の後、Controller が URL の Project ID と本人の User ID を Service に渡す。
+Service は Repository から本人の参加情報を取得し、なければ既存 Project API と同じ404を返す。owner・member・viewer の全 role に閲覧を許可し、アーカイブ状態では拒否しない。
+Repository は Task を Project ID で限定し、作成日時・ID の降順で取得する。Controller が返却項目を明示し、日付・日時を API の文字列形式に変換する。レスポンス DTO 自体は変換処理を持たない。
 
 ## それぞれの責務
 

@@ -48,13 +48,13 @@ Controller -> Service -> Repository -> Prisma -> PostgreSQL
 - API: REST / JSON
 - Database: PostgreSQL
 - ORM: Prisma
-- Authentication: Supabase Auth（導入時に設定方法を確認する）
+- Authentication: Supabase Auth
 - Frontend test: Vitest / React Testing Library
 - Backend test: Vitest / Supertest
 - E2E test: Playwright
 - UI catalog: Storybook
 
-Playwright と Storybook は採用予定で、現時点では未導入。依存関係と設定は、それぞれの導入時に確定する。
+Playwright はPR #31、Storybookの基盤と代表部品はPR #32〜#36で導入・マージ済みである。ブラウザテストは6件で、再利用UIは必要に応じてstoryを追加する。手順は [PLAYWRIGHT_SETUP_GUIDE.md](./PLAYWRIGHT_SETUP_GUIDE.md) と [STORYBOOK_SETUP_GUIDE.md](./STORYBOOK_SETUP_GUIDE.md) を参照する。
 
 ## UI・テストの使い分け
 
@@ -72,8 +72,8 @@ Playwright と Storybook は採用予定で、現時点では未導入。依存�
 
 1. ヘルスチェック API
 2. プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除（実装済み）
-3. ログインと、プロジェクト単位の閲覧・編集・メンバー権限
-4. Playwright による認証済み Project の主要導線、Storybook による再利用 UI の確認
-5. プロジェクトに属するタスクの CRUD と role ごとの権限
+3. ログインと、プロジェクト単位の閲覧・編集・メンバー権限（実装済み）
+4. Playwright による認証済み Project の主要導線、Storybook による再利用 UI の確認（導入済み）
+5. プロジェクトに属するタスクの CRUD と role ごとの権限（作業ブランチでDB定義・一覧API・API E2Eを実装済み。残りは後続）
 
 コメント、変更履歴、親子タスク、通知などは、基本 CRUD を理解・完成させた後に追加する。

@@ -102,7 +102,8 @@ Project に属する作業項目である。初期は、タスクを分かりや
 | priority | 優先度 | 初期値は `normal` |
 | startDate | 開始日 | 任意 |
 | dueDate | 期限 | 任意。開始日より前にできない |
-| assigneeId | 担当者 | 任意。設定時は ProjectMember であること |
+| createdAt | 作成日時 | 作成時に設定する |
+| updatedAt | 更新日時 | 作成・更新時に設定する |
 
 初期の status と priority は次に限定する。
 
@@ -116,6 +117,14 @@ priority: low  | normal      | high
 - 閲覧権限がないユーザーは、Project や Task を取得できない。
 - `done` にした日時や、Project 内連番は、基本 CRUD を完成させた後に追加する。
 
+現在の作業ブランチでは、Task の DB 定義と一覧 API を実装済みである。詳細・作成・更新・削除 API と Web の Task 一覧は後続とする。
+
+- 一覧の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。
+- アーカイブ済み Project の Task も閲覧できる。Project 不在と非参加者による取得は、同じ対象不在として扱う。
+- `description`・`startDate`・`dueDate` の未設定は `null` とする。開始日・期限は時刻を持たない日付であり、DB には `DATE` 型で保存する。
+- `createdAt`・`updatedAt` は日時として保存する。日付・日時の API 返却形式と一覧の並び順は [UI_API.md](./UI_API.md#タスク一覧-get-apiprojectsprojectidtasks) を参照する。
+- title・description の文字数、日付の前後関係、作成・更新権限、アーカイブ済み Project への作成・更新禁止の検証は、対応する作成・更新 API と同時に実装する。現在の DB 定義には、文字数・日付の前後関係の CHECK 制約は設けていない。
+
 ## 認証・認可の基本方針
 
 - 認証は Supabase Auth を使う。
@@ -123,13 +132,14 @@ priority: low  | normal      | high
 - 操作する本人は、クライアントから渡された `userId` ではなく、認証済み token から特定する。
 
 全 Project API の認証保護、membership・role による認可、Project 作成時の owner 登録は実装済みである。
-メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧・追加・role変更・削除 UI は実装済みである。Task CRUD は、この認証・認可の基盤を使って進める。
+メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧・追加・role変更・削除 UI は実装済みである。Task 一覧 API も同じ認証・認可の基盤を使い、残る Task CRUD を操作ごとに追加する。
 
 ## 後続段階で追加するもの
 
 以下は ER 図には含めるが、初期 CRUD を理解してから追加する。
 
 - Task の Project 内連番（`APP-1` など）と競合しない採番
+- Task の作成者（`reporterId`）・担当者（`assigneeId`）の記録。担当者は任意とし、設定時は対象 Project の ProjectMember であることを検証する
 - `in_review`、`closed` など、より細かい status
 - `completedAt`、予定工数
 - 親子タスクと循環参照の防止

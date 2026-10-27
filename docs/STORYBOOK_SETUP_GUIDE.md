@@ -233,12 +233,14 @@ UIの振る舞いを変更した場合は、関連するVitestも実行します
 
 develop向けPRとdevelopへのpushで実行され、Storybook buildが失敗すれば `Quality checks` も失敗します。ここではカタログの公開やartifactへの保存は行いません。
 
-GitHub上の確認は、この変更をpush・PRへ反映した後に行います。Checksから `Quality checks → Build Storybook` を開き、コマンドが実行され、成功したことを確認します。ローカルbuildの成功と、GitHub上でのCI成功は分けて記録します。
+今後のstory追加・変更も、push・PRへ反映した後にGitHub上で確認します。Checksから `Quality checks → Build Storybook` を開き、コマンドが実行され、成功したことを確認します。ローカルbuildの成功と、GitHub上でのCI成功は分けて記録します。
 
 ## 現在の確認範囲と次の作業
 
-2026-10-26に、Storybookの最小設定・Button・CI・手順書はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済みです。PR #32・#33・#34のCIではQuality checks・API E2E・Browser E2Eの3 jobがそれぞれ成功しています。Button・Input・Badgeのローカル表示とbuildも確認済みです。AlertのDefault・Destructive・With Actionは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加・マージ済みで、[PR CI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40279927188)の3 jobも成功しています。AlertDialogには現在の作業ブランチで3つのstoryを追加しています。
+2026-10-27時点で、Storybookの最小設定・Button・CI・手順書はPR #32、Input＋LabelはPR #33、BadgeはPR #34、AlertはPR #35、AlertDialogは[PR #36](https://github.com/kazutakanakamura711/redmine-next-nest/pull/36)で `develop` にマージ済みです。今回予定した代表部品までの導入は完了し、[PR #36マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40287999361)もQuality checks・API E2E・Browser E2Eの3 jobが成功しています。
 
 最小設定・Buttonの2状態・CI・本手順書は[PR #32](https://github.com/kazutakanakamura711/redmine-next-nest/pull/32)でdevelopへマージ済みです。[PR時点のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40270876759)と[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40271421115)は成功しています。
 
-Input＋Labelの3状態は[PR #33](https://github.com/kazutakanakamura711/redmine-next-nest/pull/33)、Badgeの7表示例は[PR #34](https://github.com/kazutakanakamura711/redmine-next-nest/pull/34)でdevelopへマージ済みです。Alertのstoryは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加・マージされ、ローカルlint・typecheck・buildと320px幅の表示、PR CIの3 job成功を確認しています。AlertDialogにはDefault・Long Description・Confirm Action Disabledを追加し、開閉・disabled状態・320px幅の長文表示を確認しています。Task CRUDはStorybookの部品追加後に進めます。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
+Input＋Labelの3状態は[PR #33](https://github.com/kazutakanakamura711/redmine-next-nest/pull/33)、Badgeの7表示例は[PR #34](https://github.com/kazutakanakamura711/redmine-next-nest/pull/34)でdevelopへマージ済みです。Alertのstoryは[PR #35](https://github.com/kazutakanakamura711/redmine-next-nest/pull/35)で追加・マージされ、ローカルlint・typecheck・buildと320px幅の表示、PR CIの3 job成功を確認しています。PR #36ではAlertDialogのDefault・Long Description・Confirm Action Disabledを追加し、開閉・再表示・確定後の閉じる動作・disabled状態・320px幅の長文表示を確認しました。進捗と検証結果は[タスク7](./QUALITY_SECURITY_FOLLOW_UP_TASKS.md#7-storybook-で再利用-ui-の状態を確認できるようにする)に記録します。
+
+Taskは現在の作業ブランチでDB定義と一覧APIを実装済みです。すべてのUI部品のstoryを先に揃える必要はなく、一覧APIだけの変更では追加しません。Task一覧画面でTable、フォームでTextareaなど、再利用UIの追加・変更・新しい使い方に合わせて少しずつ増やします。Task作成の主要導線ができた段階でPlaywrightも拡張します。
