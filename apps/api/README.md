@@ -33,11 +33,11 @@ pnpm exec supabase status
 
 表示された値をルートの `.env` に設定します。
 
-| 環境変数                   | 設定する値                                           | 使用箇所                                         |
-| -------------------------- | ---------------------------------------------------- | ------------------------------------------------ |
-| `SUPABASE_URL`             | Project URL（ローカルでは `http://127.0.0.1:54321`） | API と Auth・Projects E2E                        |
-| `SUPABASE_PUBLISHABLE_KEY` | Authentication Keys の Publishable                   | API の token 検証、Auth・Projects E2E のログイン |
-| `SUPABASE_SECRET_KEY`      | Authentication Keys の Secret                        | Auth・Projects E2E のユーザー作成・削除          |
+| 環境変数                   | 設定する値                                       | 使用箇所                                                |
+| -------------------------- | ------------------------------------------------ | ------------------------------------------------------- |
+| `SUPABASE_URL`             | Project URL（開発用は `http://127.0.0.1:54321`） | API と API E2E。テスト時は専用Supabaseを指定する        |
+| `SUPABASE_PUBLISHABLE_KEY` | Authentication Keys の Publishable               | API の token 検証、Auth・Projects・Tasks E2E のログイン |
+| `SUPABASE_SECRET_KEY`      | Authentication Keys の Secret                    | Auth・Projects・Tasks E2E のユーザー作成・削除          |
 
 Secret key はテストの管理 API 用です。ブラウザ側や `NEXT_PUBLIC_*` に設定せず、
 `.env` と実際のキーは Git に含めないでください。`status` の出力にもキーが含まれます。
@@ -87,7 +87,7 @@ API は `supabase.auth.getUser(token)` で本人を確認し、Supabase Auth の
 作成・更新時にメールアドレスと `user_metadata.name` の名前を同期します。
 名前が文字列なら前後の空白を除き、未設定・空白・文字列以外なら `null` にします。
 既存の名前もこの値で更新するため、Supabase の名前が空白になるとアプリ側も `null` になります。
-この同期は共通 AuthGuard を通る Project API でも行います。名前は表示用で、認可判断には使いません。
+この同期は共通 AuthGuard を通る Project・Task API でも行います。名前は表示用で、認可判断には使いません。
 
 | 条件                                                 | 応答                                                                      |
 | ---------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -114,6 +114,8 @@ role 変更 API は role のみの必須入力、ProjectMember ID のパラメ�
 同じ role の成功、owner 保護・アーカイブ禁止、400・401・403・404・409を説明しています。
 削除 API は ProjectMember ID の指定、本文なしの204、User・Supabase Auth アカウントの保持、
 401・403・404・409、owner 保護・アーカイブ判定の優先を説明しています。
+Tasks には一覧 API の Bearer 認証、Project ID、200の配列と401・403・404を記載しています。
+`TaskResponseDto` は status・priority の enum、日付の `date`、日時の `date-time`、任意項目の nullable を説明します。
 **Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
 `Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
 
@@ -264,6 +266,19 @@ DB の処理順を保証し、HTTP レスポンスの到着順は保証しませ
 同じ User を再追加した場合は新しい ProjectMember ID を作り、古い memberId による削除では新しい参加情報を変更しません。
 エラー本文・判定順・同時実行時の詳細は [UI_API.md](../../docs/UI_API.md) を参照してください。
 
+## Task 一覧 API
+
+現在の作業ブランチでは、Task の DB 定義と `GET /api/projects/:projectId/tasks` を実装済みです。
+対象 Project の owner・member・viewer に許可し、アーカイブ済みも閲覧できます。非参加者と存在しない Project は同じ404で扱い、`ownerId` だけでは許可しません。
+
+対象 Project の Task を `createdAt` の降順、同日時は `id` の降順で返します。Task がなければ200と空配列です。
+返却項目は `id`・`projectId`・`title`・`description`・`status`・`priority`・`startDate`・`dueDate`・`createdAt`・`updatedAt` です。
+description・開始日・期限の未設定は `null`、開始日・期限は `YYYY-MM-DD`、作成・更新日時は UTC の ISO 8601 形式とします。
+レスポンス例とエラー本文は [UI_API.md](../../docs/UI_API.md#タスク一覧-get-apiprojectsprojectidtasks)、現在のDB定義は [ER.md](../../docs/ER.md#task-一覧-api-の初期実装) を参照してください。
+
+詳細・作成・更新・削除 API と Web 画面は後続です。担当者・番号・親子関係などは基本 CRUD の後に追加します。
+Swaggerで成功時の一覧を試す場合は、APIが接続する開発DBにもmigrationを適用し、そのProjectに参加する本人のtokenを指定してください。テストDBへの適用だけでは、開発DBには反映されません。
+
 ## 確認コマンド
 
 ```bash
@@ -274,11 +289,11 @@ pnpm --filter @redmine-next-nest/api lint
 ### API E2E
 
 API E2E では開発用 DB を使用しません。ルートの `.env` に `.env.example` の
-`TEST_DATABASE_URL` と `POSTGRES_TEST_*` に加えて、上記の Supabase 用環境変数 3 つを設定します。
-`redmine-local-network` を作成してから、Supabase と専用 DB を起動してください。
+`TEST_DATABASE_URL` と `POSTGRES_TEST_*` に加えて、テスト専用 Supabase の環境変数 3 つを設定します。
+開発用 Supabase の既存ユーザーは使いません。`.env` の開発用設定を維持して実行する方法は、後述の「専用環境でのローカル実行」を参照してください。
+専用 Supabase の接続先を設定済みの場合、Compose の API E2E 用 DB（通常5433）を次のように起動して実行できます。
 
 ```bash
-pnpm exec supabase start --network-id redmine-local-network
 docker compose --profile test up -d db-test
 docker compose --profile test ps db-test
 pnpm test:e2e
@@ -309,7 +324,7 @@ Projects E2E も実際のローカル Supabase Auth を使い、テストごと�
 access token を用意します。後片付けは ProjectMember → Project → User の順に行い、
 Supabase Auth の一時ユーザーも削除します。
 
-Projects E2E は Auth・Health と合わせて `pnpm test:e2e` で実行します。次の確認を含めています。
+Projects E2E は Auth・Health・Tasks と合わせて `pnpm test:e2e` で実行します。次の確認を含めています。
 
 - Project の基本6 API の token なし・無効な token の `401`（計12件）。メンバー一覧・追加・role変更・削除は、それぞれ token なし・形式不正・無効な token の3件を確認する。
 - owner・member・viewer として参加している Project だけが一覧に含まれ、非参加 Project は含まれないこと。
@@ -348,12 +363,74 @@ Projects E2E は Auth・Health と合わせて `pnpm test:e2e` で実行しま�
 テストは一覧・詳細・メンバー一覧・メンバー追加・メンバーrole変更・メンバー削除・作成・更新・アーカイブ・解除ごとの `describe()` に整理しています。
 一覧・詳細・設定更新・アーカイブ・解除・メンバー一覧・追加・role変更・削除の membership・role による認可を API E2E で確認しています。
 
-ユーザーを作成・削除するため、Auth E2E の成功ケースと Projects E2E の接続先は
+ユーザーを作成・削除するため、Auth E2E の成功ケースと Projects・Tasks E2E の接続先は
 HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。
 クラウドの Supabase や本番ユーザーは使用しません。
 メール送信・確認リンクの操作は、この E2E の確認対象に含めていません。
 
 ローカルでは `pnpm test:e2e` 自体は Supabase を起動・停止しないため、上記の準備が必要です。
+
+#### Task 一覧の API E2E
+
+[tasks.e2e-spec.ts](./test/tasks.e2e-spec.ts) に25件を追加しています。fixtureは同じファイル内でPrismaから準備し、Task作成APIは使いません。
+
+- tokenなし・形式不正・無効なtokenの401、メール未設定・未確認の403。
+- owner・member・viewer とアーカイブ状態の6通りでの取得、各roleの空一覧。
+- 返却項目、nullable項目、status・priorityの初期値、日付のみの形式とUTCの日時、作成日時・IDの降順。
+- 両Projectのownerでも指定ProjectのTaskだけを返すこと。非参加者と存在しないProjectの同じ404、queryのUser IDによるなりすましの拒否。
+- `ownerId`が本人でも参加情報がなければ404となること、参加情報の削除後は同じtokenでも拒否すること。
+- 成功・拒否時にProject・ProjectMember・Taskの値と更新日時を維持すること。認証時のUser同期は比較に含めません。
+
+通常の認証は実際のSupabaseを使います。メール未設定・未確認の2件だけは、実tokenの検証結果のメール状態を差し替えてAPI側の拒否を確認します。
+後片付けは今回作成したIDで限定し、Task → ProjectMember → Project → Userをtransactionで削除します。DB側で失敗してもAuthユーザーの削除とアプリの終了を試みます。
+
+2026-10-27にTaskの25件と、既存を含むAPI E2E全245件が成功しました。専用DB・Supabaseにおける実行前後のUser・Project・ProjectMember・Task・Authユーザー・Authセッションはすべて0件で、確認後は専用環境を終了しています。
+
+#### 専用環境でのローカル実行
+
+上記の確認では、既存のブラウザE2E用DB（5434 / `redmine_next_nest_browser_test`）と専用Supabase（55321）を使いました。
+Web/APIの開発サーバーやブラウザ用buildは不要です。同じ専用環境を使うPlaywrightとは同時に実行せず、VS CodeがWeb/APIを保持している場合は [Playwright手順書](../../docs/PLAYWRIGHT_SETUP_GUIDE.md) の終了手順に従ってください。
+
+Docker Desktopを起動し、ルートで専用環境を準備します。
+
+```bash
+node e2e/start.mjs
+pnpm --filter @redmine-next-nest/api exec prisma generate --config prisma7.config.ts
+```
+
+次に、専用環境のURLとキーを既存helperから取得して、API E2Eの子プロセスだけに渡します。管理キーを表示・保存せず、`.env`は書き換えません。
+`pnpm test:e2e` が専用DBへmigrationを適用してから、Auth・Health・Projects・Tasksを実行します。
+
+```bash
+node --input-type=module <<'NODE'
+import { spawnSync } from 'node:child_process';
+import {
+  getBrowserE2EAppEnvironments,
+  getBrowserE2EAdminCredentials,
+} from './e2e/environment.mjs';
+
+const { api } = getBrowserE2EAppEnvironments();
+const { secretKey } = getBrowserE2EAdminCredentials();
+const result = spawnSync('pnpm', ['test:e2e'], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    TEST_DATABASE_URL: api.DATABASE_URL,
+    SUPABASE_URL: api.SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY: api.SUPABASE_PUBLISHABLE_KEY,
+    SUPABASE_SECRET_KEY: secretKey,
+  },
+});
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;
+NODE
+```
+
+テストが失敗した場合も、最後に今回起動した専用環境を終了します。
+
+```bash
+node e2e/stop.mjs
+```
 
 ### GitHub Actions
 
@@ -362,7 +439,7 @@ HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。
 
 - loopback を既定の IPv4 アドレスとする専用ネットワークで Supabase を起動する。
 - `supabase status --output json` から URL とキーを取得し、キーをログでマスクして `GITHUB_ENV` に設定する。
-- アプリのテスト専用 DB に migration を適用し、Health・Projects・Auth の API E2E を実行する。
+- アプリのテスト専用 DB に migration を適用し、Health・Projects・Auth・Tasks の API E2E を実行する。
 - `if: always()` の終了処理で `supabase stop --no-backup` を実行し、CI 用の Supabase とそのデータを片付ける。
 
 CI は起動したローカル Supabase のキーを使うため、クラウドのキーや個人の `.env` は必要ありません。

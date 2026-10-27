@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-26
+最終更新: 2026-10-27
 
 ## 目的
 
@@ -12,7 +12,7 @@
 ## 現在の前提
 
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
-- Task CRUD は未実装。タスク 1〜4 は `develop` にマージ済み。
+- タスク 1〜4 は `develop` にマージ済み。Task は現在の作業ブランチ `feat/phase-2/task-list-api` で DB 定義と一覧 API を実装済みで、詳細・作成・更新・削除 API と Web は後続である。Task の変更はまだ未コミット・未マージである。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
 - メンバー一覧・追加 API（PR #23・#24）、role 変更 API（PR #25）、削除 API（PR #26）、Web の一覧表示（PR #27）・追加 UI（PR #28）は `develop` にマージ済み。PR #27 には一覧 API の参加者3 role への開放と Project 詳細の `currentUserRole` 追加も含む。
@@ -21,7 +21,7 @@
 - 2026-10-21 に、Hook の切り出し・名前変更後の `pnpm test:e2e` と `pnpm build` が成功したとの報告をユーザーから受けた。最終レビューではコード側に修正必須の問題は見つからず、API README の古い実装状況を修正した。関連64件・対象 lint・format・Web typecheck はエージェントによる確認、今回の API E2E・build はユーザーのローカル環境での確認結果として区別する。
 - ルートの `pnpm test` は API と Web の Vitest を実行する。`pnpm test:e2e` は Supertest による API 結合テストで、タスク 3 の PR #14 から GitHub Actions の CI でも実行する。
 - Playwright はPR #31を `develop` にマージ済み。専用環境でログイン・Project作成・設定更新・アーカイブ・解除と再読み込み、登録・メール確認を6件のブラウザテストで確認する。マージ後の[CI実行](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)も3 jobが成功している。詳細はタスク6の実施メモを参照する。
-- Storybookの基盤・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34で `develop` にマージ済み。3つのPRのCIはそれぞれ3 jobすべて成功している。Alertの3 storyはPR #35にあり、PRのCIも3 jobすべて成功している。詳細はタスク7の実施メモを参照する。
+- Storybookの基盤・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)はPR #32、Input＋LabelはPR #33、BadgeはPR #34、AlertはPR #35、AlertDialogはPR #36で `develop` にマージ済み。今回予定した代表部品まで導入が完了し、PR #36のマージ後CIも3 jobすべて成功している。詳細はタスク7の実施メモを参照する。
 - 2026-09-27 に、認証・Project 権限を Task CRUD より先に実装すると決めた。認証後に Playwright と Storybook を導入し、Task 実装時に対象を広げる。正式仕様の順序もこの方針に揃えた。
 - タスク 4 の更新後も Prisma CLI 経由の監査警告 3 件が残る。保留理由と再確認の時期はタスク 4 の実施メモに記録した。
 
@@ -783,7 +783,7 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 
 ### 7. Storybook で再利用 UI の状態を確認できるようにする
 
-- 状態: 対応中（基盤・Button・Input＋Label・Badge・CI・手順書はdevelopにマージ済み。AlertはPR #35でマージ済み。AlertDialogの3 storyを現在の作業ブランチで追加）
+- 状態: 完了（基盤・Button・Input＋Label・Badge・Alert・AlertDialog・CI・手順書をPR #32〜#36でdevelopにマージ済み。PR #36のマージ後CIも3 job成功）
 - 優先度: Task 画面を増やす前に導入する。
 
 #### 背景
@@ -875,29 +875,47 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 - Storybookは既に起動していたため、Chromeの既存Storybookタブを再利用した。開閉、確定後の閉じる動作、disabledボタン、320px幅での長文折り返しとボタン配置を目視確認した。PRの画面確認用に、Default・320px幅のLongDescription・disabled状態の画像を `docs/images/storybook-alert-dialog-*.png` として保存した。
 - storyのESLint、Web typecheck、`pnpm format:check`、Storybook手順書の明示的なPrettier check、`CI=true pnpm storybook:build` が成功した。buildには500 kB超チャンクの既存警告が出たが完了している。Storybook storyと文書のみの変更のため、Vitest・アプリbuild・API E2E・Playwrightは追加実行していない。
 
+#### PR #36のマージ確認（2026-10-27の引き継ぎ）
+
+- [PR #36](https://github.com/kazutakanakamura711/redmine-next-nest/pull/36) は2026-10-26にdevelopへマージ済み。[マージ後CI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40287999361) のQuality checks・API E2E・Browser E2Eはすべて成功している。
+- Storybookの基盤と今回予定した代表部品までの導入は完了。上の日付付きメモにある作業ブランチ・CI確認待ちは当時の記録として保持する。今後はTaskの一覧画面でTable、フォームでTextareaなど、必要なUIの追加・変更に合わせてstoryを追加する。
+
 #### 完了条件
 
 - ローカルで Storybook を起動し、対象部品の状態を確認できる。
 - Pull Request の CI で Storybook の build が通る。
 - UI の操作・API との接続は Vitest / Playwright で確認する役割分担が保たれている。
 
+## Task一覧APIの実施メモ（2026-10-27）
+
+- developのPR #36マージコミット `368fe01eaf5f87426743628fe546acad63425b3e` を基点とした `feat/phase-2/task-list-api` で、Taskモデル・`20261026102234_add_task` migration・一覧API・Swaggerの説明を追加した。現在は未コミット・未マージであり、このTask変更のGitHub CIは未確認である。
+- TaskはProjectに必須で所属し、status・priorityのenumと初期値、nullableな説明・日付、作成・更新日時を持つ。開始日・期限はDATE型で、外部キーはON DELETE RESTRICT、一覧用indexは `(project_id, created_at, id)` とする。既存データの更新・削除はなく、担当者・作成者・番号・親子関係・予定工数・完了日時は後続とした。
+- `GET /api/projects/:projectId/tasks` はAuthGuardが検証した本人のProjectMemberで認可し、owner・member・viewerに閲覧を許可する。アーカイブ済みも取得でき、Project不在・非参加者は同じ404、空一覧は200と空配列である。作成日時・IDの降順で取得し、日付はYYYY-MM-DD、日時はUTCのISO形式で返す。
+- ユーザーはBrunoで取得したtokenをSwaggerに設定し、開発DBへのmigration適用後、tokenなしの401、参加Projectの200と空配列、存在しないProjectの404を確認した。エージェントもSwagger画面のURL・Bearer認証・200／401／403／404の説明を確認している。
+- `apps/api/test/tasks.e2e-spec.ts` に25件を追加し、3 role・アーカイブ状態・空一覧・返却項目・nullable項目・初期値・日付形式・並び順・Project間の分離・非参加者・ownerIdだけでは許可しないこと・参加情報削除後の拒否・対象データの不変性を確認した。通常の認証は実Supabaseを使い、メール未設定・未確認の2件だけは実token検証後のメール状態を差し替えて403を確認する。
+- 既存の専用環境（アプリDB `127.0.0.1:5434 / redmine_next_nest_browser_test`、Supabase `http://127.0.0.1:55321`）を起動し、Prisma Clientを再生成した。空の専用DBに4つのmigrationを適用し、Taskの25件、続いて既存を含む `pnpm test:e2e` 全245件・4ファイルが成功した。開発DB・開発用Supabaseの認証ユーザーはテストに使っていない。
+- fixtureは同じspec内でPrismaから準備し、今回作成したIDに限定してTask → ProjectMember → Project → Userをtransactionで削除する。DB側で失敗してもAuthユーザーの削除とアプリ終了を試みる。実行前後のUser・Project・ProjectMember・Task・Authユーザー・Authセッションはすべて0件で、確認後は今回起動した専用環境を `node e2e/stop.mjs` で終了した。
+- 対象のlint・Prettier、API全体のtypecheck、`git diff --check` は成功した。再実行方法は [API README](../apps/api/README.md#専用環境でのローカル実行) に記載した。TaskのWeb・storyは追加しておらず、この区切りでWebのbuild・Storybook build・既存Playwrightは再実行していない。PR前の全体確認は後続とする。
+- 文書更新後の `pnpm format:check`、Storybook手順書の明示的なPrettier check、ローカルリンク・アンカー、JSON例、シェル・Node.jsのサンプル構文、`git diff --check` が成功した。日付付きの過去メモと過去の引き継ぎは変更していない。文書だけの更新なのでAPI E2Eは再実行せず、上の245件の結果を使用する。
+
 ## 推奨する着手順
 
 1. タスク 1〜4: 完了。Project 入力、API E2E 専用 DB と CI、依存関係監査に対応した。
 2. タスク 5: 完了。認証・Project権限、メンバー管理APIとWeb UIをPR #30までマージ済み。
 3. タスク 6: 完了。ブラウザテスト6件と専用環境・CIをPR #31でマージ済み。
-4. タスク 7: 基盤・Button・Input＋Label・Badge・CI・手順書はマージ済み。AlertはPR #35でマージ済み。AlertDialogのstoryを追加中で、完了後にTask CRUDへ進む。
-5. Task CRUD: ProjectMember の role とアーカイブ状態を各 Task API で検証しながら操作ごとに実装する。Playwright と Storybook の対象も広げる。
+4. タスク 7: 完了。基盤・Button・Input＋Label・Badge・Alert・AlertDialog・CI・手順書をPR #36までマージ済み。
+5. Task CRUD: DB定義・一覧APIとAPI E2Eは作業ブランチで実装済み。文書・差分のレビューとPR前の全体確認を終えた後、一覧画面 → 詳細 → 作成 → 更新 → 削除を小さく進める。必要なUIと主要導線が増えた段階でStorybook・Playwrightも拡張する。
 
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
 
 ## 次の Codex スレッドへの引き継ぎ
 
-### 現在（2026-10-26）
+### 現在（2026-10-27）
 
-- PR #30〜#35は `develop` にマージ済み。PR #35の最新CI run `40279927188` は3 jobが成功している。最新develop `d36b895` から作成した `chore/phase-2/storybook-alert-dialog` にAlertDialog storyを追加し、Storybook buildとローカル確認が成功している。再開時には実際のブランチと差分を確認し、既存の変更を保持する。
-- Storybook基盤・Button・Input＋Label・Badge・Alertがマージ済み。AlertDialogのDefault・LongDescription・ConfirmActionDisabledを追加し、開閉・disabled状態・320px幅の表示を確認した。Storybookの設定と読み方は[手順書](./STORYBOOK_SETUP_GUIDE.md)、変更内容と検証結果はタスク7の最新メモを参照する。
-- AlertDialogのstory追加後にTask CRUDへ進む。APIの認証・認可・transaction、既存のPlaywright専用環境とAPI E2Eコマンドを維持する。
+- PR #36まで `develop` にマージ済み。基点は `368fe01` で、現在のブランチは `feat/phase-2/task-list-api` である。Taskのschema・migration・Module・Controller・Service・Repository・レスポンスDTO・API E2Eを追加し、文書も更新している。まだコミット・push・PR作成は行っていない。再開時は実際の差分を確認し、ユーザーの変更を保持する。
+- Storybookの基盤と代表部品は導入完了。PR #36のマージ後CI `40287999361` の3 job成功は上のタスク7を参照する。Task一覧APIだけの変更ではstoryを追加しない。
+- Task一覧APIの25件とAPI E2E全245件が専用DB・専用Supabaseで成功し、後片付けと環境終了も確認済み。Swaggerの401・200と空配列・404はユーザーの手動確認である。実施範囲と認証の差し替え2件は上のTask一覧APIの実施メモを参照する。
+- 次は差分レビューとPR前の全体確認を行う。TaskのWeb・詳細・作成・更新・削除は後続とし、APIの認証・認可・既存transaction、Playwright専用環境と各テストコマンドの役割を維持する。コミット・push・PR作成・マージは、この作業についてユーザーが依頼した段階で行う。
 
 ### 過去の引き継ぎ（2026-10-21時点）
 

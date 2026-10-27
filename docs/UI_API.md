@@ -554,6 +554,65 @@ PATCH  /api/projects/:projectId/tasks/:taskId
 DELETE /api/projects/:projectId/tasks/:taskId
 ```
 
+現在の作業ブランチでは、Task の DB 定義と一覧 GET だけを実装済みである。その他の Task API と Web 画面は、操作ごとに追加する。
+
+#### タスク一覧: GET /api/projects/:projectId/tasks
+
+対象 Project に owner・member・viewer として参加するユーザーへ、その Project の Task を返す。アーカイブ済み Project も閲覧できる。
+本人は AuthGuard が検証した token の User ID で特定し、URL の `projectId` と本人の User ID から ProjectMember を取得する。`ownerId` との比較や query の `userId` では許可しない。
+
+リクエスト本文・入力 DTO は不要であり、検索・絞り込み・ページネーションは持たない。
+認可後の Task 取得も URL の `projectId` で限定し、他の参加 Project の Task は含めない。
+並び順は `createdAt` の降順、同じ日時なら `id` の降順とする。Task がなければ `200` と空配列 `[]` を返す。
+
+成功時は `200` と次の形式の配列を返す。
+
+```json
+[
+  {
+    "id": "cmua3r1ik00042ed8lasbg1jk",
+    "projectId": "cmua3r1ik00032ed8lasbg1jj",
+    "title": "ログイン画面を作る",
+    "description": null,
+    "status": "todo",
+    "priority": "normal",
+    "startDate": "2026-10-26",
+    "dueDate": null,
+    "createdAt": "2026-10-26T08:00:00.000Z",
+    "updatedAt": "2026-10-26T08:00:00.000Z"
+  }
+]
+```
+
+- 返却項目は上の10項目に限定し、Project・参加情報・User などの関連データを含めない。
+- `description`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。
+- `startDate`・`dueDate` は時刻・タイムゾーンを付けない `YYYY-MM-DD` とする。`createdAt`・`updatedAt` は UTC の ISO 8601 文字列（例: `2026-10-26T08:00:00.000Z`）とする。
+- 日付・日時の文字列変換は Controller で行い、`TaskResponseDto` は返却形式と Swagger の説明を定義する。
+
+| 条件 | 応答 |
+| --- | --- |
+| 対象 Project の owner・member・viewer | `200` と Task の配列。アーカイブ済みも閲覧可能 |
+| 閲覧可能だが Task がない | `200` と `[]` |
+| token なし・形式不正・無効 | 既存 AuthGuard / AuthService の `401` |
+| token は有効だがメールアドレスが未設定・未確認 | `403`・「確認済みのメールアドレスが必要です。」 |
+| Project が存在しない、または本人が非参加者 | 同じ `404`・「プロジェクトが見つかりません」 |
+
+Project 不在・非参加者の404は、Project のアーカイブ状態や Task の有無によらず次の同じ本文とする。参加情報の削除後は、同じ token でも閲覧できない。
+
+```json
+{
+  "message": "プロジェクトが見つかりません",
+  "error": "Not Found",
+  "statusCode": 404
+}
+```
+
+一覧取得では Project・ProjectMember・Task の値と更新日時を変更しない。認証時の User プロフィール同期は、この不変性の対象に含めない。
+
+#### 後続の詳細・作成・更新・削除
+
+以下の入力例と業務ルールは、対応する API を追加するときに実装・検証する。
+
 `POST /api/projects/:projectId/tasks` の入力例:
 
 ```json
