@@ -17,4 +17,23 @@ export class TasksService {
 
     return await this.tasksRepository.findAll(projectId);
   }
+
+  async findOne(projectId: string, taskId: string, userId: string) {
+    const projectMember = await this.tasksRepository.findProjectMember(
+      projectId,
+      userId,
+    );
+
+    if (!projectMember) {
+      throw new NotFoundException('プロジェクトが見つかりません');
+    }
+
+    const task = await this.tasksRepository.findById(projectId, taskId);
+
+    if (!task) {
+      throw new NotFoundException('タスクが見つかりません');
+    }
+
+    return task;
+  }
 }

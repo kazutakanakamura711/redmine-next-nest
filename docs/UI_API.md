@@ -559,7 +559,7 @@ PATCH  /api/projects/:projectId/tasks/:taskId
 DELETE /api/projects/:projectId/tasks/:taskId
 ```
 
-Task の DB 定義と一覧 GET は PR #37 で `develop` にマージ済みである。このブランチでは認証付きの一覧取得と Web の一覧・空状態・loading・error を実装済みである。詳細・作成・更新・削除の API と画面は、操作ごとに追加する。
+Task の DB 定義と一覧 GET は PR #37、Web の一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。`feat/phase-2/task-detail-api` では詳細 GET を実装済みである。詳細画面と作成・更新・削除の API・画面は、操作ごとに追加する。
 
 #### タスク一覧: GET /api/projects/:projectId/tasks
 
@@ -615,7 +615,59 @@ Project 不在・非参加者の404は、Project のアーカイブ状態や Tas
 
 一覧取得では Project・ProjectMember・Task の値と更新日時を変更しない。認証時の User プロフィール同期は、この不変性の対象に含めない。
 
-#### 後続の詳細・作成・更新・削除
+#### タスク詳細: GET /api/projects/:projectId/tasks/:taskId
+
+対象 Project に owner・member・viewer として参加するユーザーへ、その Project に属する Task を1件返す。アーカイブ済み Project も閲覧できる。
+本人は AuthGuard が検証した token の User ID で特定し、URL の `projectId` と本人の User ID から ProjectMember を取得する。`ownerId` や query の `userId` だけでは許可しない。
+参加情報はリクエストごとに確認し、削除後は同じ token でも取得できない。
+
+リクエスト本文・入力 DTO は不要である。認証と本人の参加情報の確認後、Task を URL の `projectId` と `taskId` の両方で限定して取得する。
+両方の Project に参加していても、別 Project の Task は取得できず、存在しない Task と同じ404で扱う。
+
+成功時は `200` と次の形式の単一オブジェクトを返す。
+
+```json
+{
+  "id": "cmua3r1ik00042ed8lasbg1jk",
+  "projectId": "cmua3r1ik00032ed8lasbg1jj",
+  "title": "ログイン画面を作る",
+  "description": "メールアドレスとパスワードでログインする",
+  "status": "in_progress",
+  "priority": "high",
+  "startDate": "2026-10-29",
+  "dueDate": "2026-11-02",
+  "createdAt": "2026-10-28T15:00:00.123Z",
+  "updatedAt": "2026-10-29T09:00:00.456Z"
+}
+```
+
+返却項目は一覧の各要素と同じ10項目に限定し、Project・参加情報・User などの関連データを含めない。
+`description`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。
+status・priority の候補も一覧と同じであり、開始日・期限は `YYYY-MM-DD`、作成・更新日時は UTC の ISO 8601 文字列とする。
+既存の `TaskResponseDto` を使い、日付・日時の変換は Controller で行う。
+
+| 条件 | 応答 |
+| --- | --- |
+| 対象 Project の owner・member・viewer が、その Project の Task を取得 | `200` と Task の単一オブジェクト。アーカイブ済みも閲覧可能 |
+| token なし・形式不正・無効 | 既存 AuthGuard / AuthService の `401` |
+| token は有効だがメールアドレスが未設定・未確認 | `403`・「確認済みのメールアドレスが必要です。」 |
+| Project が存在しない、または本人が非参加者 | 一覧と同じ `404` 本文・「プロジェクトが見つかりません」 |
+| 閲覧可能な Project 内に Task が存在しない、または別 Project の taskId | 同じ `404` 本文・「タスクが見つかりません」 |
+
+Project の不在・非参加は Task の存在確認より先に判定し、Task の有無によらず Project の404を返す。
+Task 不在・所属違いの本文は次のとおりとする。
+
+```json
+{
+  "message": "タスクが見つかりません",
+  "error": "Not Found",
+  "statusCode": 404
+}
+```
+
+詳細取得の成功・拒否で Project・ProjectMember・Task の値と更新日時を変更しない。認証時の User プロフィール同期は、この不変性の対象に含めない。
+
+#### 後続の作成・更新・削除
 
 以下の入力例と業務ルールは、対応する API を追加するときに実装・検証する。
 
@@ -638,8 +690,8 @@ Project 不在・非参加者の404は、Project のアーカイブ状態や Tas
 - `status` は `todo`、`in_progress`、`done`
 - `priority` は `low`、`normal`、`high`
 - `dueDate` は `startDate` より前にできない
-- URL の `projectId` と Task の所属 Project が一致しない場合は取得・更新・削除できない
-- ProjectMember でなければ取得できない。owner・member は作成・更新でき、削除は owner のみ、viewer は閲覧だけできる
+- URL の `projectId` と Task の所属 Project が一致しない場合は更新・削除できない
+- owner・member は作成・更新でき、削除は owner のみ、viewer は閲覧だけできる
 - アーカイブ済み Project には Task を作成・更新できない
 
 担当者指定、絞り込み、ページネーション、親子タスクは基本 CRUD の後に追加する。

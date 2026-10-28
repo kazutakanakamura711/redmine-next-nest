@@ -189,12 +189,13 @@ src/
         └── tasks.module.ts
 ```
 
-上記は現在の主な構成である。Task の DB 定義と一覧 API は PR #37 で `develop` にマージ済みである。DDD やクリーンアーキテクチャへの移行は、対象操作を決めてから行う。
+上記は現在の主な構成である。Task の DB 定義と一覧 API は PR #37 で `develop` にマージ済みで、`feat/phase-2/task-detail-api` では同じ構成に詳細 API を追加した。DDD やクリーンアーキテクチャへの移行は、対象操作を決めてから行う。
 
 `TasksModule` は `PrismaModule` と `AuthModule` を import し、`TaskController`・`TasksService`・`TasksRepository` を登録する。`AppModule` から `TasksModule` を読み込む。
-一覧は AuthGuard による token・メール確認と User 同期の後、Controller が URL の Project ID と本人の User ID を Service に渡す。
-Service は Repository から本人の参加情報を取得し、なければ既存 Project API と同じ404を返す。owner・member・viewer の全 role に閲覧を許可し、アーカイブ状態では拒否しない。
-Repository は Task を Project ID で限定し、作成日時・ID の降順で取得する。Controller が返却項目を明示し、日付・日時を API の文字列形式に変換する。レスポンス DTO 自体は変換処理を持たない。
+一覧・詳細は AuthGuard による token・メール確認と User 同期の後、Controller が URL の Project ID と本人の User ID を Service に渡す。詳細では URL の Task ID も渡す。
+Service は Repository から本人の参加情報を取得し、なければ既存 Project API と同じ404を返す。owner・member・viewer の全 role に閲覧を許可し、アーカイブ状態では拒否しない。詳細の `findOne()` は参加情報の確認後に Task を取得し、対象がなければ「タスクが見つかりません」の404を返す。
+Repository の `findAll()` は Task を Project ID で限定し、作成日時・ID の降順で取得する。詳細の `findById()` は Prisma の `findUnique()` に Task ID と Project ID を指定し、両方が一致する1件または `null` を返す。
+Controller が返却項目を明示し、日付・日時を API の文字列形式に変換する。一覧は配列、詳細は単一オブジェクトを返し、既存の `TaskResponseDto` を共有する。レスポンス DTO 自体は変換処理を持たない。
 
 ## それぞれの責務
 

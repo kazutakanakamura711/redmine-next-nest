@@ -12,7 +12,7 @@ import type {
 import { AuthService } from '../src/modules/auth/auth.service.js';
 import { PrismaService } from '../src/modules/prisma/prisma.service.js';
 
-describe('Task一覧: GET /api/projects/:projectId/tasks', () => {
+describe('Tasks API', () => {
   let app: INestApplication;
   let appCreated = false;
   let prisma: PrismaService;
@@ -516,5 +516,211 @@ describe('Task一覧: GET /api/projects/:projectId/tasks', () => {
       .expect(projectNotFound);
 
     expect(await readProjectState()).toEqual(before);
+  });
+
+  describe('Task詳細: GET /api/projects/:projectId/tasks/:taskId', () => {
+    it.each([
+      ['tokenなし', undefined],
+      ['Bearer形式ではないヘッダー', 'Basic'],
+      ['無効なtoken', 'Bearer invalid-token'],
+    ])(
+      '%sは401で拒否し、Project・参加情報・Taskを変更しない',
+      async (_caseName, authorization) => {
+        const project = await createProject();
+        const task = await createTask(project.id);
+        const before = await readProjectState();
+
+        const detailRequest = request(app.getHttpServer()).get(
+          `/api/projects/${project.id}/tasks/${task.id}`,
+        );
+        if (authorization) {
+          detailRequest.set(
+            'Authorization',
+            authorization === 'Basic' ? `Basic ${accessToken}` : authorization,
+          );
+        }
+        await detailRequest.expect(401);
+
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it.each([
+      ['メール未設定', { email: undefined }],
+      ['メール未確認', { email_confirmed_at: undefined }],
+    ])(
+      'token検証後に%sなら403で拒否し、UserとProject内のデータを変更しない',
+      async (_caseName, emailState) => {
+        const project = await createProject();
+        const task = await createTask(project.id);
+        const before = await readProjectState();
+        const userBefore = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+        const authService = app.get(AuthService);
+        const verifiedUser = await authService.verifyAccessToken(accessToken);
+
+        // メール条件のテストだけ、実tokenの検証結果のメール状態を差し替える。
+        vi.spyOn(authService, 'verifyAccessToken').mockResolvedValueOnce({
+          ...verifiedUser,
+          ...emailState,
+        });
+
+        await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/tasks/${task.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(403)
+          .expect({
+            message: '確認済みのメールアドレスが必要です。',
+            error: 'Forbidden',
+            statusCode: 403,
+          });
+
+        expect(await readProjectState()).toEqual(before);
+        expect(await prisma.user.findUnique({ where: { id: userId } })).toEqual(
+          userBefore,
+        );
+      },
+    );
+
+    it.each([
+      { role: 'owner', isArchived: false },
+      { role: 'member', isArchived: false },
+      { role: 'viewer', isArchived: false },
+      { role: 'owner', isArchived: true },
+      { role: 'member', isArchived: true },
+      { role: 'viewer', isArchived: true },
+    ] as const)(
+      '$roleはisArchived=$isArchivedでもTaskを1件取得できる',
+      async ({ role, isArchived }) => {
+        const project = await createProjectForRole(role, isArchived);
+        const task = await createTask(project.id);
+        const before = await readProjectState();
+
+        const response = await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/tasks/${task.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect('Content-Type', /json/)
+          .expect(200);
+
+        expect(response.body).toEqual({
+          id: task.id,
+          projectId: project.id,
+          title: 'Fixture Task',
+          description: null,
+          status: 'todo',
+          priority: 'normal',
+          startDate: null,
+          dueDate: null,
+          createdAt: task.createdAt.toISOString(),
+          updatedAt: task.updatedAt.toISOString(),
+        });
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it('説明・日付が設定されたTaskを合意した10項目・日付形式で返す', async () => {
+      const project = await createProject();
+      const task = await createTask(project.id, {
+        title: 'ログイン画面を作る',
+        description: 'メールアドレスとパスワードでログインする',
+        status: 'in_progress',
+        priority: 'high',
+        startDate: new Date('2026-10-29T00:00:00.000Z'),
+        dueDate: new Date('2026-11-02T00:00:00.000Z'),
+        createdAt: new Date('2026-10-28T15:00:00.123Z'),
+        updatedAt: new Date('2026-10-29T09:00:00.456Z'),
+      });
+      const before = await readProjectState();
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/tasks/${task.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect('Content-Type', /json/)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        id: task.id,
+        projectId: project.id,
+        title: 'ログイン画面を作る',
+        description: 'メールアドレスとパスワードでログインする',
+        status: 'in_progress',
+        priority: 'high',
+        startDate: '2026-10-29',
+        dueDate: '2026-11-02',
+        createdAt: '2026-10-28T15:00:00.123Z',
+        updatedAt: '2026-10-29T09:00:00.456Z',
+      });
+      expect(await readProjectState()).toEqual(before);
+    });
+
+    it('両Projectのownerでも、別ProjectのTaskは存在しないTaskと同じ404になる', async () => {
+      const firstProject = await createProject();
+      const secondProject = await createProject();
+      await createTask(firstProject.id);
+      const secondTask = await createTask(secondProject.id);
+      const before = await readProjectState();
+
+      for (const taskId of [secondTask.id, 'not-found']) {
+        await request(app.getHttpServer())
+          .get(`/api/projects/${firstProject.id}/tasks/${taskId}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect({
+            message: 'タスクが見つかりません',
+            error: 'Not Found',
+            statusCode: 404,
+          });
+
+        expect(await readProjectState()).toEqual(before);
+      }
+    });
+
+    it('非参加ProjectのTaskは存在しないProjectと同じ404で拒否する', async () => {
+      const otherUser = await createOtherUser();
+      const otherProject = await createProject(otherUser.id);
+      const task = await createTask(otherProject.id);
+      const before = await readProjectState();
+
+      for (const projectId of [otherProject.id, 'not-found']) {
+        await request(app.getHttpServer())
+          .get(`/api/projects/${projectId}/tasks/${task.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(404)
+          .expect(projectNotFound);
+
+        expect(await readProjectState()).toEqual(before);
+      }
+    });
+
+    it('ownerIdが本人でも、参加情報の削除後は同じtokenで404になる', async () => {
+      const project = await createProject();
+      const task = await createTask(project.id);
+
+      await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/tasks/${task.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      await prisma.projectMember.deleteMany({
+        where: { projectId: project.id, userId },
+      });
+
+      // 取得による変更は、参加情報を削除した後の状態と比較する。
+      const before = await readProjectState();
+      expect(before[0]).toMatchObject({
+        id: project.id,
+        ownerId: userId,
+        projectMembers: [],
+      });
+
+      await request(app.getHttpServer())
+        .get(`/api/projects/${project.id}/tasks/${task.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404)
+        .expect(projectNotFound);
+
+      expect(await readProjectState()).toEqual(before);
+    });
   });
 });

@@ -12,6 +12,15 @@ export class TasksRepository {
     });
   }
 
+  findById(projectId: string, taskId: string) {
+    return this.prisma.task.findUnique({
+      where: {
+        id: taskId,
+        projectId,
+      },
+    });
+  }
+
   findProjectMember(projectId: string, userId: string) {
     return this.prisma.projectMember.findUnique({
       where: {

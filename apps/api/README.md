@@ -114,7 +114,7 @@ role 変更 API は role のみの必須入力、ProjectMember ID のパラメ�
 同じ role の成功、owner 保護・アーカイブ禁止、400・401・403・404・409を説明しています。
 削除 API は ProjectMember ID の指定、本文なしの204、User・Supabase Auth アカウントの保持、
 401・403・404・409、owner 保護・アーカイブ判定の優先を説明しています。
-Tasks には一覧 API の Bearer 認証、Project ID、200の配列と401・403・404を記載しています。
+Tasks には一覧・詳細 API の Bearer 認証、Project ID、詳細の Task ID、200の配列・単一オブジェクトと401・403・404を記載しています。
 `TaskResponseDto` は status・priority の enum、日付の `date`、日時の `date-time`、任意項目の nullable を説明します。
 **Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
 `Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
@@ -276,8 +276,21 @@ Task の DB 定義と `GET /api/projects/:projectId/tasks` は PR #37 で `devel
 description・開始日・期限の未設定は `null`、開始日・期限は `YYYY-MM-DD`、作成・更新日時は UTC の ISO 8601 形式とします。
 レスポンス例とエラー本文は [UI_API.md](../../docs/UI_API.md#タスク一覧-get-apiprojectsprojectidtasks)、現在のDB定義は [ER.md](../../docs/ER.md#task-一覧-api-の初期実装) を参照してください。
 
-詳細・作成・更新・削除 API と Web 画面は後続です。担当者・番号・親子関係などは基本 CRUD の後に追加します。
-Swaggerで成功時の一覧を試す場合は、APIが接続する開発DBにもmigrationを適用し、そのProjectに参加する本人のtokenを指定してください。テストDBへの適用だけでは、開発DBには反映されません。
+Swaggerで成功時の一覧・詳細を試す場合は、APIが接続する開発DBにもmigrationを適用し、そのProjectに参加する本人のtokenを指定してください。テストDBへの適用だけでは、開発DBには反映されません。
+
+## Task 詳細 API
+
+`feat/phase-2/task-detail-api` では `GET /api/projects/:projectId/tasks/:taskId` を実装済みです。
+本人の ProjectMember を確認した後、`projectId` と `taskId` の両方で対象を取得します。owner・member・viewer に許可し、アーカイブ済みも閲覧できます。
+`ownerId` が本人でも参加情報がなければ取得できず、参加情報の削除後は同じtokenでも拒否します。
+
+成功時は200と、一覧の各要素と同じ10項目の単一オブジェクトを返します。未設定の項目の `null` と、日付・日時の形式も一覧と同じです。
+tokenなし・形式不正・無効は401、メール未設定・未確認は403です。
+Project不在・非参加は404・「プロジェクトが見つかりません」とし、Taskの存在確認より先に判定します。
+参加Project内のTask不在と別ProjectのTaskは、同じ404・「タスクが見つかりません」で扱います。両Projectに参加していても所属の違うTaskは取得できません。
+レスポンス例とエラー本文は [UI_API.md](../../docs/UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) を参照してください。
+
+Task一覧のWebはPR #38でマージ済みです。詳細画面と作成・更新・削除 API・画面は後続です。担当者・番号・親子関係などは基本 CRUD の後に追加します。
 
 ## 確認コマンド
 
@@ -385,6 +398,25 @@ HTTP の `localhost`、`127.0.0.1`、`[::1]` に限定しています。
 後片付けは今回作成したIDで限定し、Task → ProjectMember → Project → Userをtransactionで削除します。DB側で失敗してもAuthユーザーの削除とアプリの終了を試みます。
 
 2026-10-27にTaskの25件と、既存を含むAPI E2E全245件が成功しました。専用DB・Supabaseにおける実行前後のUser・Project・ProjectMember・Task・Authユーザー・Authセッションはすべて0件で、確認後は専用環境を終了しています。
+
+#### Task 詳細の API E2E
+
+[tasks.e2e-spec.ts](./test/tasks.e2e-spec.ts) の詳細用 `describe()` に15件を追加し、一覧25件と合わせて40件です。既存のfixtureと後片付けを共有します。
+
+- tokenなし・形式不正・無効なtokenの401、メール未設定・未確認の403。
+- owner・member・viewer とアーカイブ状態の6通りでの200と、返却する10項目・未設定の `null`・statusとpriorityの初期値。
+- 説明・日付が設定されたTaskの内容、開始日・期限の `YYYY-MM-DD` と作成・更新日時のUTC ISO形式。
+- 両Projectのownerでも、別ProjectのTaskと存在しないTaskが同じ404となること。
+- 非参加Projectと存在しないProjectが同じ404となること。
+- 取得成功後に本人の参加情報を削除すると、`ownerId` が本人でも同じtokenで404となること。
+- 成功・拒否時にProject・ProjectMember・Taskの値と更新日時を維持すること。メール条件の403ではUserプロフィールの維持も確認します。
+
+通常の認証は実際の専用Supabaseを使います。メール未設定・未確認の2件は、一覧と同じく実tokenの検証結果のメール状態だけを差し替えます。
+
+2026-10-29の最終確認では、専用DB・Supabaseで `pnpm test:e2e` の全260件・4ファイルが成功しました。Taskは一覧25件・詳細15件の計40件です。
+実行前後のUser・Project・ProjectMember・Task・Authユーザーはすべて0件で、確認後は専用環境を終了しています。
+APIの単体テスト16件・lint・typecheck・buildも成功しました。
+ユーザーはSwaggerで、参加Projectの実在するTaskの200、Task不在の404、Project不在の404、tokenなしの401を手動確認しています。
 
 #### 専用環境でのローカル実行
 
