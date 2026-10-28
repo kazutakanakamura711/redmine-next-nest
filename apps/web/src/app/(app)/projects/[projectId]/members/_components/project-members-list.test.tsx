@@ -10,10 +10,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
-import { deleteProjectMember } from '@/app/(app)/projects/_lib/delete-project-member';
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import { deleteProjectMember } from '../_lib/delete-project-member';
+import type { ProjectMember } from '../_lib/get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
-import { updateProjectMemberRole } from '@/app/(app)/projects/_lib/update-project-member-role';
+import { updateProjectMemberRole } from '../_lib/update-project-member-role';
 import { ProjectMembersList } from './project-members-list';
 
 const mocks = vi.hoisted(() => ({
@@ -21,11 +21,11 @@ const mocks = vi.hoisted(() => ({
   toastAdd: vi.fn(),
 }));
 
-vi.mock('@/app/(app)/projects/_lib/update-project-member-role', () => ({
+vi.mock('../_lib/update-project-member-role', () => ({
   updateProjectMemberRole: vi.fn(),
 }));
 
-vi.mock('@/app/(app)/projects/_lib/delete-project-member', () => ({
+vi.mock('../_lib/delete-project-member', () => ({
   deleteProjectMember: vi.fn(),
 }));
 

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectDetail } from '@/app/(app)/projects/_lib/get-project';
+import type { ProjectDetail } from '../_lib/get-project';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import ProjectSettingPage from './page';
 
@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock('@/app/(app)/projects/_lib/get-project', () => ({
+vi.mock('../_lib/get-project', () => ({
   getProject: mocks.getProject,
 }));
 

@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { deleteProjectMember } from './delete-project-member';
-import { ProjectRequestError } from './api-error';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 
 // セッション取得と HTTP 通信をモックし、helper の入出力を確認する。
 const mocks = vi.hoisted(() => ({

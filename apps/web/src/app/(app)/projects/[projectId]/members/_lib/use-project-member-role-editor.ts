@@ -5,9 +5,9 @@ import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import type { ProjectMember } from './get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
-import { updateProjectMemberRole } from '@/app/(app)/projects/_lib/update-project-member-role';
+import { updateProjectMemberRole } from './update-project-member-role';
 import { toast } from '@/components/ui/toast';
 
 // 権限変更 API と同じく、変更先は member・viewer に限定する。

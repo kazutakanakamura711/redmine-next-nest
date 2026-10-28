@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectRequestError } from './api-error';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import { createProject, type CreateProjectInput } from './create-project';
 
 const mocks = vi.hoisted(() => ({

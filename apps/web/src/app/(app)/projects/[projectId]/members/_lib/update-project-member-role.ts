@@ -1,7 +1,10 @@
-import { ProjectRole } from './project-role';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import type { ProjectMember } from './get-project-members';
 import { createClient } from '@/lib/supabase/client';
-import { getErrorMessage, ProjectRequestError } from './api-error';
+import {
+  getErrorMessage,
+  ProjectRequestError,
+} from '@/app/(app)/projects/_lib/api-error';
 
 export type UpdateProjectMemberRoleInput = {
   // ProjectRoleのownerだけを省く

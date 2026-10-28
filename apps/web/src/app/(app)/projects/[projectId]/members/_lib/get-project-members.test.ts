@@ -2,9 +2,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectRequestError } from './api-error';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import { getProjectMembers, type ProjectMember } from './get-project-members';
-import { ProjectRole } from './project-role';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 
 const mocks = vi.hoisted(() => ({
   connection: vi.fn(),

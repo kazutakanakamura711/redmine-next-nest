@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getProject, type ProjectDetail } from './get-project';
-import { ProjectRole } from './project-role';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 
 const mocks = vi.hoisted(() => ({
   connection: vi.fn(),

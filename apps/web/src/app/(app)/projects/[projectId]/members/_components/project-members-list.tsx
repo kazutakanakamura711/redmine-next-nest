@@ -2,7 +2,7 @@
 
 import type { ReactNode, SubmitEventHandler } from 'react';
 
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import type { ProjectMember } from '../_lib/get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import {
   Table,

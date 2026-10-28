@@ -2,8 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectDetail } from '@/app/(app)/projects/_lib/get-project';
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import type { ProjectDetail } from '../_lib/get-project';
+import type { ProjectMember } from './_lib/get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import type { CurrentUser } from '@/lib/auth/get-current-user';
 import ProjectMembersPage from './page';
@@ -22,15 +22,15 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock('@/app/(app)/projects/_lib/get-project', () => ({
+vi.mock('../_lib/get-project', () => ({
   getProject: mocks.getProject,
 }));
 
-vi.mock('@/app/(app)/projects/_lib/get-project-members', () => ({
+vi.mock('./_lib/get-project-members', () => ({
   getProjectMembers: mocks.getProjectMembers,
 }));
 
-vi.mock('@/app/(app)/projects/_lib/update-project-member-role', () => ({
+vi.mock('./_lib/update-project-member-role', () => ({
   updateProjectMemberRole: mocks.updateProjectMemberRole,
 }));
 
