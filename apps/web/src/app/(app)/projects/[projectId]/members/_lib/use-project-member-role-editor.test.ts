@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import type { ProjectMember } from './get-project-members';
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import { updateProjectMemberRole } from './update-project-member-role';
 import { useProjectMemberRoleEditor } from './use-project-member-role-editor';
 

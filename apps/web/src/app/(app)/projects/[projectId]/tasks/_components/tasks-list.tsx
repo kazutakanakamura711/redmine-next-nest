@@ -2,8 +2,14 @@ import type { ReactNode } from 'react';
 import { ClipboardList } from 'lucide-react';
 
 import type { Task } from '@/app/(app)/projects/[projectId]/tasks/_lib/get-tasks';
-import { TaskStatus, TaskStatusDisplayText } from '../_lib/task-status';
-import { TaskPriority, TaskPriorityDisplayText } from '../_lib/task-priority';
+import {
+  TaskStatus,
+  TaskStatusDisplayText,
+} from '@/features/tasks/types/task-status';
+import {
+  TaskPriority,
+  TaskPriorityDisplayText,
+} from '@/features/tasks/types/task-priority';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,

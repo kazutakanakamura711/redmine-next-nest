@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import {
   getErrorMessage,
   ProjectRequestError,

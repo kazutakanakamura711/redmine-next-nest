@@ -1,6 +1,6 @@
 import { connection } from 'next/server';
 import type { Project } from '@/app/(app)/projects/_lib/get-projects';
-import type { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import type { ProjectRole } from '@/features/projects/types/project-role';
 import { createClient } from '@/lib/supabase/server';
 
 // 詳細 API だけが返す、閲覧者自身の role を含む Project。

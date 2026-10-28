@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getProject } from '../_lib/get-project';
 import { getProjectMembers } from './_lib/get-project-members';
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import { ProjectDetailHeader } from '../_components/project-detail-header';
 import {
   ProjectDetailTabs,

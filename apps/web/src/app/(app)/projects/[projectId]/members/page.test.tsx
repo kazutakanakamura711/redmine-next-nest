@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectDetail } from '../_lib/get-project';
 import type { ProjectMember } from './_lib/get-project-members';
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import type { CurrentUser } from '@/lib/auth/get-current-user';
 import ProjectMembersPage from './page';
 

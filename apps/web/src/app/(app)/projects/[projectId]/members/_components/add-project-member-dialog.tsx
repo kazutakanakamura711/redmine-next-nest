@@ -12,7 +12,7 @@ import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import {
   ProjectRole,
   ProjectRoleDisplayText,
-} from '@/app/(app)/projects/_lib/project-role';
+} from '@/features/projects/types/project-role';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {

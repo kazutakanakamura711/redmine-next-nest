@@ -5,7 +5,7 @@ import type { ProjectMember } from '../_lib/get-project-members';
 import {
   ProjectRole,
   ProjectRoleDisplayText,
-} from '@/app/(app)/projects/_lib/project-role';
+} from '@/features/projects/types/project-role';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';

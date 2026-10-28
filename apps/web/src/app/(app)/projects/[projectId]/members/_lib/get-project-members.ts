@@ -1,5 +1,5 @@
 import { connection } from 'next/server';
-import type { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import type { ProjectRole } from '@/features/projects/types/project-role';
 import { createClient } from '@/lib/supabase/server';
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 
