@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
-import { getErrorMessage, ProjectRequestError } from './api-error';
+import {
+  getErrorMessage,
+  ProjectRequestError,
+} from '@/app/(app)/projects/_lib/api-error';
 
 export async function deleteProjectMember(
   projectId: string,

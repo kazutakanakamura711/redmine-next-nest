@@ -2,9 +2,9 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import type { ProjectMember } from './get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
-import { updateProjectMemberRole } from '@/app/(app)/projects/_lib/update-project-member-role';
+import { updateProjectMemberRole } from './update-project-member-role';
 import { useProjectMemberRoleEditor } from './use-project-member-role-editor';
 
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), toastAdd: vi.fn() }));
@@ -17,7 +17,7 @@ vi.mock('@/components/ui/toast', () => ({
   toast: { add: mocks.toastAdd },
 }));
 
-vi.mock('@/app/(app)/projects/_lib/update-project-member-role', () => ({
+vi.mock('./update-project-member-role', () => ({
   updateProjectMemberRole: vi.fn(),
 }));
 

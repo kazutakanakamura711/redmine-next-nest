@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/client';
-import { ProjectRole } from './project-role';
-import { getErrorMessage, ProjectRequestError } from './api-error';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import {
+  getErrorMessage,
+  ProjectRequestError,
+} from '@/app/(app)/projects/_lib/api-error';
 import type { ProjectMember } from './get-project-members';
 
 export type AddProjectMemberInput = {

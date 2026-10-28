@@ -23,6 +23,18 @@ src/
 - カスタム Hook は、コンポーネント専用なら `use`＋コンポーネント名、複数箇所で使う共通 Hook なら処理内容が分かる名前にする。ファイル名は `use-project-member-role-editor.ts` のように kebab-case にする。
 - UI 部品は必要に応じて Storybook の story を追加し、画面を開かなくても状態を確認できるようにする。
 
+Project 関連の現在の配置は、利用する画面の範囲に合わせる。以下は `src/app/(app)/projects` 配下を基準とする。
+
+| 利用範囲 | 配置 |
+| --- | --- |
+| 一覧画面のテーブル・テスト | `(list)/_components` |
+| 新規作成の API 呼び出し・テスト | `new/_lib` |
+| タスク・メンバー・設定で共有する Project 詳細取得・テスト | `[projectId]/_lib` |
+| メンバーの取得・追加・権限変更・削除の API 呼び出しと Hook・テスト | `[projectId]/members/_lib` |
+| 共通ナビゲーションと一覧で使う Project 一覧取得、共有する role・エラー型 | `projects` 直下の `_lib` |
+
+ログアウト操作のテストは `(app)/_components/logout-button.test.tsx` に置く。
+
 ### Web の認証基盤
 
 Supabase Auth のセッションは `@supabase/ssr` を使って Cookie に保存する。
@@ -81,7 +93,7 @@ NestJS API でも token を検証し、membership・role による認可は既�
 ### メンバー一覧画面
 
 `projects/[projectId]/members/page.tsx` は Server Component とし、Project 詳細、メンバー一覧、本人情報の順に取得する。
-Project 詳細とメンバー一覧は `projects/_lib/get-project.ts`・`get-project-members.ts` が Cookie のセッションから token を取得して API に渡す。
+Project 詳細とメンバー一覧は `projects/[projectId]/_lib/get-project.ts`・`projects/[projectId]/members/_lib/get-project-members.ts` が Cookie のセッションから token を取得して API に渡す。
 ページは本人情報の取得にも Cookie のセッションを使い、共通の `getCurrentUser(accessToken)` に token を渡す。認証済みの本人情報は API で検証した結果を使う。
 Project 詳細または一覧の取得が `null` なら `notFound()` を呼び、空配列は0件の正常な取得結果として扱う。
 
@@ -93,7 +105,7 @@ Project 詳細または一覧の取得が `null` なら `notFound()` を呼び�
 メンバー一覧 API は Repository で参加日時・ID の昇順に1回で取得し、その順序を保ったまま owner を先頭にまとめる。member・viewer の違いは並び順に使わず、権限変更だけで行が移動しないようにする。Web は API の配列順で表示する。
 
 一覧の `headerAction` は JSX を受け取る表示枠とし、ページが owner の場合だけ `AddProjectMemberDialog` を渡す。ページから Dialog には `projectId` と `isArchived` を渡す。
-`AddProjectMemberDialog` は Client Component とし、開閉・入力検証・送信中の制御・結果の表示を扱う。`projects/_lib/add-project-member.ts` がブラウザーのセッションから token を取得して追加 API に渡す。
+`AddProjectMemberDialog` は Client Component とし、開閉・入力検証・送信中の制御・結果の表示を扱う。`projects/[projectId]/members/_lib/add-project-member.ts` がブラウザーのセッションから token を取得して追加 API に渡す。
 追加成功後は `router.refresh()` で Server Component の一覧を再取得する。API の認証・認可・アーカイブ状態の検証も維持する。
 
 権限変更は行内編集とし、一覧内で編集対象の ProjectMember.id と選択中の role を管理する。対象と選択を PC・モバイルで共有するため、両方の表示を持つ一覧を Client Component にする。ページは Server Component のままとし、親が渡す `headerAction` の配置も一覧に残す。
@@ -102,12 +114,12 @@ Project 詳細または一覧の取得が `null` なら `notFound()` を呼び�
 Hook に member・viewer のみを許可する Zod スキーマと、そのスキーマから推論したフォームの型を置く。`useForm` は `zodResolver` と `mode: 'onSubmit'` を設定し、`useController` の `field.value`・`field.onChange` を `editingRole`・`handleRoleChange` として List に返す。List は React Hook Form の API を直接扱わない。選択値の `useState` は持たず、編集開始時は `reset({ role: member.role })`、取消時は `reset()` を使う。owner は編集開始の処理でも対象外にする。
 owner だけに操作を表示し、対象が owner の場合は表示しない。アーカイブ済みでは操作を無効にする。
 Editor はそれぞれ `form` を持ち、List から受け取った `handleSave` に送信を渡す。Hook は `handleSubmit(onSubmit)` を `handleSave` として返し、入力検証後に保存する。項目エラーは選択欄の下に表示し、PC・モバイルが同時に DOM に存在しても `aria-describedby` が重複しないよう、対象 ID と表示種別から別々のエラー ID を付ける。
-Hook の `onSubmit` は `updateProjectMemberRole(projectId, editingMemberId, values)` を呼ぶ。`projects/_lib/update-project-member-role.ts` がブラウザーのセッションから token を取得し、既存の PATCH API に渡す。対象は User.id ではなく ProjectMember.id とする。API 側の認証・認可・owner 保護・アーカイブ状態の検証も維持する。
+Hook の `onSubmit` は `updateProjectMemberRole(projectId, editingMemberId, values)` を呼ぶ。`projects/[projectId]/members/_lib/update-project-member-role.ts` がブラウザーのセッションから token を取得し、既存の PATCH API に渡す。対象は User.id ではなく ProjectMember.id とする。API 側の認証・認可・owner 保護・アーカイブ状態の検証も維持する。
 送信中は `isSubmitting` を PC・モバイルで共有し、入力・保存・取消・別の対象への切り替えを無効にする。失敗時は入力と編集対象を保持し、業務エラーはメッセージ、その他の失敗は固定の案内を表示する。404・409 を status だけで項目エラーへ変換しない。成功時は通知・フォーム初期化・編集終了の後、`router.refresh()` で一覧を再取得する。
 
 削除確認の対象 `memberToDelete` と開閉状態 `isDeleteDialogOpen`、送信中の `isDeleting`、API エラーの `deleteError` は `useDeleteProjectMemberDialog` で管理する。Hook の `handleOpenDeleteDialog(member)` は owner だけに許可し、アーカイブ済み・対象が owner・削除中なら開かない。List は権限保存中のチェックを行う `handleOpenDeleteDialog` を Item の `onDelete` に渡す。Item は削除ボタンの `onClick` で呼ぶ。削除中は Item の権限変更・削除の入口と、Editor の選択・保存・取消も無効にする。権限変更の `isSubmitting` と削除の `isDeleting` は分け、削除中に権限の「保存中...」を表示しない。
 List は表・カード一覧の外に1つ置いた `DeleteProjectMemberDialog` へ対象の名前・メール、開閉状態、送信中の状態、エラーを渡す。`onClose` は `(open: boolean) => void` の `handleCloseDeleteDialog` を受け取り、AlertDialog の `onOpenChange` にそのまま渡す。Hook は true と削除中の閉じる通知を無視し、送信していないときの false で閉じる。閉じるアニメーション中の名前・メールを保つため対象は次に開くまで保持する。
-Dialog は `onDelete` に受け取った List の `handleDeleteMember` を確定ボタンから呼ぶ。List は権限保存中でないこと、削除 Hook は対象・開閉状態・権限・アーカイブ状態・自身が削除中でないことを確認し、`deleteProjectMember(projectId, memberToDelete.id)` を呼ぶ。`projects/_lib/delete-project-member.ts` がブラウザーのセッションから token を取得して既存 DELETE API へ渡し、204成功時は `response.json()` を呼ばない。API 側の認証・認可・対象の Project 所属確認・owner 保護・transaction は維持する。
+Dialog は `onDelete` に受け取った List の `handleDeleteMember` を確定ボタンから呼ぶ。List は権限保存中でないこと、削除 Hook は対象・開閉状態・権限・アーカイブ状態・自身が削除中でないことを確認し、`deleteProjectMember(projectId, memberToDelete.id)` を呼ぶ。`projects/[projectId]/members/_lib/delete-project-member.ts` がブラウザーのセッションから token を取得して既存 DELETE API へ渡し、204成功時は `response.json()` を呼ばない。API 側の認証・認可・対象の Project 所属確認・owner 保護・transaction は維持する。
 失敗時は対象と Dialog を保持し、業務エラーはメッセージ、その他は権限変更と同じ固定の案内を表示する。404・409 を status だけで分類しない。`finally` で送信中の状態を解除し、再試行・閉じる操作を許可する。成功後の通知・Dialog の閉鎖・`router.refresh()` は API の try/catch から分ける。List の配列は手元で削除せず、Server Component から渡される一覧で更新する。
 
 List は各 Hook の戻り値を `roleEditor`・`deleteDialog` として受け取り、状態と関数の担当を明示する。両 Hook は `projectId`・`currentUserRole`・`isArchived` を受け取り、各操作の状態・API 呼び出し・エラー・通知・一覧更新を担当する。相手の送信状態は持たず、List のハンドラーで削除中の権限編集開始・取消・保存と、権限保存中の削除確認・削除実行を拒否する。権限保存を拒否するときは form の既定動作も止める。未使用になった `useProjectMembersList` と専用テストは削除し、各操作の単体テストと List の操作テストで確認する。

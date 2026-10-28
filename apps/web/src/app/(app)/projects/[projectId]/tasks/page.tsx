@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 
-import { getProject } from '@/app/(app)/projects/_lib/get-project';
+import { getProject } from '../_lib/get-project';
 import { ProjectDetailHeader } from '../_components/project-detail-header';
 import {
   ProjectDetailTabs,

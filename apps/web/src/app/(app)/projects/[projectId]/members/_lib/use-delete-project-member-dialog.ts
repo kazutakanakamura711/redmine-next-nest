@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
-import { deleteProjectMember } from '@/app/(app)/projects/_lib/delete-project-member';
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import { deleteProjectMember } from './delete-project-member';
+import type { ProjectMember } from './get-project-members';
 import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import { toast } from '@/components/ui/toast';
 

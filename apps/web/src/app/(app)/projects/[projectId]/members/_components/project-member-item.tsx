@@ -1,7 +1,7 @@
 import { UserRound } from 'lucide-react';
 import type { SubmitEventHandler } from 'react';
 
-import type { ProjectMember } from '@/app/(app)/projects/_lib/get-project-members';
+import type { ProjectMember } from '../_lib/get-project-members';
 import {
   ProjectRole,
   ProjectRoleDisplayText,

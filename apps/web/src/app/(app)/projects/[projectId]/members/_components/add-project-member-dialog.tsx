@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 
-import { addProjectMember } from '@/app/(app)/projects/_lib/add-project-member';
+import { addProjectMember } from '../_lib/add-project-member';
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import {
   ProjectRole,

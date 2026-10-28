@@ -1,16 +1,22 @@
 import { connection } from 'next/server';
-import type { Project } from './get-projects';
-import type { ProjectRole } from './project-role';
+import type { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
 import { createClient } from '@/lib/supabase/server';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 
-// 詳細 API だけが返す、閲覧者自身の role を含む Project。
-export type ProjectDetail = Project & {
-  currentUserRole: ProjectRole;
+export type ProjectMember = {
+  id: string;
+  userId: string;
+  role: ProjectRole;
+  createdAt: string;
+  user: {
+    name: string | null;
+    email: string;
+  };
 };
 
-export async function getProject(
+export async function getProjectMembers(
   projectId: string,
-): Promise<ProjectDetail | null> {
+): Promise<ProjectMember[] | null> {
   // 詳細画面もリクエスト時に最新データを取得する。
   await connection();
 
@@ -32,7 +38,7 @@ export async function getProject(
   const accessToken = data.session.access_token;
 
   const response = await fetch(
-    `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}`,
+    `${apiBaseUrl}/projects/${encodeURIComponent(projectId)}/members`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -41,13 +47,15 @@ export async function getProject(
     },
   );
 
-  // 存在しない ID は、画面側で Next.js の notFound() を呼ぶため null で返す。
   if (response.status === 404) {
     return null;
   }
 
   if (!response.ok) {
-    throw new Error('プロジェクト詳細の取得に失敗しました。');
+    throw new ProjectRequestError(
+      'プロジェクトメンバーの取得に失敗しました。',
+      response.status,
+    );
   }
 
   return response.json();
