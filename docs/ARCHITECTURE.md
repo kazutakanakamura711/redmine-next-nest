@@ -174,7 +174,7 @@ src/
         └── tasks.module.ts
 ```
 
-上記は現在の主な構成である。現在の作業ブランチでは `tasks` を追加し、Task の DB 定義と一覧 API を実装している。DDD やクリーンアーキテクチャへの移行は、対象操作を決めてから行う。
+上記は現在の主な構成である。Task の DB 定義と一覧 API は PR #37 で `develop` にマージ済みである。DDD やクリーンアーキテクチャへの移行は、対象操作を決めてから行う。
 
 `TasksModule` は `PrismaModule` と `AuthModule` を import し、`TaskController`・`TasksService`・`TasksRepository` を登録する。`AppModule` から `TasksModule` を読み込む。
 一覧は AuthGuard による token・メール確認と User 同期の後、Controller が URL の Project ID と本人の User ID を Service に渡す。

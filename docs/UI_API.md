@@ -66,15 +66,16 @@ Project 詳細のタブはページ移動のリンクとして扱い、表示対
 
 | 表示対象 | URL |
 | --- | --- |
-| タスク | `/projects/[projectId]` |
+| タスク | `/projects/[projectId]/tasks` |
 | メンバー | `/projects/[projectId]/members` |
-| 設定 | `/projects/[projectId]?tab=setting` |
+| 設定 | `/projects/[projectId]/setting` |
 
 直リンク・再読み込み・ブラウザーの戻る／進むでも URL に対応する表示を復元する。
 選択中のリンクには `aria-current="page"` を付ける。
 設定リンクは Project 詳細 API の `currentUserRole` が owner の場合だけ表示する。
 member・viewer が設定 URL を直接開いた場合も設定フォームを表示せず、タスク URL へ戻す。
-Project 詳細 URL で `tab` が未指定、または単一の `setting` 以外の場合はタスクを表示する。
+Project の入口 URL `/projects/[projectId]` は、タスク一覧 URL へ転送する。
+各タブは別々の `page.tsx` と `loading.tsx` を持つ。タスクは一覧の行・カード、設定は入力フォームとアーカイブ欄のスケルトンを表示する。
 アーカイブ・解除の成功後は、設定 URL をタスク URL に置き換える。
 アーカイブ確認 Dialog は、送信中にキャンセル・閉じるボタンを無効にし、Escape キーでも閉じない。失敗時はエラーを表示し、閉じる操作を再び許可する。
 
@@ -107,9 +108,13 @@ Sheet を閉じてもログアウト処理中の状態とエラーを保持し�
 
 | URL | 目的 |
 | --- | --- |
-| `/projects/[projectId]` | 既存の Project 詳細画面にタスク一覧を追加する |
+| `/projects/[projectId]/tasks` | Project に属するタスク一覧を表示する |
 | `/projects/[projectId]/tasks/new` | タスクを作成する |
 | `/projects/[projectId]/tasks/[taskId]` | タスクを表示・編集する |
+
+タスク一覧の取得に失敗した場合は `tasks/error.tsx` で「タスク一覧を取得できませんでした」と表示し、再試行ボタンとプロジェクト一覧へ戻るリンクを用意する。
+再試行は Next.js の `retry()` でページのデータを再取得する。内部エラーの詳細は画面へ表示しない。
+Project 詳細または Task 一覧 API の404は `notFound()` で扱い、取得成功時の空配列と区別する。
 
 認証・権限を整えた Project に Task を追加し、Task の主要導線を Playwright に、再利用する Task UI を Storybook に追加する。
 
@@ -554,7 +559,7 @@ PATCH  /api/projects/:projectId/tasks/:taskId
 DELETE /api/projects/:projectId/tasks/:taskId
 ```
 
-現在の作業ブランチでは、Task の DB 定義と一覧 GET だけを実装済みである。その他の Task API と Web 画面は、操作ごとに追加する。
+Task の DB 定義と一覧 GET は PR #37 で `develop` にマージ済みである。このブランチでは認証付きの一覧取得と Web の一覧・空状態・loading・error を実装済みである。詳細・作成・更新・削除の API と画面は、操作ごとに追加する。
 
 #### タスク一覧: GET /api/projects/:projectId/tasks
 
@@ -588,6 +593,7 @@ DELETE /api/projects/:projectId/tasks/:taskId
 - `description`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。
 - `startDate`・`dueDate` は時刻・タイムゾーンを付けない `YYYY-MM-DD` とする。`createdAt`・`updatedAt` は UTC の ISO 8601 文字列（例: `2026-10-26T08:00:00.000Z`）とする。
 - 日付・日時の文字列変換は Controller で行い、`TaskResponseDto` は返却形式と Swagger の説明を定義する。
+- status は `todo`・`in_progress`・`done`、priority は `low`・`normal`・`high` を返す。
 
 | 条件 | 応答 |
 | --- | --- |

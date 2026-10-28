@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { archiveProject } from '@/app/(app)/projects/_lib/archive-project';
+import { archiveProject } from '../_lib/archive-project';
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import {
   AlertDialog,

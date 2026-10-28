@@ -39,14 +39,57 @@ test('Projectの設定を更新でき、再読み込み後も変更が表示さ�
   await projectsTable
     .getByRole('link', { name: `${initialName}の詳細を開く`, exact: true })
     .click();
-  await expect(page).toHaveURL(/^http:\/\/localhost:3100\/projects\/[^/?]+$/);
-  const projectUrl = page.url();
+  await expect(page).toHaveURL(
+    /^http:\/\/localhost:3100\/projects\/[^/?]+\/tasks$/,
+  );
+  const tasksUrl = page.url();
+  const projectUrl = tasksUrl.slice(0, -'/tasks'.length);
+  const settingUrl = `${projectUrl}/setting`;
+
+  const detailNavigation = page.getByRole('navigation', {
+    name: 'プロジェクト詳細',
+    exact: true,
+  });
+  const tasksLink = detailNavigation.getByRole('link', {
+    name: 'タスク',
+    exact: true,
+  });
+  const settingLink = detailNavigation.getByRole('link', {
+    name: '設定',
+    exact: true,
+  });
+  await expect(tasksLink).toHaveAttribute('aria-current', 'page');
+  await expect(
+    page.getByText('タスクはありません。', { exact: true }),
+  ).toBeVisible();
+
+  // プロジェクトの入口URLを直接開いても、タスク一覧へ移動する。
+  await page.goto(projectUrl);
+  await expect(page).toHaveURL(tasksUrl);
+
+  // メンバーも含めて、それぞれ独立したページへ移動できる。
+  const membersLink = detailNavigation.getByRole('link', {
+    name: 'メンバー',
+    exact: true,
+  });
+  await membersLink.click();
+  await expect(page).toHaveURL(`${projectUrl}/members`);
+  await expect(membersLink).toHaveAttribute('aria-current', 'page');
+  await tasksLink.click();
+  await expect(page).toHaveURL(tasksUrl);
 
   await page
     .getByRole('navigation', { name: 'プロジェクト詳細', exact: true })
     .getByRole('link', { name: '設定', exact: true })
     .click();
-  await expect(page).toHaveURL(`${projectUrl}?tab=setting`);
+  await expect(page).toHaveURL(settingUrl);
+
+  await page.goBack();
+  await expect(page).toHaveURL(tasksUrl);
+  await expect(tasksLink).toHaveAttribute('aria-current', 'page');
+  await page.goForward();
+  await expect(page).toHaveURL(settingUrl);
+  await expect(settingLink).toHaveAttribute('aria-current', 'page');
 
   const nameInput = page.getByLabel(/^プロジェクト名\s*\*?$/);
   const descriptionInput = page.getByLabel('説明', { exact: true });
@@ -77,12 +120,12 @@ test('Projectの設定を更新でき、再読み込み後も変更が表示さ�
   await expect(currentBreadcrumb).toBeVisible();
   await expect(sidebarProject).toBeVisible();
   await expect(sidebarProject).toContainText(projectKey);
-  await expect(page).toHaveURL(`${projectUrl}?tab=setting`);
+  await expect(page).toHaveURL(settingUrl);
 
   // 再読み込み後も、設定URLと保存したフォーム値・各表示が残ることを確認する。
   await page.reload();
 
-  await expect(page).toHaveURL(`${projectUrl}?tab=setting`);
+  await expect(page).toHaveURL(settingUrl);
   await expect(nameInput).toHaveValue(updatedName);
   await expect(descriptionInput).toHaveValue(updatedDescription);
   await expect(keyInput).toHaveValue(projectKey);

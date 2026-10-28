@@ -117,7 +117,7 @@ priority: low  | normal      | high
 - 閲覧権限がないユーザーは、Project や Task を取得できない。
 - `done` にした日時や、Project 内連番は、基本 CRUD を完成させた後に追加する。
 
-現在の作業ブランチでは、Task の DB 定義と一覧 API を実装済みである。詳細・作成・更新・削除 API と Web の Task 一覧は後続とする。
+Task の DB 定義と一覧 API は PR #37 で `develop` にマージ済みである。このブランチでは Web の Task 一覧・空状態・loading・error まで実装済みであり、詳細・作成・更新・削除 API と対応する画面は後続とする。
 
 - 一覧の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。
 - アーカイブ済み Project の Task も閲覧できる。Project 不在と非参加者による取得は、同じ対象不在として扱う。

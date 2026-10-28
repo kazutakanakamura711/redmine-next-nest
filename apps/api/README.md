@@ -268,7 +268,7 @@ DB の処理順を保証し、HTTP レスポンスの到着順は保証しませ
 
 ## Task 一覧 API
 
-現在の作業ブランチでは、Task の DB 定義と `GET /api/projects/:projectId/tasks` を実装済みです。
+Task の DB 定義と `GET /api/projects/:projectId/tasks` は PR #37 で `develop` にマージ済みです。
 対象 Project の owner・member・viewer に許可し、アーカイブ済みも閲覧できます。非参加者と存在しない Project は同じ404で扱い、`ownerId` だけでは許可しません。
 
 対象 Project の Task を `createdAt` の降順、同日時は `id` の降順で返します。Task がなければ200と空配列です。

@@ -1,0 +1,122 @@
+import { render, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { ProjectDetail } from '@/app/(app)/projects/_lib/get-project';
+import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import type { Task } from './_lib/get-tasks';
+import ProjectTasksPage from './page';
+
+const mocks = vi.hoisted(() => ({
+  getProject: vi.fn(),
+  getTasks: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
+}));
+
+vi.mock('@/app/(app)/projects/_lib/get-project', () => ({
+  getProject: mocks.getProject,
+}));
+
+vi.mock('./_lib/get-tasks', () => ({ getTasks: mocks.getTasks }));
+
+vi.mock('next/navigation', () => ({ notFound: mocks.notFound }));
+
+const project: ProjectDetail = {
+  id: 'project-id',
+  key: 'TEST',
+  name: 'テストプロジェクト',
+  description: null,
+  isArchived: false,
+  createdAt: '2026-10-18T00:00:00.000Z',
+  updatedAt: '2026-10-18T00:00:00.000Z',
+  currentUserRole: ProjectRole.Owner,
+};
+
+const tasks: Task[] = [
+  {
+    id: 'task-id',
+    projectId: project.id,
+    title: 'タスク一覧を接続する',
+    description: null,
+    status: 'in_progress',
+    priority: 'normal',
+    startDate: null,
+    dueDate: null,
+    createdAt: '2026-10-28T00:00:00.000Z',
+    updatedAt: '2026-10-28T00:00:00.000Z',
+  },
+];
+
+async function renderPage() {
+  return render(
+    await ProjectTasksPage({
+      params: Promise.resolve({ projectId: project.id }),
+    }),
+  );
+}
+
+describe('ProjectTasksPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getProject.mockResolvedValue(project);
+    mocks.getTasks.mockResolvedValue(tasks);
+  });
+
+  it.each([ProjectRole.Owner, ProjectRole.Member, ProjectRole.Viewer])(
+    '%sがタスクURLを開くとタスク一覧を表示し、タスクを選択する',
+    async (currentUserRole) => {
+      mocks.getProject.mockResolvedValue({ ...project, currentUserRole });
+
+      await renderPage();
+
+      expect(mocks.getProject).toHaveBeenCalledExactlyOnceWith(project.id);
+      expect(mocks.getTasks).toHaveBeenCalledExactlyOnceWith(project.id);
+      expect(screen.getByRole('link', { name: 'タスク' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      expect(
+        within(screen.getByRole('table', { name: 'タスク一覧' })).getByText(
+          tasks[0].title,
+        ),
+      ).toBeInTheDocument();
+      expect(Boolean(screen.queryByRole('link', { name: '設定' }))).toBe(
+        currentUserRole === ProjectRole.Owner,
+      );
+    },
+  );
+
+  it('Projectが存在しない、または非参加の場合はTaskを取得せずnotFoundを呼ぶ', async () => {
+    mocks.getProject.mockResolvedValue(null);
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+    expect(mocks.getTasks).not.toHaveBeenCalled();
+  });
+
+  it('空配列も取得成功として一覧へ渡し、0件の表示にする', async () => {
+    mocks.getTasks.mockResolvedValue([]);
+
+    await renderPage();
+
+    expect(screen.getByText('0件')).toBeInTheDocument();
+    expect(screen.getByText('タスクはありません。')).toBeInTheDocument();
+    expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+
+  it('Task取得時の404は空一覧に置き換えず、notFoundを呼ぶ', async () => {
+    mocks.getTasks.mockResolvedValue(null);
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+
+  it('Taskの取得失敗は404に置き換えず、既存のエラー境界へ伝える', async () => {
+    const error = new Error('タスク一覧の取得に失敗しました。');
+    mocks.getTasks.mockRejectedValue(error);
+
+    await expect(renderPage()).rejects.toBe(error);
+    expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+});

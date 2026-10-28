@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
-import { archiveProject } from '@/app/(app)/projects/_lib/archive-project';
+import { archiveProject } from '../_lib/archive-project';
 import { ProjectArchive } from './project-archive';
 
 const routerMocks = vi.hoisted(() => ({
@@ -18,7 +18,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => routerMocks,
 }));
 
-vi.mock('@/app/(app)/projects/_lib/archive-project', () => ({
+vi.mock('../_lib/archive-project', () => ({
   archiveProject: vi.fn(),
 }));
 

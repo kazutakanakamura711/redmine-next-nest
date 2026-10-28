@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
-import { updateProject } from '@/app/(app)/projects/_lib/update-project';
+import { updateProject } from '../_lib/update-project';
 import { ProjectSettingsForm } from './project-settings-form';
 
 const routerMocks = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 // 本物の API 通信を行わず、呼び出し内容だけをテストできるようにする。
-vi.mock('@/app/(app)/projects/_lib/update-project', () => {
+vi.mock('../_lib/update-project', () => {
   return {
     updateProject: vi.fn(),
   };

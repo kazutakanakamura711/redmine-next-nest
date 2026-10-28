@@ -24,13 +24,13 @@ describe('ProjectDetailTabs', () => {
     expect(within(navigation).getAllByRole('link')).toHaveLength(3);
     expect(
       within(navigation).getByRole('link', { name: 'タスク' }),
-    ).toHaveAttribute('href', '/projects/project-id');
+    ).toHaveAttribute('href', '/projects/project-id/tasks');
     expect(
       within(navigation).getByRole('link', { name: 'メンバー' }),
     ).toHaveAttribute('href', '/projects/project-id/members');
     expect(
       within(navigation).getByRole('link', { name: '設定' }),
-    ).toHaveAttribute('href', '/projects/project-id?tab=setting');
+    ).toHaveAttribute('href', '/projects/project-id/setting');
   });
 
   it.each([ProjectRole.Member, ProjectRole.Viewer])(
@@ -88,7 +88,7 @@ describe('ProjectDetailTabs', () => {
     );
     expect(screen.getByRole('link', { name: '設定' })).toHaveAttribute(
       'href',
-      '/projects/project%2Fid%3Fdraft%231?tab=setting',
+      '/projects/project%2Fid%3Fdraft%231/setting',
     );
   });
 });

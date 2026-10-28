@@ -17,11 +17,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
 
-vi.mock('@/app/(app)/projects/_lib/archive-project', () => ({
+vi.mock('../_lib/archive-project', () => ({
   archiveProject: mocks.archiveProject,
 }));
 
-vi.mock('@/app/(app)/projects/_lib/unarchive-project', () => ({
+vi.mock('../_lib/unarchive-project', () => ({
   unarchiveProject: mocks.unarchiveProject,
 }));
 
@@ -61,7 +61,7 @@ describe('ProjectSettingsPanel', () => {
 
     await waitFor(() => {
       expect(mocks.archiveProject).toHaveBeenCalledWith(project.id);
-      expect(mocks.replace).toHaveBeenCalledWith('/projects/project-id');
+      expect(mocks.replace).toHaveBeenCalledWith('/projects/project-id/tasks');
       expect(mocks.refresh).toHaveBeenCalledOnce();
     });
   });
@@ -78,7 +78,9 @@ describe('ProjectSettingsPanel', () => {
 
     await waitFor(() => {
       expect(mocks.unarchiveProject).toHaveBeenCalledWith('project/id');
-      expect(mocks.replace).toHaveBeenCalledWith('/projects/project%2Fid');
+      expect(mocks.replace).toHaveBeenCalledWith(
+        '/projects/project%2Fid/tasks',
+      );
       expect(mocks.refresh).toHaveBeenCalledOnce();
     });
   });
