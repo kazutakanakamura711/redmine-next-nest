@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
 import type { Task } from '../_lib/get-tasks';
-import { TaskPriority } from '../_lib/task-priority';
-import { TaskStatus } from '../_lib/task-status';
+import { TaskPriority } from '@/features/tasks/types/task-priority';
+import { TaskStatus } from '@/features/tasks/types/task-status';
 import { Button } from '@/components/ui/button';
 import { TaskList } from './tasks-list';
 

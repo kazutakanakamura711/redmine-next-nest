@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import { deleteProjectMember } from '../_lib/delete-project-member';
 import type { ProjectMember } from '../_lib/get-project-members';
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import { updateProjectMemberRole } from '../_lib/update-project-member-role';
 import { ProjectMembersList } from './project-members-list';
 

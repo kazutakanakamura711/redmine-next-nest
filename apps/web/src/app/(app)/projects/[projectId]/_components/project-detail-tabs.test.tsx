@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import {
   ProjectDetailTabs,
   ProjectTabs,

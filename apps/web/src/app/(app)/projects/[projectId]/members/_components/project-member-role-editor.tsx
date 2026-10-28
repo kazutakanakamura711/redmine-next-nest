@@ -3,7 +3,7 @@ import type { SubmitEventHandler } from 'react';
 import {
   ProjectRole,
   ProjectRoleDisplayText,
-} from '@/app/(app)/projects/_lib/project-role';
+} from '@/features/projects/types/project-role';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 

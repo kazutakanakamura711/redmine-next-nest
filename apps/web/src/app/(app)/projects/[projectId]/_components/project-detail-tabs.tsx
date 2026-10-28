@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ClipboardList, Settings, Users } from 'lucide-react';
 import { cn } from 'cn';
 
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 
 export const ProjectTabs = {
   Task: 'task',

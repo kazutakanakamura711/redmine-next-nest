@@ -18,7 +18,8 @@ src/
 
 - `components/ui` は shadcn/ui の部品を配置・調整する場所にする。
 - `components/common` には、アプリ固有だが複数画面で使う小さな UI を置く。
-- `features` には、プロジェクト作成フォームやタスク一覧など業務機能ごとのコードを置く。
+- `features` には、画面をまたいで共有する業務機能ごとの定義・UI・処理を置く。現在は `tasks/types` と `projects/types` に、状態・優先度・権限の定義を配置する。
+- `features/*/types` には、関連する型・値の候補を表す定数・表示名をまとめる。`task-status.ts`・`task-priority.ts` は `features/tasks/types`、`project-role.ts` は `features/projects/types` に置く。これらは `app` 配下のコードに依存させない。
 - 画面専用の小さな部品は、その route 配下の `_components` に置いてよい。
 - カスタム Hook は、コンポーネント専用なら `use`＋コンポーネント名、複数箇所で使う共通 Hook なら処理内容が分かる名前にする。ファイル名は `use-project-member-role-editor.ts` のように kebab-case にする。
 - UI 部品は必要に応じて Storybook の story を追加し、画面を開かなくても状態を確認できるようにする。
@@ -31,7 +32,9 @@ Project 関連の現在の配置は、利用する画面の範囲に合わせる
 | 新規作成の API 呼び出し・テスト | `new/_lib` |
 | タスク・メンバー・設定で共有する Project 詳細取得・テスト | `[projectId]/_lib` |
 | メンバーの取得・追加・権限変更・削除の API 呼び出しと Hook・テスト | `[projectId]/members/_lib` |
-| 共通ナビゲーションと一覧で使う Project 一覧取得、共有する role・エラー型 | `projects` 直下の `_lib` |
+| 共通ナビゲーションと一覧で使う Project 一覧取得、共有するエラー型 | `projects` 直下の `_lib` |
+
+タスクの状態・優先度と Project の role は、上記の route 配下から `src/features/tasks/types`・`src/features/projects/types` を直接 import して使う。
 
 ログアウト操作のテストは `(app)/_components/logout-button.test.tsx` に置く。
 

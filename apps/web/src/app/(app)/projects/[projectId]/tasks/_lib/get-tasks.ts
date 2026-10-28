@@ -1,6 +1,6 @@
 import { connection } from 'next/server';
-import { TaskPriority } from './task-priority';
-import { TaskStatus } from './task-status';
+import { TaskPriority } from '@/features/tasks/types/task-priority';
+import { TaskStatus } from '@/features/tasks/types/task-status';
 import { createClient } from '@/lib/supabase/server';
 
 export type Task = {

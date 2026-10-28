@@ -8,7 +8,7 @@ import {
 } from './update-project-member-role';
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import type { ProjectMember } from './get-project-members';
-import { ProjectRole } from '@/app/(app)/projects/_lib/project-role';
+import { ProjectRole } from '@/features/projects/types/project-role';
 
 // セッション取得と HTTP 通信をモックし、helper の入出力を確認する。
 const mocks = vi.hoisted(() => ({
