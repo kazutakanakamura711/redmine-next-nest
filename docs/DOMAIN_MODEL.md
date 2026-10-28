@@ -117,12 +117,13 @@ priority: low  | normal      | high
 - 閲覧権限がないユーザーは、Project や Task を取得できない。
 - `done` にした日時や、Project 内連番は、基本 CRUD を完成させた後に追加する。
 
-Task の DB 定義と一覧 API は PR #37 で `develop` にマージ済みである。このブランチでは Web の Task 一覧・空状態・loading・error まで実装済みであり、詳細・作成・更新・削除 API と対応する画面は後続とする。
+Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。`feat/phase-2/task-detail-api` では詳細取得 API を実装済みであり、詳細画面と作成・更新・削除 API・画面は後続とする。
 
-- 一覧の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。
+- 一覧・詳細の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。参加情報の削除後は、同じ token でも取得できない。
 - アーカイブ済み Project の Task も閲覧できる。Project 不在と非参加者による取得は、同じ対象不在として扱う。
+- 詳細取得では、指定した Project に属する Task だけを取得する。両方の Project に参加していても別 Project の Task は取得できず、その Project 内に Task が存在しない場合と同じ対象不在として扱う。
 - `description`・`startDate`・`dueDate` の未設定は `null` とする。開始日・期限は時刻を持たない日付であり、DB には `DATE` 型で保存する。
-- `createdAt`・`updatedAt` は日時として保存する。日付・日時の API 返却形式と一覧の並び順は [UI_API.md](./UI_API.md#タスク一覧-get-apiprojectsprojectidtasks) を参照する。
+- `createdAt`・`updatedAt` は日時として保存する。日付・日時の API 返却形式と一覧の並び順は [一覧の仕様](./UI_API.md#タスク一覧-get-apiprojectsprojectidtasks)、1件取得の返却形式とエラーは [詳細の仕様](./UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) を参照する。
 - title・description の文字数、日付の前後関係、作成・更新権限、アーカイブ済み Project への作成・更新禁止の検証は、対応する作成・更新 API と同時に実装する。現在の DB 定義には、文字数・日付の前後関係の CHECK 制約は設けていない。
 
 ## 認証・認可の基本方針
@@ -132,7 +133,7 @@ Task の DB 定義と一覧 API は PR #37 で `develop` にマージ済みで�
 - 操作する本人は、クライアントから渡された `userId` ではなく、認証済み token から特定する。
 
 全 Project API の認証保護、membership・role による認可、Project 作成時の owner 登録は実装済みである。
-メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧・追加・role変更・削除 UI は実装済みである。Task 一覧 API も同じ認証・認可の基盤を使い、残る Task CRUD を操作ごとに追加する。
+メンバー一覧 API は参加者の3 role に、追加・role変更・削除 API は owner に許可する。各 API と Web のメンバー一覧・追加・role変更・削除 UI は実装済みである。Task 一覧・詳細 API も同じ認証・認可の基盤を使い、残る Task CRUD を操作ごとに追加する。
 
 ## 後続段階で追加するもの
 

@@ -1,6 +1,6 @@
 # 品質・セキュリティのフォローアップタスク
 
-最終更新: 2026-10-27
+最終更新: 2026-10-29
 
 ## 目的
 
@@ -12,7 +12,7 @@
 ## 現在の前提
 
 - プロジェクトの作成・一覧・詳細・更新・アーカイブ・解除が実装済み。
-- タスク 1〜4 は `develop` にマージ済み。Task は現在の作業ブランチ `feat/phase-2/task-list-api` で DB 定義と一覧 API を実装済みで、詳細・作成・更新・削除 API と Web は後続である。Task の変更はまだ未コミット・未マージである。
+- タスク 1〜4 は `develop` にマージ済み。Task の DB 定義・一覧 API は PR #37、Web の一覧・空状態・loading・error は PR #38、配置整理は PR #39・#40で `develop` にマージ済みである。現在の作業ブランチ `feat/phase-2/task-detail-api` では詳細 API と15件の API E2E を追加している。詳細画面と作成・更新・削除 API・画面は後続である。
 - 認証基盤（Supabase Auth の token 検証、アプリ側 User、`GET /api/auth/me`、Auth E2E）は PR #18 の CI 通過後、`develop` にマージ済み。
 - 共通 AuthGuard、ProjectMember / owner の migration、作成者の owner 登録、全 Project API の認証保護は PR #20 を `develop` にマージ済み。区切り3の Web 認証基盤、ログイン・登録画面、全 Project API 呼び出しへの token 付与、メール確認後の自動ログイン、未ログイン・ログアウト導線、名前の同期、PC と狭い画面のナビゲーション・本人表示は PR #21 を `develop` にマージ済み。区切り4の参加者だけの一覧・詳細取得と owner だけの設定更新・アーカイブ・解除は PR #22 を `develop` にマージ済み。
 - メンバー一覧・追加 API（PR #23・#24）、role 変更 API（PR #25）、削除 API（PR #26）、Web の一覧表示（PR #27）・追加 UI（PR #28）は `develop` にマージ済み。PR #27 には一覧 API の参加者3 role への開放と Project 詳細の `currentUserRole` 追加も含む。
@@ -904,13 +904,20 @@ Project の作成 DTO は空文字を拒否するが、空白だけの文字列�
 2. タスク 5: 完了。認証・Project権限、メンバー管理APIとWeb UIをPR #30までマージ済み。
 3. タスク 6: 完了。ブラウザテスト6件と専用環境・CIをPR #31でマージ済み。
 4. タスク 7: 完了。基盤・Button・Input＋Label・Badge・Alert・AlertDialog・CI・手順書をPR #36までマージ済み。
-5. Task CRUD: DB定義・一覧APIとAPI E2Eは作業ブランチで実装済み。文書・差分のレビューとPR前の全体確認を終えた後、一覧画面 → 詳細 → 作成 → 更新 → 削除を小さく進める。必要なUIと主要導線が増えた段階でStorybook・Playwrightも拡張する。
+5. Task CRUD: DB定義・一覧API・一覧画面・配置整理はPR #40までマージ済み。現在は詳細APIとAPI E2Eを作業ブランチで実装済みで、次は詳細画面 → 作成 → 更新 → 削除を小さく進める。現在の区切りと確認結果は [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) を参照する。必要なUIと主要導線が増えた段階でStorybook・Playwrightも拡張する。
 
 各タスクは個別のスレッド・ブランチ・PRで進め、実装後にこの文書の状態、正式仕様、確認結果を更新する。
 
 ## 次の Codex スレッドへの引き継ぎ
 
-### 現在（2026-10-27）
+### 現在（2026-10-29）
+
+- PR #40まで `develop` にマージ済みで、今回の基点は `295509b`、作業ブランチは `feat/phase-2/task-detail-api` である。Task 詳細 API と15件の API E2Eを追加し、関連資料を更新している。再開時は実際のブランチ・差分を確認し、ユーザーの変更を保持する。
+- 詳細 API は現在の Controller → Service → Repository → PrismaService の構成を使い、DB 定義・migration の変更はない。本人の ProjectMember を確認した後、Project ID と Task ID の両方で取得する。契約は [UI_API.md](./UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid)、検証内容は [API README](../apps/api/README.md#task-詳細の-api-e2e) を参照する。
+- 専用 DB・Supabase で `pnpm test:e2e` 全260件・4ファイル（Taskは一覧25件・詳細15件）、API単体テスト16件、API lint・typecheck・buildの成功を確認した。実行前後のUser・Project・ProjectMember・Task・Authユーザーはすべて0件で、専用環境は終了済み。Web変更がないためWebテスト・build、Storybook build、Playwrightは再実行していない。
+- 次は詳細画面と一覧からのリンクを別の小さな変更として進める。コミット・push・PR作成・マージは、ユーザーから依頼されたタイミングで行う。
+
+### 過去の引き継ぎ（2026-10-27時点）
 
 - PR #36まで `develop` にマージ済み。基点は `368fe01` で、現在のブランチは `feat/phase-2/task-list-api` である。Taskのschema・migration・Module・Controller・Service・Repository・レスポンスDTO・API E2Eを追加し、文書も更新している。まだコミット・push・PR作成は行っていない。再開時は実際の差分を確認し、ユーザーの変更を保持する。
 - Storybookの基盤と代表部品は導入完了。PR #36のマージ後CI `40287999361` の3 job成功は上のタスク7を参照する。Task一覧APIだけの変更ではstoryを追加しない。

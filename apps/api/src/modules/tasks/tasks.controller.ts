@@ -63,4 +63,51 @@ export class TaskController {
       updatedAt: task.updatedAt.toISOString(),
     }));
   }
+
+  @Get(':taskId')
+  @UseGuards(AuthGuard)
+  @ApiOperation({
+    summary: '参加しているプロジェクトのタスク詳細を取得する',
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'タスクが所属するプロジェクトの ID',
+  })
+  @ApiParam({
+    name: 'taskId',
+    description: '取得するタスクの ID',
+  })
+  @ApiOkResponse({
+    description:
+      'owner・member・viewer に対象プロジェクトのタスクを1件返す。アーカイブ済みも閲覧できる',
+    type: TaskResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description:
+      'プロジェクトが存在しない、参加していない、または指定したプロジェクト内にタスクが存在しない',
+  })
+  async findOne(
+    @Param('projectId') projectId: string,
+    @Param('taskId') taskId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TaskResponseDto> {
+    const task = await this.tasksService.findOne(
+      projectId,
+      taskId,
+      request.user.id,
+    );
+
+    return {
+      id: task.id,
+      projectId: task.projectId,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      startDate: task.startDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
+      dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
+    };
+  }
 }

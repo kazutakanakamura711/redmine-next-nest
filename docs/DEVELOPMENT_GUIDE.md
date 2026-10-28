@@ -18,20 +18,34 @@ Storybookの最小設定・Button・CI・[手順書](./STORYBOOK_SETUP_GUIDE.md)
 各段階は複数の小さな Pull Request に分けてよい。Task の権限判定は Task API と同じ変更で入れ、認証なしの Task endpoint を新たに追加しない。
 Task は一覧・詳細、作成、更新、削除を操作ごとに進め、対応する画面と API E2E を追加する。主要導線が増えた時点で Playwright、再利用 UI が増えた時点で Storybook も更新する。
 
-### Task の現在の区切り（2026-10-27）
+### Task 一覧 API の区切り（2026-10-27）
 
-Task モデル・migration と `GET /api/projects/:projectId/tasks` は PR #37 で `develop` にマージ済みである。その区切りで Task 一覧の API E2E は25件、既存を含む API E2E 全体は245件が専用環境で成功した。ユーザーは Swagger で token なしの401、参加 Project の200と空配列、存在しない Project の404を確認している。詳細・作成・更新・削除 API と Web は後続である。
+Task モデル・migration と `GET /api/projects/:projectId/tasks` は PR #37 で `develop` にマージ済みである。その区切りで Task 一覧の API E2E は25件、既存を含む API E2E 全体は245件が専用環境で成功した。ユーザーは Swagger で token なしの401、参加 Project の200と空配列、存在しない Project の404を確認している。この時点では詳細・作成・更新・削除 API と Web は後続としていた。
 
 次の機能は Task 一覧画面 → 詳細 → 作成 → 更新 → 削除の順で、小さく進める。
 一覧画面を作るときに Table、フォームを作るときに Textarea の story を追加し、Task 作成の主要導線ができた段階で Playwright を拡張する。一覧 API だけの変更では story を追加しない。
 
 ### Task 一覧 Web の区切り（2026-10-28）
 
-`feat/phase-2/task-list-web` では、認証付きの Task 一覧取得と、一覧・空状態・loading・error を実装済みである。
+認証付きの Task 一覧取得と、一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。
 タスクは `/projects/[projectId]/tasks`、設定は `/projects/[projectId]/setting` に分け、それぞれのページでデータを取得し、画面に合う loading を表示する。Project の入口 URL はタスク一覧へ転送する。
 ユーザーは、開発用データによる PC・モバイルの一覧表示、0件の表示、エラーから再試行での復旧と、`pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm build` の成功を確認している。
 PR 前にエージェントが format check、Storybook build、ブラウザ E2E 用 build、変更したタブ導線・設定更新・アーカイブ解除の Playwright 2件の成功を確認した。専用 DB・Supabase の実行前後のデータ件数は0件である。
-追加の構成整理は別ブランチで扱い、Task 詳細・作成・更新・削除は後続の操作として進める。
+その後、画面の利用範囲に合わせた配置整理は PR #39、共通の状態・優先度・権限定義の `features` 配下への移動は PR #40 で `develop` にマージ済みである。
+
+### Task 詳細 API の区切り（2026-10-29）
+
+`feat/phase-2/task-detail-api` では、`GET /api/projects/:projectId/tasks/:taskId` を実装済みである。
+既存の Controller → Service → Repository → PrismaService の構成に追加し、DB 定義・migration の変更や DDD・クリーンアーキテクチャへの移行は行っていない。
+本人の参加情報を確認した後、Task ID と Project ID の両方で1件を取得する。owner・member・viewer とアーカイブ状態の6通りで閲覧でき、Task 不在・所属違いは同じ404とする。
+
+詳細の API E2E は15件を追加し、専用 DB・Supabase で一覧25件と合わせて40件の成功を確認した。認証・メール条件、Project 不在・非参加、参加情報削除後の拒否、返却する10項目と日付・日時、取得前後のデータ維持を確認している。
+最終確認では既存を含む API E2E 全260件・4ファイル、API 単体テスト16件、API lint・typecheck・buildが成功した。実行前後の専用 DB の User・Project・ProjectMember・Task と専用 Supabase の Auth ユーザーはすべて0件で、確認後は専用環境を終了した。
+ユーザーは Swagger で、参加 Project の実在する Task の200、Task 不在の404、Project 不在の404、token なしの401を手動確認し、問題がないことを報告した。
+Web の変更はないため、この区切りでは Web テスト・Web build・Storybook build・Playwright は再実行していない。
+API 契約と検証内容の詳細は [UI_API.md](./UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) と [API README](../apps/api/README.md#task-詳細の-api-e2e) を参照する。
+
+次は `/projects/[projectId]/tasks/[taskId]` の閲覧画面と一覧からのリンクを、別の小さな変更として進める。作成・更新・削除は、その後の操作として扱う。
 
 ## 例: プロジェクト作成 API
 
