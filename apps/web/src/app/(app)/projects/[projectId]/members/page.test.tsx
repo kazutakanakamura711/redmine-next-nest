@@ -130,7 +130,7 @@ describe('ProjectMembersPage', () => {
     );
     expect(screen.getByRole('link', { name: '設定' })).toHaveAttribute(
       'href',
-      '/projects/project-id?tab=setting',
+      '/projects/project-id/setting',
     );
 
     const table = screen.getByRole('table', {

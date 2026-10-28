@@ -31,7 +31,11 @@ export function ProjectDetailTabs({
 }: ProjectDetailTabsProps) {
   const projectPath = `/projects/${encodeURIComponent(projectId)}`;
   const tabs = [
-    { value: ProjectTabs.Task, href: projectPath, icon: ClipboardList },
+    {
+      value: ProjectTabs.Task,
+      href: `${projectPath}/tasks`,
+      icon: ClipboardList,
+    },
     {
       value: ProjectTabs.Member,
       href: `${projectPath}/members`,
@@ -39,7 +43,7 @@ export function ProjectDetailTabs({
     },
     {
       value: ProjectTabs.Setting,
-      href: `${projectPath}?tab=setting`,
+      href: `${projectPath}/setting`,
       icon: Settings,
     },
   ];

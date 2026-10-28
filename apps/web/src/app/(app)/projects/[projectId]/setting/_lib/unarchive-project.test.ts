@@ -2,8 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectRequestError } from './api-error';
-import { updateProject, type UpdateProjectInput } from './update-project';
+import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
+import { unarchiveProject } from './unarchive-project';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -16,11 +16,6 @@ vi.mock('@/lib/supabase/client', () => ({
 
 const fetchMock = vi.fn<typeof fetch>();
 const projectId = 'project-1';
-
-const input: UpdateProjectInput = {
-  name: '更新後のプロジェクト',
-  description: '',
-};
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -41,74 +36,72 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe('updateProject の認証付き更新', () => {
-  it('ブラウザ用クライアントでセッションを取得し、Bearer token と空文字の説明を含む入力内容を PATCH する', async () => {
-    await expect(updateProject(projectId, input)).resolves.toBeUndefined();
+describe('unarchiveProject の認証付きアーカイブ解除', () => {
+  it('ブラウザ用クライアントでセッションを取得し、Bearer token を付けて本文なしで解除 API に POST する', async () => {
+    await expect(unarchiveProject(projectId)).resolves.toBeUndefined();
 
     expect(mocks.createClient).toHaveBeenCalledOnce();
     expect(mocks.getSession).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3001/api/projects/project-1',
+      'http://localhost:3001/api/projects/project-1/unarchive',
       {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: 'Bearer test-access-token',
         },
-        body: JSON.stringify(input),
       },
     );
   });
 
-  it('セッションがない場合は、更新 API を呼ばずにエラーを投げる', async () => {
+  it('セッションがない場合は、解除 API を呼ばずにエラーを投げる', async () => {
     mocks.getSession.mockResolvedValue({
       data: { session: null },
       error: null,
     });
 
-    await expect(updateProject(projectId, input)).rejects.toThrow(
+    await expect(unarchiveProject(projectId)).rejects.toThrow(
       'ログインセッションを取得できませんでした。',
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('セッション取得にエラーがある場合は、セッションが返っていても更新 API を呼ばない', async () => {
+  it('セッション取得にエラーがある場合は、セッションが返っていても解除 API を呼ばない', async () => {
     mocks.getSession.mockResolvedValue({
       data: { session: { access_token: 'test-access-token' } },
       error: new Error('Session read failed'),
     });
 
-    await expect(updateProject(projectId, input)).rejects.toThrow(
+    await expect(unarchiveProject(projectId)).rejects.toThrow(
       'ログインセッションを取得できませんでした。',
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('セッション取得の通信が失敗した場合は、更新 API を呼ばずエラーを伝える', async () => {
+  it('セッション取得の通信が失敗した場合は、解除 API を呼ばずエラーを伝える', async () => {
     const sessionError = new TypeError('Failed to fetch');
     mocks.getSession.mockRejectedValue(sessionError);
 
-    await expect(updateProject(projectId, input)).rejects.toBe(sessionError);
+    await expect(unarchiveProject(projectId)).rejects.toBe(sessionError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each([401, 403, 404])(
-    'セッションがあっても、更新 API の %s を成功として扱わず statusCode を伝える',
+    'セッションがあっても、解除 API の %s を成功として扱わず statusCode を伝える',
     async (status) => {
       fetchMock.mockResolvedValue(
         Response.json(
-          { message: 'プロジェクトを更新できませんでした。' },
+          { message: 'プロジェクトのアーカイブを解除できませんでした。' },
           { status },
         ),
       );
 
-      const request = updateProject(projectId, input);
+      const request = unarchiveProject(projectId);
 
       await expect(request).rejects.toBeInstanceOf(ProjectRequestError);
       await expect(request).rejects.toMatchObject({
         statusCode: status,
-        message: 'プロジェクトを更新できませんでした。',
+        message: 'プロジェクトのアーカイブを解除できませんでした。',
       });
     },
   );
@@ -121,19 +114,19 @@ describe('updateProject の認証付き更新', () => {
       }),
     );
 
-    const request = updateProject(projectId, input);
+    const request = unarchiveProject(projectId);
 
     await expect(request).rejects.toBeInstanceOf(ProjectRequestError);
     await expect(request).rejects.toMatchObject({
       statusCode: 500,
-      message: 'プロジェクトの更新に失敗しました。',
+      message: 'プロジェクトのアーカイブ解除に失敗しました。',
     });
   });
 
   it('API の URL が未設定の場合は、セッション取得と API 呼び出しを行わない', async () => {
     vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', '');
 
-    await expect(updateProject(projectId, input)).rejects.toThrow(
+    await expect(unarchiveProject(projectId)).rejects.toThrow(
       'NEXT_PUBLIC_API_BASE_URL が設定されていません。',
     );
     expect(mocks.createClient).not.toHaveBeenCalled();

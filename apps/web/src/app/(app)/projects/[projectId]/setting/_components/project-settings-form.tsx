@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { updateProject } from '@/app/(app)/projects/_lib/update-project';
+import { updateProject } from '../_lib/update-project';
 import { ProjectRequestError } from '@/app/(app)/projects/_lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';

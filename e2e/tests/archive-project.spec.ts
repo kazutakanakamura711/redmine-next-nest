@@ -34,8 +34,12 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
     .getByRole('link', { name: `${projectName}の詳細を開く`, exact: true });
   await expect(projectRow.getByText('進行中', { exact: true })).toBeVisible();
   await projectRow.click();
-  await expect(page).toHaveURL(/^http:\/\/localhost:3100\/projects\/[^/?]+$/);
-  const projectUrl = page.url();
+  await expect(page).toHaveURL(
+    /^http:\/\/localhost:3100\/projects\/[^/?]+\/tasks$/,
+  );
+  const tasksUrl = page.url();
+  const projectUrl = tasksUrl.slice(0, -'/tasks'.length);
+  const settingUrl = `${projectUrl}/setting`;
 
   const settingsLink = page
     .getByRole('navigation', { name: 'プロジェクト詳細', exact: true })
@@ -53,7 +57,7 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
 
   // 設定から確認ダイアログを開き、名前が一致するまで実行できないことを確認する。
   await settingsLink.click();
-  await expect(page).toHaveURL(`${projectUrl}?tab=setting`);
+  await expect(page).toHaveURL(settingUrl);
   await page.getByRole('button', { name: 'アーカイブ', exact: true }).click();
 
   const archiveDialog = page.getByRole('alertdialog', {
@@ -76,7 +80,7 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
 
   // アーカイブ直後に設定URLから戻り、案内とサイドバーへ状態が反映される。
   await expect(archiveDialog).not.toBeVisible();
-  await expect(page).toHaveURL(projectUrl);
+  await expect(page).toHaveURL(tasksUrl);
   await expect(heading).toBeVisible();
   await expect(archiveNotice).toBeVisible();
   await expect(sidebarProject).toBeVisible();
@@ -84,7 +88,7 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
 
   await page.reload();
 
-  await expect(page).toHaveURL(projectUrl);
+  await expect(page).toHaveURL(tasksUrl);
   await expect(heading).toBeVisible();
   await expect(archiveNotice).toBeVisible();
   await expect(sidebarProject).toBeVisible();
@@ -109,14 +113,14 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
 
   // アーカイブ済みのProjectを開き直し、設定から解除する。
   await projectRow.click();
-  await expect(page).toHaveURL(projectUrl);
+  await expect(page).toHaveURL(tasksUrl);
   await settingsLink.click();
-  await expect(page).toHaveURL(`${projectUrl}?tab=setting`);
+  await expect(page).toHaveURL(settingUrl);
   await page
     .getByRole('button', { name: 'アーカイブを解除', exact: true })
     .click();
 
-  await expect(page).toHaveURL(projectUrl);
+  await expect(page).toHaveURL(tasksUrl);
   await expect(heading).toBeVisible();
   await expect(archiveNotice).toHaveCount(0);
   await expect(sidebarProject).toBeVisible();
@@ -124,7 +128,7 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
 
   await page.reload();
 
-  await expect(page).toHaveURL(projectUrl);
+  await expect(page).toHaveURL(tasksUrl);
   await expect(heading).toBeVisible();
   await expect(archiveNotice).toHaveCount(0);
   await expect(sidebarProject).toBeVisible();
@@ -132,7 +136,7 @@ test('Projectをアーカイブ・解除でき、再読み込み後も状態が�
 
   // 解除後は通常のアーカイブボタンへ戻り、一覧にも進行中として表示される。
   await settingsLink.click();
-  await expect(page).toHaveURL(`${projectUrl}?tab=setting`);
+  await expect(page).toHaveURL(settingUrl);
   await expect(
     page.getByRole('button', { name: 'アーカイブ', exact: true }),
   ).toBeVisible();

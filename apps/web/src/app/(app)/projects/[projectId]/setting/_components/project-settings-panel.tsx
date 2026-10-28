@@ -16,7 +16,7 @@ export function ProjectSettingsPanel({ project }: ProjectSettingsPanelProps) {
   const router = useRouter();
 
   const handleArchiveStateChanged = () => {
-    router.replace(`/projects/${encodeURIComponent(project.id)}`);
+    router.replace(`/projects/${encodeURIComponent(project.id)}/tasks`);
   };
 
   return (

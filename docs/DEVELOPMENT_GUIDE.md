@@ -20,10 +20,18 @@ Task は一覧・詳細、作成、更新、削除を操作ごとに進め、対
 
 ### Task の現在の区切り（2026-10-27）
 
-`feat/phase-2/task-list-api` では、Task モデル・migration と `GET /api/projects/:projectId/tasks` を実装済みである。Task 一覧の API E2E は25件、既存を含む API E2E 全体は245件が専用環境で成功した。ユーザーは Swagger で token なしの401、参加 Project の200と空配列、存在しない Project の404を確認している。詳細・作成・更新・削除 API と Web は後続で、現在の変更はまだ未コミット・未マージである。
+Task モデル・migration と `GET /api/projects/:projectId/tasks` は PR #37 で `develop` にマージ済みである。その区切りで Task 一覧の API E2E は25件、既存を含む API E2E 全体は245件が専用環境で成功した。ユーザーは Swagger で token なしの401、参加 Project の200と空配列、存在しない Project の404を確認している。詳細・作成・更新・削除 API と Web は後続である。
 
-この区切りは文書と差分のレビュー、PR前の全体確認を終えてからまとめる。次の機能は Task 一覧画面 → 詳細 → 作成 → 更新 → 削除の順で、小さく進める。
+次の機能は Task 一覧画面 → 詳細 → 作成 → 更新 → 削除の順で、小さく進める。
 一覧画面を作るときに Table、フォームを作るときに Textarea の story を追加し、Task 作成の主要導線ができた段階で Playwright を拡張する。一覧 API だけの変更では story を追加しない。
+
+### Task 一覧 Web の区切り（2026-10-28）
+
+`feat/phase-2/task-list-web` では、認証付きの Task 一覧取得と、一覧・空状態・loading・error を実装済みである。
+タスクは `/projects/[projectId]/tasks`、設定は `/projects/[projectId]/setting` に分け、それぞれのページでデータを取得し、画面に合う loading を表示する。Project の入口 URL はタスク一覧へ転送する。
+ユーザーは、開発用データによる PC・モバイルの一覧表示、0件の表示、エラーから再試行での復旧と、`pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm build` の成功を確認している。
+PR 前にエージェントが format check、Storybook build、ブラウザ E2E 用 build、変更したタブ導線・設定更新・アーカイブ解除の Playwright 2件の成功を確認した。専用 DB・Supabase の実行前後のデータ件数は0件である。
+追加の構成整理は別ブランチで扱い、Task 詳細・作成・更新・削除は後続の操作として進める。
 
 ## 例: プロジェクト作成 API
 

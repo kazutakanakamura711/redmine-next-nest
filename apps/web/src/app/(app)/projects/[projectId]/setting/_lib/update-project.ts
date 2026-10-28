@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
-import { getErrorMessage, ProjectRequestError } from './api-error';
+import {
+  getErrorMessage,
+  ProjectRequestError,
+} from '@/app/(app)/projects/_lib/api-error';
 
 // NestJS の PATCH /projects/:projectId に送るリクエスト本文の形。
 // key は作成後に変更できないため、含めない。

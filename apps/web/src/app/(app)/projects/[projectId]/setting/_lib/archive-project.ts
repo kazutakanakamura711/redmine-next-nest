@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
-import { getErrorMessage, ProjectRequestError } from './api-error';
+import {
+  getErrorMessage,
+  ProjectRequestError,
+} from '@/app/(app)/projects/_lib/api-error';
 
 // プロジェクトアーカイブ API を呼び出す。
 // 成功時は何も返さず、失敗時は画面で扱えるエラーを投げる。
