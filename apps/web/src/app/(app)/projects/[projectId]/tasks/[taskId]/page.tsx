@@ -25,6 +25,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   return (
     <TaskDetail
       task={task}
+      projectKey={project.key}
       projectName={project.name}
       isArchived={project.isArchived}
     />

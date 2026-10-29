@@ -37,6 +37,9 @@ const tasks: Task[] = [
   {
     id: 'task-id',
     projectId: project.id,
+    number: 1,
+    assignee: null,
+    reporter: { id: 'reporter-id', name: '山田太郎' },
     title: 'タスク一覧を接続する',
     description: null,
     status: 'in_progress',
@@ -88,6 +91,14 @@ describe('ProjectTasksPage', () => {
           tasks[0].title,
         ),
       ).toBeInTheDocument();
+      expect(
+        within(screen.getByRole('table', { name: 'タスク一覧' })).getByRole(
+          'link',
+          {
+            name: `${project.key}-${tasks[0].number}`,
+          },
+        ),
+      ).toHaveAttribute('href', `/projects/${project.id}/tasks/${tasks[0].id}`);
       expect(Boolean(screen.queryByRole('link', { name: '設定' }))).toBe(
         currentUserRole === ProjectRole.Owner,
       );

@@ -18,6 +18,7 @@ import { formatDateTime } from '@/lib/format-date';
 
 type TaskDetailProps = {
   task: Task;
+  projectKey: string;
   projectName: string;
   isArchived: boolean;
 };
@@ -31,7 +32,12 @@ function TaskDate({ value }: { value: string | null }) {
   );
 }
 
-export function TaskDetail({ task, projectName, isArchived }: TaskDetailProps) {
+export function TaskDetail({
+  task,
+  projectKey,
+  projectName,
+  isArchived,
+}: TaskDetailProps) {
   const tasksPath = `/projects/${encodeURIComponent(task.projectId)}/tasks`;
 
   return (
@@ -55,11 +61,15 @@ export function TaskDetail({ task, projectName, isArchived }: TaskDetailProps) {
             </BreadcrumbItem>
             <BreadcrumbSeparator>/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage>タスク詳細</BreadcrumbPage>
+              <BreadcrumbPage>
+                {projectKey}-{task.number}
+              </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <h1 className="text-base font-semibold tracking-tight">タスク詳細</h1>
+        <h1 className="text-base font-semibold tracking-tight">
+          {projectKey}-{task.number}
+        </h1>
       </header>
 
       {isArchived && (
@@ -114,6 +124,20 @@ export function TaskDetail({ task, projectName, isArchived }: TaskDetailProps) {
                   priority={task.priority}
                   className="w-full justify-start"
                 />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">担当者</dt>
+              <dd className="mt-1 wrap-anywhere">
+                {task.assignee
+                  ? task.assignee.name?.trim() || '名前未設定'
+                  : '未担当'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">報告者</dt>
+              <dd className="mt-1 wrap-anywhere">
+                {task.reporter.name?.trim() || '名前未設定'}
               </dd>
             </div>
           </dl>

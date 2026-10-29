@@ -13,28 +13,49 @@ export default function ProjectTasksLoading() {
         <div className="flex min-h-12 items-center justify-end border-b border-border bg-background px-3 py-2 sm:px-6">
           <Skeleton className="h-3 w-8" />
         </div>
-        <div className="hidden h-10 items-center gap-6 border-b border-border bg-slate-50 px-4 md:flex">
-          <Skeleton className="h-3 w-24 flex-1" />
-          {Array.from({ length: 4 }, (_, index) => (
-            <Skeleton key={index} className="h-3 w-20" />
-          ))}
-        </div>
-
-        <div className="space-y-2 p-3 md:space-y-0 md:bg-background md:p-0">
+        <div className="hidden overflow-x-auto md:block">
+          <div className="grid h-10 min-w-4xl grid-cols-[6rem_minmax(0,1fr)_7rem_4rem_7rem_7rem_7rem_6rem] items-center border-b border-border bg-slate-50 px-3">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-3 w-24" />
+            {Array.from({ length: 6 }, (_, index) => (
+              <Skeleton key={index} className="h-3 w-12" />
+            ))}
+          </div>
           {Array.from({ length: 3 }, (_, index) => (
             <div
               key={index}
-              className="rounded-sm border border-border bg-background p-3 shadow-sm md:flex md:items-center md:gap-6 md:rounded-none md:border-x-0 md:border-t-0 md:p-4 md:shadow-none"
+              className="grid min-w-4xl grid-cols-[6rem_minmax(0,1fr)_7rem_4rem_7rem_7rem_7rem_6rem] items-center border-b border-border bg-background px-3 py-4"
             >
-              <div className="flex min-w-0 items-center justify-between gap-4 md:flex-1">
-                <Skeleton className="h-4 w-full max-w-52" />
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-4 w-full max-w-44" />
+              <Skeleton className="h-5 w-16 rounded-sm" />
+              <Skeleton className="h-5 w-8 rounded-sm" />
+              {Array.from({ length: 4 }, (_, column) => (
+                <Skeleton key={column} className="h-3 w-16" />
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2 p-3 md:hidden">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div
+              key={index}
+              className="rounded-sm border border-border bg-background p-3 shadow-sm"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-4">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-4 w-full max-w-52" />
+                </div>
                 <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />
               </div>
-              <div className="mt-2 flex items-center justify-between gap-4 md:mt-0 md:shrink-0">
+              <div className="mt-3 flex items-center gap-2">
                 <Skeleton className="h-5 w-8 rounded-sm" />
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="hidden h-3 w-16 md:block" />
+                <Skeleton className="ml-auto h-3 w-20" />
               </div>
+              <Skeleton className="mt-2 h-3 w-32" />
+              <Skeleton className="mt-2 h-3 w-32" />
             </div>
           ))}
         </div>

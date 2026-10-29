@@ -53,10 +53,13 @@ export class TaskController {
     return tasks.map((task) => ({
       id: task.id,
       projectId: task.projectId,
+      number: task.number,
       title: task.title,
       description: task.description,
       status: task.status,
       priority: task.priority,
+      assignee: task.assignee,
+      reporter: task.reporter,
       startDate: task.startDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
       dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
       createdAt: task.createdAt.toISOString(),
@@ -100,10 +103,13 @@ export class TaskController {
     return {
       id: task.id,
       projectId: task.projectId,
+      number: task.number,
       title: task.title,
       description: task.description,
       status: task.status,
       priority: task.priority,
+      assignee: task.assignee,
+      reporter: task.reporter,
       startDate: task.startDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
       dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
       createdAt: task.createdAt.toISOString(),

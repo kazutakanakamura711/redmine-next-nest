@@ -16,6 +16,9 @@ const tasks: Task[] = [
   {
     id: 'task-1',
     projectId: 'project-1',
+    number: 10,
+    assignee: { id: 'assignee-1', name: '山田太郎' },
+    reporter: { id: 'reporter-1', name: '山田太郎' },
     title: 'ログイン機能を実装する',
     description: null,
     status: TaskStatus.InProgress,
@@ -28,6 +31,9 @@ const tasks: Task[] = [
   {
     id: 'task-2',
     projectId: 'project-1',
+    number: 12,
+    assignee: { id: 'assignee-2', name: '佐藤花子' },
+    reporter: { id: 'reporter-1', name: '山田太郎' },
     title: 'タスク一覧画面を作る',
     description: null,
     status: TaskStatus.Todo,
@@ -40,6 +46,9 @@ const tasks: Task[] = [
   {
     id: 'task-3',
     projectId: 'project-1',
+    number: 13,
+    assignee: null,
+    reporter: { id: 'reporter-1', name: '山田太郎' },
     title: 'Prisma スキーマを定義する',
     description: null,
     status: TaskStatus.Done,
@@ -73,7 +82,7 @@ const meta = {
       </div>
     ),
   ],
-  args: { tasks },
+  args: { tasks, projectKey: 'APP' },
 } satisfies Meta<typeof TaskList>;
 
 export default meta;
@@ -117,5 +126,40 @@ export const WithHeaderAction: Story = {
         操作ボタン
       </Button>
     ),
+  },
+};
+
+export const WithoutUserNames: Story = {
+  args: {
+    tasks: [
+      {
+        ...tasks[0],
+        assignee: { id: 'assignee-1', name: null },
+        reporter: { id: 'reporter-1', name: null },
+      },
+      {
+        ...tasks[1],
+        assignee: null,
+        reporter: { id: 'reporter-1', name: null },
+      },
+    ],
+  },
+};
+
+export const LongUserNames: Story = {
+  args: {
+    tasks: [
+      {
+        ...tasks[0],
+        assignee: {
+          id: 'assignee-1',
+          name: 'LongAssigneeNameWithoutSpaces'.repeat(6),
+        },
+        reporter: {
+          id: 'reporter-1',
+          name: 'LongReporterNameWithoutSpaces'.repeat(6),
+        },
+      },
+    ],
   },
 };

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectDetail } from '../../_lib/get-project';
@@ -32,10 +32,13 @@ const project: ProjectDetail = {
 const task: Task = {
   id: 'task-id',
   projectId: project.id,
+  number: 12,
   title: 'タスク詳細を表示する',
   description: 'APIから取得した内容を表示します。\n説明の改行も保持します。',
   status: 'in_progress',
   priority: 'high',
+  assignee: { id: 'assignee-id', name: '山田太郎' },
+  reporter: { id: 'reporter-id', name: '佐藤花子' },
   startDate: '2026-10-29',
   dueDate: '2026-11-02',
   createdAt: '2026-10-28T15:30:00.000Z',
@@ -78,7 +81,15 @@ describe('TaskDetailPage', () => {
       expect(screen.getByText('進行中')).toBeInTheDocument();
       expect(screen.getByText('高')).toBeInTheDocument();
       expect(
-        screen.getByRole('heading', { level: 1, name: 'タスク詳細' }),
+        screen.getByRole('heading', {
+          level: 1,
+          name: `${project.key}-${task.number}`,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(
+          screen.getByRole('navigation', { name: 'パンくずリスト' }),
+        ).getByText(`${project.key}-${task.number}`),
       ).toBeInTheDocument();
       expect(screen.getByRole('link', { name: project.name })).toHaveAttribute(
         'href',
@@ -87,6 +98,15 @@ describe('TaskDetailPage', () => {
       expect(
         screen.getByRole('complementary', { name: '属性' }),
       ).toBeInTheDocument();
+      const properties = within(
+        screen.getByRole('complementary', { name: '属性' }),
+      );
+      expect(properties.getByText('担当者').parentElement).toHaveTextContent(
+        '山田太郎',
+      );
+      expect(properties.getByText('報告者').parentElement).toHaveTextContent(
+        '佐藤花子',
+      );
       expect(
         screen.queryByRole('navigation', { name: 'プロジェクト詳細' }),
       ).not.toBeInTheDocument();
@@ -116,6 +136,38 @@ describe('TaskDetailPage', () => {
       task.updatedAt,
     );
   });
+
+  it('担当者がnullなら未担当と表示し、報告者の名前は表示する', async () => {
+    mocks.getTask.mockResolvedValue({ ...task, assignee: null });
+
+    await renderPage();
+
+    const properties = within(
+      screen.getByRole('complementary', { name: '属性' }),
+    );
+    expect(properties.getByText('未担当')).toBeInTheDocument();
+    expect(properties.getByText('佐藤花子')).toBeInTheDocument();
+    expect(properties.queryByText('名前未設定')).not.toBeInTheDocument();
+  });
+
+  it.each([null, '   '])(
+    '担当者・報告者の名前が%sなら名前未設定と表示し、未担当とは区別する',
+    async (name) => {
+      mocks.getTask.mockResolvedValue({
+        ...task,
+        assignee: { id: 'assignee-id', name },
+        reporter: { ...task.reporter, name },
+      });
+
+      await renderPage();
+
+      const properties = within(
+        screen.getByRole('complementary', { name: '属性' }),
+      );
+      expect(properties.getAllByText('名前未設定')).toHaveLength(2);
+      expect(properties.queryByText('未担当')).not.toBeInTheDocument();
+    },
+  );
 
   it('説明・開始日・期限が未設定でも詳細を表示する', async () => {
     mocks.getTask.mockResolvedValue({

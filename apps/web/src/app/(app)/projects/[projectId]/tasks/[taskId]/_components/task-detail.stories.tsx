@@ -8,11 +8,14 @@ import { TaskDetail } from './task-detail';
 const task: Task = {
   id: 'task-1',
   projectId: 'project-1',
+  number: 12,
   title: 'ログイン画面を実装する',
   description:
     'メールアドレスとパスワードでログインできる画面を作ります。\n入力エラーと送信中の表示を確認します。',
   status: 'in_progress',
   priority: 'high',
+  assignee: { id: 'assignee-1', name: '山田太郎' },
+  reporter: { id: 'reporter-1', name: '佐藤花子' },
   startDate: '2026-10-29',
   dueDate: '2026-11-02',
   createdAt: '2026-10-28T15:30:00.000Z',
@@ -30,7 +33,12 @@ const meta = {
       </div>
     ),
   ],
-  args: { task, projectName: 'Task Management App', isArchived: false },
+  args: {
+    task,
+    projectKey: 'APP',
+    projectName: 'Task Management App',
+    isArchived: false,
+  },
 } satisfies Meta<typeof TaskDetail>;
 
 export default meta;
@@ -66,6 +74,7 @@ export const WithoutOptionalFields: Story = {
     task: {
       ...task,
       description: null,
+      assignee: null,
       startDate: null,
       dueDate: null,
       status: 'todo',
@@ -79,6 +88,14 @@ export const LongContent: Story = {
     projectName: 'LongProjectNameWithoutSpaces'.repeat(6),
     task: {
       ...task,
+      assignee: {
+        id: 'assignee-1',
+        name: 'LongAssigneeNameWithoutSpaces'.repeat(6),
+      },
+      reporter: {
+        id: 'reporter-1',
+        name: 'LongReporterNameWithoutSpaces'.repeat(6),
+      },
       title: 'LongTaskTitleWithoutSpaces'.repeat(8),
       description:
         '長い説明でも改行を保持して読み進められることを確認します。\n'.repeat(
@@ -86,6 +103,16 @@ export const LongContent: Story = {
         ) + 'LongDescriptionWithoutSpaces'.repeat(30),
       status: 'done',
       priority: 'low',
+    },
+  },
+};
+
+export const WithoutUserNames: Story = {
+  args: {
+    task: {
+      ...task,
+      assignee: { id: 'assignee-1', name: null },
+      reporter: { id: 'reporter-1', name: null },
     },
   },
 };

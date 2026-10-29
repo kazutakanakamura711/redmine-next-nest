@@ -35,6 +35,28 @@ import { ProjectMemberResponseDto } from './dto/project-member-response.dto.js';
 import { CreateProjectMemberDto } from './dto/create-project-member.dto.js';
 import { UpdateProjectMemberRoleDto } from './dto/update-project-member-role.dto.js';
 
+type ProjectResponseData = Omit<
+  ProjectResponseDto,
+  'createdAt' | 'updatedAt'
+> & {
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+// DBの内部カラムを公開せず、Project APIの返却項目と日時形式を揃える。
+function toProjectResponse(project: ProjectResponseData): ProjectResponseDto {
+  return {
+    id: project.id,
+    ownerId: project.ownerId,
+    name: project.name,
+    key: project.key,
+    description: project.description,
+    isArchived: project.isArchived,
+    createdAt: project.createdAt.toISOString(),
+    updatedAt: project.updatedAt.toISOString(),
+  };
+}
+
 @ApiTags('Projects')
 @ApiBearerAuth()
 @ApiUnauthorizedResponse({
@@ -56,8 +78,11 @@ export class ProjectsController {
     type: ProjectResponseDto,
     isArray: true,
   })
-  findAll(@Req() request: AuthenticatedRequest) {
-    return this.projectsService.findAll(request.user.id);
+  async findAll(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ProjectResponseDto[]> {
+    const projects = await this.projectsService.findAll(request.user.id);
+    return projects.map(toProjectResponse);
   }
 
   @Get(':projectId')
@@ -75,11 +100,18 @@ export class ProjectsController {
   @ApiNotFoundResponse({
     description: '指定したプロジェクトが存在しない、または参加していない',
   })
-  findOneForMember(
+  async findOneForMember(
     @Param('projectId') projectId: string,
     @Req() request: AuthenticatedRequest,
-  ) {
-    return this.projectsService.findOneForMember(projectId, request.user.id);
+  ): Promise<ProjectDetailResponseDto> {
+    const project = await this.projectsService.findOneForMember(
+      projectId,
+      request.user.id,
+    );
+    return {
+      ...toProjectResponse(project),
+      currentUserRole: project.currentUserRole,
+    };
   }
 
   @Get(':projectId/members')
@@ -257,8 +289,12 @@ export class ProjectsController {
   @ApiConflictResponse({
     description: 'プロジェクトキーがすでに使用されている',
   })
-  create(@Body() dto: CreateProjectDto, @Req() request: AuthenticatedRequest) {
-    return this.projectsService.create(dto, request.user.id);
+  async create(
+    @Body() dto: CreateProjectDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ProjectResponseDto> {
+    const project = await this.projectsService.create(dto, request.user.id);
+    return toProjectResponse(project);
   }
 
   @Patch(':projectId')
@@ -282,12 +318,17 @@ export class ProjectsController {
   @ApiNotFoundResponse({
     description: '指定したプロジェクトが存在しない、または参加していない',
   })
-  update(
+  async update(
     @Param('projectId') projectId: string,
     @Body() dto: UpdateProjectDto,
     @Req() request: AuthenticatedRequest,
-  ) {
-    return this.projectsService.update(projectId, dto, request.user.id);
+  ): Promise<ProjectResponseDto> {
+    const project = await this.projectsService.update(
+      projectId,
+      dto,
+      request.user.id,
+    );
+    return toProjectResponse(project);
   }
 
   @Post(':projectId/archive')
@@ -309,11 +350,15 @@ export class ProjectsController {
   @ApiNotFoundResponse({
     description: '指定したプロジェクトが存在しない、または参加していない',
   })
-  archive(
+  async archive(
     @Param('projectId') projectId: string,
     @Req() request: AuthenticatedRequest,
-  ) {
-    return this.projectsService.archive(projectId, request.user.id);
+  ): Promise<ProjectResponseDto> {
+    const project = await this.projectsService.archive(
+      projectId,
+      request.user.id,
+    );
+    return toProjectResponse(project);
   }
 
   @Post(':projectId/unarchive')
@@ -337,10 +382,14 @@ export class ProjectsController {
   @ApiNotFoundResponse({
     description: '指定したプロジェクトが存在しない、または参加していない',
   })
-  unarchive(
+  async unarchive(
     @Param('projectId') projectId: string,
     @Req() request: AuthenticatedRequest,
-  ) {
-    return this.projectsService.unarchive(projectId, request.user.id);
+  ): Promise<ProjectResponseDto> {
+    const project = await this.projectsService.unarchive(
+      projectId,
+      request.user.id,
+    );
+    return toProjectResponse(project);
   }
 }
