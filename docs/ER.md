@@ -8,8 +8,8 @@ erDiagram
     User ||--o{ ProjectMember : joins
     Project ||--o{ ProjectMember : has
     Project ||--o{ Task : has
-    User ||--o{ Task : reports
-    User ||--o{ Task : assigned
+    User |o--o{ Task : reports
+    User |o--o{ Task : assigned
     Task ||--o{ Comment : has
     User ||--o{ Comment : writes
     Task ||--o{ TaskHistory : records
@@ -48,7 +48,7 @@ erDiagram
         string project_id FK
         int number
         string parent_task_id FK "nullable, self-reference"
-        string reporter_id FK
+        string reporter_id FK "nullable"
         string assignee_id FK "nullable"
         string title
         string description "nullable"
@@ -93,6 +93,8 @@ erDiagram
 - [Task 追加の migration](../apps/api/prisma/migrations/20261026102234_add_task/migration.sql) は2つの enum・tasks テーブル・index・外部キーを追加する。既存テーブルの削除や既存データの更新は行わない。Prisma の `Project.tasks` は逆参照であり、projects テーブルにカラムを追加しない。
 - 番号・親子関係・作成者・担当者・予定工数・完了日時は後続とする。上の図にあるそれらの項目・User との関連は、現在の Prisma schema には含めていない。
 
+2026-10-29に、番号・担当者・報告者は基本機能へ段階導入する範囲として合意した。`number` はProject内で一意、`assignee_id`・`reporter_id` はUserへのnullableな外部キーとする。担当者は参加情報の削除時に解除し、報告者は作成者の記録として保持する。採番・transaction・既存データの扱いは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) を参照する。これらのカラム・制約はまだDBへ追加していない。
+
 ## 補足制約（完成形）
 
 - `Task.parent_task_id` は `Task.id` を参照する自己参照FKである
@@ -100,3 +102,4 @@ erDiagram
 - `ProjectMember` は `(project_id, user_id)` の組み合わせで一意とする
 - `ProjectMember.role` は初期実装では `owner | member | viewer` とする。`manager` は owner と member の間の権限が必要になった時点で追加を検討する
 - `Task` は `(project_id, number)` の組み合わせで一意とする
+- `Task.assignee_id`・`Task.reporter_id` は `User.id` を参照し、未設定は `null` とする

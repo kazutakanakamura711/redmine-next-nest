@@ -1,20 +1,7 @@
 import { connection } from 'next/server';
-import { TaskPriority } from '@/features/tasks/types/task-priority';
-import { TaskStatus } from '@/features/tasks/types/task-status';
+import type { Task } from '@/features/tasks/types/task';
 import { createClient } from '@/lib/supabase/server';
 
-export type Task = {
-  id: string;
-  projectId: string;
-  title: string;
-  description: string | null;
-  status: TaskStatus;
-  priority: TaskPriority;
-  startDate: string | null;
-  dueDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
 export async function getTasks(projectId: string): Promise<Task[] | null> {
   // タスク一覧は API の最新データを表示するため、ビルド時ではなくリクエスト時に取得する。
   await connection();

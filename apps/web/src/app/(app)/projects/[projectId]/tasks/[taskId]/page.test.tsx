@@ -1,0 +1,190 @@
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { ProjectDetail } from '../../_lib/get-project';
+import { ProjectRole } from '@/features/projects/types/project-role';
+import type { Task } from '@/features/tasks/types/task';
+import TaskDetailPage from './page';
+
+const mocks = vi.hoisted(() => ({
+  getProject: vi.fn(),
+  getTask: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
+}));
+
+vi.mock('../../_lib/get-project', () => ({ getProject: mocks.getProject }));
+vi.mock('./_lib/get-task', () => ({ getTask: mocks.getTask }));
+vi.mock('next/navigation', () => ({ notFound: mocks.notFound }));
+
+const project: ProjectDetail = {
+  id: 'project-id',
+  key: 'TEST',
+  name: 'テストプロジェクト',
+  description: null,
+  isArchived: false,
+  createdAt: '2026-10-18T00:00:00.000Z',
+  updatedAt: '2026-10-18T00:00:00.000Z',
+  currentUserRole: ProjectRole.Owner,
+};
+
+const task: Task = {
+  id: 'task-id',
+  projectId: project.id,
+  title: 'タスク詳細を表示する',
+  description: 'APIから取得した内容を表示します。\n説明の改行も保持します。',
+  status: 'in_progress',
+  priority: 'high',
+  startDate: '2026-10-29',
+  dueDate: '2026-11-02',
+  createdAt: '2026-10-28T15:30:00.000Z',
+  updatedAt: '2026-10-29T09:00:00.000Z',
+};
+
+async function renderPage() {
+  return render(
+    await TaskDetailPage({
+      params: Promise.resolve({ projectId: project.id, taskId: task.id }),
+    }),
+  );
+}
+
+describe('TaskDetailPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getProject.mockResolvedValue(project);
+    mocks.getTask.mockResolvedValue(task);
+  });
+
+  it.each([ProjectRole.Owner, ProjectRole.Member, ProjectRole.Viewer])(
+    '%sに取得したTaskを表示し、パンくずからプロジェクトのタスク一覧へ戻れる',
+    async (currentUserRole) => {
+      mocks.getProject.mockResolvedValue({ ...project, currentUserRole });
+
+      await renderPage();
+
+      expect(mocks.getProject).toHaveBeenCalledExactlyOnceWith(project.id);
+      expect(mocks.getTask).toHaveBeenCalledExactlyOnceWith(
+        project.id,
+        task.id,
+      );
+      expect(
+        screen.getByRole('heading', { name: task.title }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(task.description!, { normalizer: (value) => value }),
+      ).toBeInTheDocument();
+      expect(screen.getByText('進行中')).toBeInTheDocument();
+      expect(screen.getByText('高')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'タスク詳細' }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: project.name })).toHaveAttribute(
+        'href',
+        `/projects/${project.id}/tasks`,
+      );
+      expect(
+        screen.getByRole('complementary', { name: '属性' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('navigation', { name: 'プロジェクト詳細' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /編集|削除|保存/ }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('日付はそのまま、作成・更新日時は日本時間で表示する', async () => {
+    await renderPage();
+
+    expect(screen.getByText('2026/10/29')).toHaveAttribute(
+      'dateTime',
+      task.startDate,
+    );
+    expect(screen.getByText('2026/11/02')).toHaveAttribute(
+      'dateTime',
+      task.dueDate,
+    );
+    expect(screen.getByText('2026/10/29 00:30')).toHaveAttribute(
+      'dateTime',
+      task.createdAt,
+    );
+    expect(screen.getByText('2026/10/29 18:00')).toHaveAttribute(
+      'dateTime',
+      task.updatedAt,
+    );
+  });
+
+  it('説明・開始日・期限が未設定でも詳細を表示する', async () => {
+    mocks.getTask.mockResolvedValue({
+      ...task,
+      description: null,
+      startDate: null,
+      dueDate: null,
+    });
+
+    await renderPage();
+
+    expect(screen.getByText('説明はありません。')).toBeInTheDocument();
+    expect(screen.getAllByText('未設定')).toHaveLength(2);
+    expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+
+  it('説明にHTMLが含まれていても、実行する要素ではなく本文として表示する', async () => {
+    const description =
+      '<script>alert("test")</script>\n<a href="https://example.test">リンク</a>';
+    mocks.getTask.mockResolvedValue({ ...task, description });
+
+    const { container } = await renderPage();
+
+    expect(
+      screen.getByText(description, { normalizer: (value) => value }),
+    ).toBeInTheDocument();
+    expect(container.querySelector('script')).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: 'リンク' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('アーカイブ済みProjectでも詳細を表示する', async () => {
+    mocks.getProject.mockResolvedValue({ ...project, isArchived: true });
+
+    await renderPage();
+
+    expect(
+      screen.getByRole('heading', { name: task.title }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'このプロジェクトはアーカイブ済みです。',
+    );
+  });
+
+  it('Project不在・非参加はTaskを取得せずnotFoundを呼ぶ', async () => {
+    mocks.getProject.mockResolvedValue(null);
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+    expect(mocks.getTask).not.toHaveBeenCalled();
+  });
+
+  it('Task APIの404はnotFoundを呼ぶ', async () => {
+    mocks.getTask.mockResolvedValue(null);
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+
+  it.each(['getProject', 'getTask'] as const)(
+    '%sの取得失敗は404に変換せずエラー境界へ伝える',
+    async (method) => {
+      const error = new Error('取得に失敗しました。');
+      mocks[method].mockRejectedValue(error);
+
+      await expect(renderPage()).rejects.toBe(error);
+      expect(mocks.notFound).not.toHaveBeenCalled();
+      if (method === 'getProject') expect(mocks.getTask).not.toHaveBeenCalled();
+    },
+  );
+});

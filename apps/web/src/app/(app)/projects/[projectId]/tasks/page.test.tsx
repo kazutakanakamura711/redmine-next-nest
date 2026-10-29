@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectDetail } from '../_lib/get-project';
 import { ProjectRole } from '@/features/projects/types/project-role';
-import type { Task } from './_lib/get-tasks';
+import type { Task } from '@/features/tasks/types/task';
 import ProjectTasksPage from './page';
 
 const mocks = vi.hoisted(() => ({
@@ -63,15 +63,22 @@ describe('ProjectTasksPage', () => {
     mocks.getTasks.mockResolvedValue(tasks);
   });
 
-  it.each([ProjectRole.Owner, ProjectRole.Member, ProjectRole.Viewer])(
+  it.each([
+    [ProjectRole.Owner, 'オーナー'],
+    [ProjectRole.Member, 'メンバー'],
+    [ProjectRole.Viewer, '閲覧者'],
+  ] as const)(
     '%sがタスクURLを開くとタスク一覧を表示し、タスクを選択する',
-    async (currentUserRole) => {
+    async (currentUserRole, roleText) => {
       mocks.getProject.mockResolvedValue({ ...project, currentUserRole });
 
       await renderPage();
 
       expect(mocks.getProject).toHaveBeenCalledExactlyOnceWith(project.id);
       expect(mocks.getTasks).toHaveBeenCalledExactlyOnceWith(project.id);
+      expect(
+        screen.getByText(`${project.key} · ${roleText}として参加中`),
+      ).toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'タスク' })).toHaveAttribute(
         'aria-current',
         'page',

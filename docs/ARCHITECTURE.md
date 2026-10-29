@@ -18,7 +18,7 @@ src/
 
 - `components/ui` は shadcn/ui の部品を配置・調整する場所にする。
 - `components/common` には、アプリ固有だが複数画面で使う小さな UI を置く。
-- `features` には、画面をまたいで共有する業務機能ごとの定義・UI・処理を置く。現在は `tasks/types` と `projects/types` に、状態・優先度・権限の定義を配置する。
+- `features` には、画面をまたいで共有する業務機能ごとの定義・UI・処理を置く。現在は `tasks/types` と `projects/types` に、Task の型・状態・優先度・権限の定義を配置する。Task 一覧と詳細で共有する状態・優先度のバッジは `tasks/components/task-badges.tsx` に置く。
 - `features/*/types` には、関連する型・値の候補を表す定数・表示名をまとめる。`task-status.ts`・`task-priority.ts` は `features/tasks/types`、`project-role.ts` は `features/projects/types` に置く。これらは `app` 配下のコードに依存させない。
 - 画面専用の小さな部品は、その route 配下の `_components` に置いてよい。
 - カスタム Hook は、コンポーネント専用なら `use`＋コンポーネント名、複数箇所で使う共通 Hook なら処理内容が分かる名前にする。ファイル名は `use-project-member-role-editor.ts` のように kebab-case にする。
@@ -35,6 +35,8 @@ Project 関連の現在の配置は、利用する画面の範囲に合わせる
 | 共通ナビゲーションと一覧で使う Project 一覧取得、共有するエラー型 | `projects` 直下の `_lib` |
 
 タスクの状態・優先度と Project の role は、上記の route 配下から `src/features/tasks/types`・`src/features/projects/types` を直接 import して使う。
+
+Task 詳細の `tasks/[taskId]/page.tsx` は Server Component とし、共有の `getProject()` で Project を確認してから、同じ route の `_lib/get-task.ts` で認証付きの詳細 API を呼ぶ。404 を表す `null` はページで `notFound()` に変換し、それ以外の失敗は同じ route の `error.tsx` へ伝える。`error.tsx` は Client Component とし、固定の案内、`retry()` による再取得、`useParams()` で取得したProject IDを使った一覧へのリンクを表示する。`_components/task-detail.tsx` は取得済みの Task の表示だけを担当し、セッション・API 呼び出し・編集状態を持たない。
 
 ログアウト操作のテストは `(app)/_components/logout-button.test.tsx` に置く。
 

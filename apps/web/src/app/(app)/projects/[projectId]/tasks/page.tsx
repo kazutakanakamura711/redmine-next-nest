@@ -36,15 +36,14 @@ export default async function ProjectTasksPage({
         name={project.name}
         projectKey={project.key}
         isArchived={project.isArchived}
+        currentUserRole={project.currentUserRole}
       />
       <ProjectDetailTabs
         projectId={project.id}
         activeTab={ProjectTabs.Task}
         currentUserRole={project.currentUserRole}
       />
-      <div className="p-4 sm:p-6">
-        <TaskList tasks={tasks} />
-      </div>
+      <TaskList tasks={tasks} />
     </>
   );
 }

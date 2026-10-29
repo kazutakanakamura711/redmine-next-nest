@@ -1,16 +1,14 @@
 import type { ReactNode } from 'react';
-import { ClipboardList } from 'lucide-react';
+import Link from 'next/link';
+import { ClipboardList, TriangleAlert } from 'lucide-react';
+import { cn } from 'cn';
 
-import type { Task } from '@/app/(app)/projects/[projectId]/tasks/_lib/get-tasks';
+import type { Task } from '@/features/tasks/types/task';
+import { TaskStatus } from '@/features/tasks/types/task-status';
 import {
-  TaskStatus,
-  TaskStatusDisplayText,
-} from '@/features/tasks/types/task-status';
-import {
-  TaskPriority,
-  TaskPriorityDisplayText,
-} from '@/features/tasks/types/task-priority';
-import { Badge } from '@/components/ui/badge';
+  TaskPriorityBadge,
+  TaskStatusBadge,
+} from '@/features/tasks/components/task-badges';
 import {
   Table,
   TableBody,
@@ -26,61 +24,43 @@ type TasksListProps = {
   headerAction?: ReactNode;
 };
 
-const statusClassName = {
-  [TaskStatus.Todo]: 'border-slate-200 bg-slate-100 text-slate-600',
-  [TaskStatus.InProgress]: 'border-blue-200 bg-blue-50 text-blue-700',
-  [TaskStatus.Done]: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-} satisfies Record<TaskStatus, string>;
+function TaskDueDate({ task, today }: { task: Task; today: string }) {
+  if (!task.dueDate) return <span className="text-slate-400">—</span>;
 
-const priorityClassName = {
-  [TaskPriority.Low]: 'border-slate-200 bg-slate-50 text-slate-500',
-  [TaskPriority.Normal]: 'border-blue-200 bg-blue-50 text-blue-700',
-  [TaskPriority.High]: 'border-amber-200 bg-amber-50 text-amber-700',
-} satisfies Record<TaskPriority, string>;
+  const isOverdue = task.status !== TaskStatus.Done && task.dueDate < today;
 
-function StatusBadge({ status }: { status: TaskStatus }) {
   return (
-    <Badge
-      variant="outline"
-      className={`gap-1 rounded-sm px-1.5 text-xs ${statusClassName[status]}`}
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 text-xs',
+        isOverdue ? 'text-red-600' : 'text-slate-600',
+      )}
     >
-      <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-      {TaskStatusDisplayText[status]}
-    </Badge>
-  );
-}
-
-function PriorityBadge({ priority }: { priority: TaskPriority }) {
-  return (
-    <Badge
-      variant="outline"
-      className={`rounded-sm px-1.5 text-xs ${priorityClassName[priority]}`}
-    >
-      {TaskPriorityDisplayText[priority]}
-    </Badge>
-  );
-}
-
-function TaskDate({ value }: { value: string | null }) {
-  return value ? (
-    <time dateTime={value}>{formatDate(value)}</time>
-  ) : (
-    <span className="text-slate-400">—</span>
+      {isOverdue && (
+        <>
+          <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+          <span className="sr-only">期限超過</span>
+        </>
+      )}
+      <time dateTime={task.dueDate}>{task.dueDate.replaceAll('-', '/')}</time>
+    </span>
   );
 }
 
 export function TaskList({ tasks, headerAction }: TasksListProps) {
+  // 期限は時刻を持たない日付なので、日本時間の今日と日付同士で比較する。
+  const today = formatDate(new Date().toISOString()).replaceAll('/', '-');
+
   return (
-    <section
-      aria-label="タスク一覧"
-      className="min-w-0 overflow-hidden rounded-lg border border-border bg-background"
-    >
-      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div>
-          <h2 className="text-sm font-semibold">タスク</h2>
-          <p className="mt-1 text-xs text-muted-foreground">{tasks.length}件</p>
+    <section aria-label="タスク一覧" className="min-w-0">
+      <div className="flex min-h-12 items-center border-b border-border bg-background px-3 py-2 sm:px-6">
+        <h2 className="sr-only">タスク</h2>
+        <div className="ml-auto flex w-full flex-col items-end gap-2 md:w-auto md:flex-row md:gap-3">
+          <p className="text-xs text-muted-foreground">{tasks.length}件</p>
+          {headerAction && (
+            <div className="w-full md:w-auto">{headerAction}</div>
+          )}
         </div>
-        {headerAction}
       </div>
 
       {tasks.length === 0 ? (
@@ -96,49 +76,53 @@ export function TaskList({ tasks, headerAction }: TasksListProps) {
       ) : (
         <>
           <div className="hidden md:block">
-            <Table aria-label="タスク一覧" className="table-fixed">
+            <Table
+              aria-label="タスク一覧"
+              className="table-fixed bg-background"
+            >
               <TableHeader>
                 <TableRow className="border-border bg-slate-50 hover:bg-slate-50">
                   <TableHead className="px-4 text-xs text-slate-600">
                     タイトル
                   </TableHead>
-                  <TableHead className="w-26 px-4 text-xs text-slate-600">
+                  <TableHead className="w-28 px-4 text-xs text-slate-600">
                     ステータス
                   </TableHead>
                   <TableHead className="w-20 px-4 text-xs text-slate-600">
                     優先度
                   </TableHead>
-                  <TableHead className="w-26 px-4 text-xs text-slate-600">
-                    開始日
-                  </TableHead>
-                  <TableHead className="w-26 px-4 text-xs text-slate-600">
+                  <TableHead className="w-28 px-4 text-xs text-slate-600">
                     期限
                   </TableHead>
                   <TableHead className="w-26 px-4 text-xs text-slate-600">
-                    更新日
+                    更新日時
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tasks.map((task) => (
-                  <TableRow key={task.id} className="border-border">
-                    <TableCell className="whitespace-normal px-4 py-4 font-medium leading-6 wrap-anywhere">
-                      {task.title}
+                  <TableRow key={task.id} className="border-slate-100">
+                    <TableCell className="whitespace-normal px-4 py-4 leading-6 wrap-anywhere">
+                      <Link
+                        href={`/projects/${encodeURIComponent(task.projectId)}/tasks/${encodeURIComponent(task.id)}`}
+                        className="rounded-sm hover:text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                      >
+                        {task.title}
+                      </Link>
                     </TableCell>
                     <TableCell className="px-4 py-4">
-                      <StatusBadge status={task.status} />
+                      <TaskStatusBadge status={task.status} />
                     </TableCell>
                     <TableCell className="px-4 py-4">
-                      <PriorityBadge priority={task.priority} />
-                    </TableCell>
-                    <TableCell className="px-4 py-4 text-xs text-slate-500">
-                      <TaskDate value={task.startDate} />
+                      <TaskPriorityBadge priority={task.priority} />
                     </TableCell>
                     <TableCell className="px-4 py-4 text-xs text-slate-600">
-                      <TaskDate value={task.dueDate} />
+                      <TaskDueDate task={task} today={today} />
                     </TableCell>
                     <TableCell className="px-4 py-4 text-xs text-slate-500">
-                      <TaskDate value={task.updatedAt} />
+                      <time dateTime={task.updatedAt}>
+                        {formatDate(task.updatedAt)}
+                      </time>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -148,39 +132,31 @@ export function TaskList({ tasks, headerAction }: TasksListProps) {
 
           <ul
             aria-label="タスク一覧（モバイル）"
-            className="space-y-3 bg-slate-50 p-3 md:hidden"
+            className="space-y-2 p-3 md:hidden"
           >
             {tasks.map((task) => (
               <li
                 key={task.id}
-                className="min-w-0 rounded border border-slate-200 bg-background p-4 shadow-sm"
+                className="min-w-0 rounded-sm border border-slate-200 bg-background p-3 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="min-w-0 flex-1 text-sm font-medium leading-6 wrap-anywhere">
-                    {task.title}
+                  <h3 className="min-w-0 flex-1 text-sm font-medium leading-5 wrap-anywhere">
+                    <Link
+                      href={`/projects/${encodeURIComponent(task.projectId)}/tasks/${encodeURIComponent(task.id)}`}
+                      className="rounded-sm hover:text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                    >
+                      {task.title}
+                    </Link>
                   </h3>
-                  <StatusBadge status={task.status} />
+                  <TaskStatusBadge status={task.status} />
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <PriorityBadge priority={task.priority} />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <TaskPriorityBadge priority={task.priority} />
                   <p className="text-xs text-slate-600">
-                    期限 <TaskDate value={task.dueDate} />
+                    <span className="sr-only">期限 </span>
+                    <TaskDueDate task={task} today={today} />
                   </p>
                 </div>
-                <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-slate-500">
-                  <div className="flex gap-1.5">
-                    <dt>開始日</dt>
-                    <dd>
-                      <TaskDate value={task.startDate} />
-                    </dd>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <dt>更新日</dt>
-                    <dd>
-                      <TaskDate value={task.updatedAt} />
-                    </dd>
-                  </div>
-                </dl>
               </li>
             ))}
           </ul>

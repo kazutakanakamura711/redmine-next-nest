@@ -115,9 +115,9 @@ priority: low  | normal      | high
 - タスクは必ず1つの Project に所属する。
 - アーカイブ済み Project にはタスクを作成・更新できない。
 - 閲覧権限がないユーザーは、Project や Task を取得できない。
-- `done` にした日時や、Project 内連番は、基本 CRUD を完成させた後に追加する。
+- `done` にした日時は、基本 CRUD を完成させた後に追加する。Project内連番・担当者・報告者は、下記の合意済みの範囲として段階的に追加する。
 
-Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。`feat/phase-2/task-detail-api` では詳細取得 API を実装済みであり、詳細画面と作成・更新・削除 API・画面は後続とする。
+Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。詳細取得 API は PR #41 でマージ済みであり、`feat/phase-2/task-detail-web` では詳細の閲覧画面・loading・error・404判定・一覧から詳細へのリンクを実装している。作成・更新・削除 API・画面は後続とする。
 
 - 一覧・詳細の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。参加情報の削除後は、同じ token でも取得できない。
 - アーカイブ済み Project の Task も閲覧できる。Project 不在と非参加者による取得は、同じ対象不在として扱う。
@@ -125,6 +125,25 @@ Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・l
 - `description`・`startDate`・`dueDate` の未設定は `null` とする。開始日・期限は時刻を持たない日付であり、DB には `DATE` 型で保存する。
 - `createdAt`・`updatedAt` は日時として保存する。日付・日時の API 返却形式と一覧の並び順は [一覧の仕様](./UI_API.md#タスク一覧-get-apiprojectsprojectidtasks)、1件取得の返却形式とエラーは [詳細の仕様](./UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) を参照する。
 - title・description の文字数、日付の前後関係、作成・更新権限、アーカイブ済み Project への作成・更新禁止の検証は、対応する作成・更新 API と同時に実装する。現在の DB 定義には、文字数・日付の前後関係の CHECK 制約は設けていない。
+
+### Task の追加範囲（2026-10-29合意・未実装）
+
+次の項目をTaskの基本機能へ追加する。現在のPrisma schema・一覧API・詳細APIの10項目は、対応する実装で変更するまで維持する。
+
+| 項目 | 意味 | ルール |
+| --- | --- | --- |
+| number | Project内のタスク番号 | 1から始まる整数。`(projectId, number)` をDBの一意制約で保護する |
+| assigneeId | 担当者のUser ID | `User.id` を参照し、未担当は `null` |
+| reporterId | 報告者（作成者）のUser ID | `User.id` を参照し、未設定は `null` |
+
+- 表示上の番号は `Project.key` と `Task.number` を組み合わせ、`APP-12` のように表示する。DB・URLで使うTaskの `id` は引き続き別の識別子として保持する。
+- 採番はBackendのTask作成処理で行う。Projectごとの採番用カウンターをDB上で安全に増加させ、採番とTask作成を同じtransactionに含める。Task作成失敗時はカウンター更新も取り消す。カウンターの保存場所はmigration設計時に確定する。
+- 同時作成時の作成順はDBが採番処理を進めた順とする。作成済みTaskの番号は変更せず、Task削除後も番号を詰めたり再利用したりしない。
+- 担当者の設定時は、指定したUserが同じProjectのProjectMemberであることをAPIで検証する。
+- ProjectMemberを削除する際は、対象ProjectでそのUserが担当するTaskの `assigneeId` を、完了済みを含めて `null` にする。Task自体・状態・他Projectの担当は保持する。担当解除と参加情報削除は同じtransactionで行い、担当者設定との保存順もProject単位で揃える。
+- 報告者は既存の用語定義に合わせて作成者として扱い、通常のTask作成APIでは認証済み本人の `User.id` を自動設定する。クライアントから報告者のIDを受け取って本人の代わりに使わず、通常のTask更新APIでは変更しない。
+- Projectから報告者の参加情報が削除されても、Userは残るため `reporterId` は保持する。Userそのものを物理削除する場合の外部キー動作は、migration設計時に決める。
+- 既存の開発用Taskは削除して導入する方針とする。削除対象の確認と実行はmigration実装時に分けて扱い、Project・User・ProjectMember・Authユーザーは保持する。この仕様整理ではデータを変更しない。
 
 ## 認証・認可の基本方針
 
@@ -139,8 +158,6 @@ Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・l
 
 以下は ER 図には含めるが、初期 CRUD を理解してから追加する。
 
-- Task の Project 内連番（`APP-1` など）と競合しない採番
-- Task の作成者（`reporterId`）・担当者（`assigneeId`）の記録。担当者は任意とし、設定時は対象 Project の ProjectMember であることを検証する
 - `in_review`、`closed` など、より細かい status
 - `completedAt`、予定工数
 - 親子タスクと循環参照の防止
