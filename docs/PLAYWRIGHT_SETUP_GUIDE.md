@@ -562,3 +562,21 @@ PR #31は `develop` にマージ済みです。ユーザーからの引き継ぎ
 エージェントは、別の[マージ後のCI](https://github.com/kazutakanakamura711/redmine-next-nest/actions/runs/40104718736)でもQuality checks・API E2E・Browser E2Eの3 jobが成功したことを確認しました。上の日付付きメモは、それぞれの確認時点の記録です。
 
 既存の `pnpm test:e2e` と `API E2E` jobは引き続きVitest + SupertestによるAPI結合テストです。
+
+**10. PC・モバイルでTask一覧から詳細を閲覧する**
+
+`e2e/tests/task-detail.spec.ts` は、一時ユーザーでログインした後、PCとモバイルのそれぞれで一覧のタイトルから詳細を開き、再読み込み後も内容を表示できることと、パンくずのProject名から一覧へ戻れることを確認します。件数・参加権限・期限超過の案内も確認します。APIと認証はモックせず、既存の専用環境を使います。
+
+Task作成APIは未実装のため、`validateBrowserE2EEnvironment()` で接続先を検証した専用DBへ、今回のユーザーをownerとするProject・参加情報・TaskをPrismaで用意します。終了時はcontextを閉じてから、今回のユーザーのTaskだけを削除します。その後、既存の `test-user.ts` fixtureがProject・参加情報・User・Authユーザーを片付けます。
+
+専用環境の準備とビルド後、次のコマンドでこの導線だけを実行できます。確認用のPC・モバイルのスクリーンショットは `test-results/` 配下へ保存されます。
+
+```bash
+pnpm test:browser e2e/tests/task-detail.spec.ts
+```
+
+実行後は、今回起動した専用環境を `node e2e/stop.mjs` で終了します。
+
+2026-10-29に、このブラウザテスト1件（PC・モバイル両方の導線）、対象のVitest 40件、Webのlint・typecheck、ブラウザテストのtypecheck、Storybook build、ブラウザE2E用のAPI・Web buildが成功しました。専用環境のUser・Project・ProjectMember・Task・Authユーザーは実行前後とも0件で、確認後に今回起動した専用環境を終了しました。
+
+同日のPR前最終確認では、専用環境用のAPI・Web buildと `pnpm test:browser` の全7件が成功しました。Task一覧と詳細のPC・モバイル画像をテスト内で保存し、PRの画面確認用に `docs/images/` にも収録しています。

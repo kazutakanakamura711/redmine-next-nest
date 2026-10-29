@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Task } from '../_lib/get-tasks';
+import type { Task } from '@/features/tasks/types/task';
 import { TaskList } from './tasks-list';
 
 const task: Task = {
@@ -18,6 +18,14 @@ const task: Task = {
 };
 
 describe('TaskList', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // UTC は28日、日本時間は29日。期限判定の基準日を固定する。
+    vi.setSystemTime(new Date('2026-10-28T15:30:00.000Z'));
+  });
+
+  afterEach(() => vi.useRealTimers());
+
   it('0件では空状態を表示し、親から渡したヘッダーの操作を保持する', () => {
     render(
       <TaskList
@@ -55,6 +63,10 @@ describe('TaskList', () => {
 
     const table = within(screen.getByRole('table', { name: 'タスク一覧' }));
     expect(table.getByText(task.title)).toBeInTheDocument();
+    expect(table.getByRole('link', { name: task.title })).toHaveAttribute(
+      'href',
+      '/projects/project-1/tasks/task-1',
+    );
     expect(table.getByText('進行中')).toBeInTheDocument();
     expect(table.getByText('高')).toBeInTheDocument();
     expect(table.getByText('2026/10/30')).toBeInTheDocument();
@@ -67,7 +79,7 @@ describe('TaskList', () => {
     );
     expect(undatedRow.getByText('完了')).toBeInTheDocument();
     expect(undatedRow.getByText('低')).toBeInTheDocument();
-    expect(undatedRow.getAllByText('—')).toHaveLength(2);
+    expect(undatedRow.getAllByText('—')).toHaveLength(1);
 
     const cards = within(
       screen.getByRole('list', { name: 'タスク一覧（モバイル）' }),
@@ -77,6 +89,33 @@ describe('TaskList', () => {
       cards.getByRole('heading', { name: task.title }),
     ).toBeInTheDocument();
     expect(cards.getByText('進行中')).toBeInTheDocument();
-    expect(cards.getByText('2026/10/28')).toBeInTheDocument();
+    expect(cards.getByRole('link', { name: task.title })).toHaveAttribute(
+      'href',
+      '/projects/project-1/tasks/task-1',
+    );
+    expect(cards.queryByText('2026/10/28')).not.toBeInTheDocument();
   });
+
+  it.each([
+    ['todo', '2026-10-28', true],
+    ['in_progress', '2026-10-28', true],
+    ['todo', '2026-10-29', false],
+    ['todo', '2026-10-30', false],
+    ['done', '2026-10-28', false],
+    ['todo', null, false],
+  ] as const)(
+    'status=%s、期限=%s の期限超過表示は%s',
+    (status, dueDate, overdue) => {
+      render(<TaskList tasks={[{ ...task, status, dueDate }]} />);
+
+      for (const container of [
+        screen.getByRole('table', { name: 'タスク一覧' }),
+        screen.getByRole('list', { name: 'タスク一覧（モバイル）' }),
+      ]) {
+        expect(Boolean(within(container).queryByText('期限超過'))).toBe(
+          overdue,
+        );
+      }
+    },
+  );
 });

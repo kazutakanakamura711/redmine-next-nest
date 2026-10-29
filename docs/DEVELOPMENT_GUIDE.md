@@ -47,6 +47,16 @@ API 契約と検証内容の詳細は [UI_API.md](./UI_API.md#タスク詳細-ge
 
 次は `/projects/[projectId]/tasks/[taskId]` の閲覧画面と一覧からのリンクを、別の小さな変更として進める。作成・更新・削除は、その後の操作として扱う。
 
+### Task 詳細 Web の区切り（2026-10-29）
+
+`feat/phase-2/task-detail-web` では、認証付きの詳細取得、`/projects/[projectId]/tasks/[taskId]` の閲覧画面、loading・error・404、一覧から詳細へのリンクを実装した。詳細はPCで本文・属性を左右に、モバイルで縦に並べる。一覧もFigmaの構成に合わせて全幅の表とコンパクトなカードに整理し、参加権限・期限超過を表示する。
+
+Taskの型・状態／優先度のバッジを `features/tasks` で共有し、日本時間の日時整形は共通の `formatDateTime()` にまとめた。API・Prisma schema・migration・依存関係は変更していない。番号・担当者・報告者などの追加項目は未実装である。
+
+ユーザーは `pnpm test`・`pnpm lint`・`pnpm typecheck`・`pnpm build`・`pnpm test:e2e`・`pnpm storybook:build` の成功とStorybookの表示を確認した。詳細取得に一時的な例外を入れてエラー画面を確認し、その例外は削除済みである。自動テストでは認証付き取得・404・取得失敗・未設定項目・日時表示・再試行の呼び出しと、PC・モバイルの一覧→詳細→再読み込み→一覧への復帰を確認する。
+
+PR前の最終確認では、`pnpm format:check`、ブラウザテストの型チェック、専用環境用のAPI・Web build、Playwright全7件が成功した。一覧・詳細のPC／モバイル画像を `docs/images/task-list-updated-*.png`・`docs/images/task-detail-*.png` に保存している。実行前後の専用DBのUser・Project・ProjectMember・Taskと専用SupabaseのAuthユーザーはすべて0件で、確認後は専用環境を終了した。
+
 ## 例: プロジェクト作成 API
 
 新しい CRUD 機能は、毎回次の小さな順番で進める。

@@ -117,7 +117,7 @@ priority: low  | normal      | high
 - 閲覧権限がないユーザーは、Project や Task を取得できない。
 - `done` にした日時や、Project 内連番は、基本 CRUD を完成させた後に追加する。
 
-Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。`feat/phase-2/task-detail-api` では詳細取得 API を実装済みであり、詳細画面と作成・更新・削除 API・画面は後続とする。
+Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。詳細取得 API は PR #41 でマージ済みであり、`feat/phase-2/task-detail-web` では詳細の閲覧画面・loading・error・404判定・一覧から詳細へのリンクを実装している。作成・更新・削除 API・画面は後続とする。
 
 - 一覧・詳細の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。参加情報の削除後は、同じ token でも取得できない。
 - アーカイブ済み Project の Task も閲覧できる。Project 不在と非参加者による取得は、同じ対象不在として扱う。

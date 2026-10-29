@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { TriangleAlert } from 'lucide-react';
 import {
+  type ProjectRole,
+  ProjectRoleDisplayText,
+} from '@/features/projects/types/project-role';
+import {
   Breadcrumb,
   BreadcrumbList,
   BreadcrumbItem,
@@ -13,12 +17,14 @@ type ProjectDetailHeaderProps = {
   name: string;
   projectKey: string;
   isArchived: boolean;
+  currentUserRole?: ProjectRole;
 };
 
 export function ProjectDetailHeader({
   name,
   projectKey,
   isArchived,
+  currentUserRole,
 }: ProjectDetailHeaderProps) {
   return (
     <>
@@ -45,7 +51,11 @@ export function ProjectDetailHeader({
             <h1 className="mt-1 text-lg font-semibold tracking-tight">
               {name}
             </h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">{projectKey}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {projectKey}
+              {currentUserRole &&
+                ` · ${ProjectRoleDisplayText[currentUserRole]}として参加中`}
+            </p>
           </div>
         </div>
       </header>

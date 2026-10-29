@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 
-import type { Task } from '../_lib/get-tasks';
+import type { Task } from '@/features/tasks/types/task';
 import { TaskPriority } from '@/features/tasks/types/task-priority';
 import { TaskStatus } from '@/features/tasks/types/task-status';
 import { Button } from '@/components/ui/button';
+import { ProjectRole } from '@/features/projects/types/project-role';
+import { ProjectDetailHeader } from '../../_components/project-detail-header';
+import {
+  ProjectDetailTabs,
+  ProjectTabs,
+} from '../../_components/project-detail-tabs';
 import { TaskList } from './tasks-list';
 
 const tasks: Task[] = [
@@ -51,7 +57,18 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
-      <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+      <div className="min-h-screen bg-slate-50 lg:ml-56">
+        <ProjectDetailHeader
+          name="Task Management App"
+          projectKey="APP"
+          isArchived={false}
+          currentUserRole={ProjectRole.Owner}
+        />
+        <ProjectDetailTabs
+          projectId="project-1"
+          activeTab={ProjectTabs.Task}
+          currentUserRole={ProjectRole.Owner}
+        />
         <Story />
       </div>
     ),
@@ -66,6 +83,15 @@ export const Default: Story = {};
 
 export const Empty: Story = {
   args: { tasks: [] },
+};
+
+export const Overdue: Story = {
+  args: {
+    tasks: [
+      { ...tasks[0], dueDate: '2020-09-15' },
+      { ...tasks[2], dueDate: '2020-08-31' },
+    ],
+  },
 };
 
 export const LongTitle: Story = {
@@ -86,6 +112,10 @@ export const WithHeaderAction: Story = {
     docs: { description: { story: '親から渡す操作の配置例です。' } },
   },
   args: {
-    headerAction: <Button disabled>操作ボタン</Button>,
+    headerAction: (
+      <Button className="w-full" disabled>
+        操作ボタン
+      </Button>
+    ),
   },
 };
