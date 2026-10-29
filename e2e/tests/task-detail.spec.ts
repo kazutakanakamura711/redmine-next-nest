@@ -32,10 +32,14 @@ test('PC・モバイルのタスク一覧から詳細を開き、再読み込み
         key: projectKey,
         name: projectName,
         ownerId: testUser.id,
+        lastTaskNumber: 2,
         projectMembers: { create: { userId: testUser.id, role: 'owner' } },
         tasks: {
           create: [
             {
+              number: 1,
+              assigneeId: testUser.id,
+              reporterId: testUser.id,
               title,
               description,
               status: 'in_progress',
@@ -43,7 +47,13 @@ test('PC・モバイルのタスク一覧から詳細を開き、再読み込み
               startDate: new Date('2020-08-20T00:00:00.000Z'),
               dueDate: new Date('2020-09-15T00:00:00.000Z'),
             },
-            { title: '日付未設定のタスク', status: 'todo', priority: 'normal' },
+            {
+              number: 2,
+              reporterId: testUser.id,
+              title: '日付未設定のタスク',
+              status: 'todo',
+              priority: 'normal',
+            },
           ],
         },
       },
@@ -55,6 +65,7 @@ test('PC・モバイルのタスク一覧から詳細を開き、再読み込み
 
     for (const viewport of [
       { width: 1280, height: 900 },
+      { width: 768, height: 1024 },
       { width: 390, height: 844 },
     ]) {
       await page.setViewportSize(viewport);
@@ -73,14 +84,39 @@ test('PC・モバイルのタスク一覧から詳細を開き、再読み込み
       const taskLink = list.getByRole('link', { name: title, exact: true });
       await expect(taskLink).toBeVisible();
       await expect(taskLink).toHaveAttribute('href', detailPath);
+      const numberLink = list.getByRole('link', {
+        name: `${projectKey}-${task.number}`,
+        exact: true,
+      });
+      await expect(numberLink).toBeVisible();
+      await expect(numberLink).toHaveAttribute('href', detailPath);
+      await expect(list.getByText(testUser.name, { exact: true })).toHaveCount(
+        3,
+      );
+      await expect(list.getByText('未担当', { exact: true })).toHaveCount(1);
       await expect(list.getByText('期限超過', { exact: true })).toHaveCount(1);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(viewport.width);
       await page.screenshot({
         path: testInfo.outputPath(`task-list-${viewport.width}.png`),
         fullPage: true,
       });
 
-      await taskLink.click();
+      await (viewport.width >= 768 ? numberLink : taskLink).click();
       await expect(page).toHaveURL(`http://localhost:3100${detailPath}`);
+      await expect(
+        page.getByRole('heading', {
+          level: 1,
+          name: `${projectKey}-${task.number}`,
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page
+          .getByRole('navigation', { name: 'パンくずリスト', exact: true })
+          .getByText(`${projectKey}-${task.number}`, { exact: true }),
+      ).toBeVisible();
       await expect(
         page.getByRole('heading', { name: title, exact: true }),
       ).toBeVisible();
@@ -88,6 +124,19 @@ test('PC・モバイルのタスク一覧から詳細を開き、再読み込み
       await expect(
         page.getByRole('complementary', { name: '属性', exact: true }),
       ).toBeVisible();
+      const properties = page.getByRole('complementary', {
+        name: '属性',
+        exact: true,
+      });
+      await expect(
+        properties.getByText('担当者', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        properties.getByText('報告者', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        properties.getByText(testUser.name, { exact: true }),
+      ).toHaveCount(2);
       await page.screenshot({
         path: testInfo.outputPath(`task-detail-${viewport.width}.png`),
         fullPage: true,

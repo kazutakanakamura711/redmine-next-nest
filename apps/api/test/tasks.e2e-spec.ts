@@ -186,11 +186,28 @@ describe('Tasks API', () => {
 
   async function createTask(
     projectId: string,
-    data: Omit<Prisma.TaskUncheckedCreateInput, 'projectId'> = {
-      title: 'Fixture Task',
-    },
+    data: Omit<
+      Prisma.TaskUncheckedCreateInput,
+      'projectId' | 'number' | 'reporterId'
+    > & { reporterId?: string } = { title: 'Fixture Task' },
   ) {
-    return prisma.task.create({ data: { ...data, projectId } });
+    return prisma.$transaction(async (tx) => {
+      const project = await tx.project.update({
+        where: { id: projectId },
+        data: { lastTaskNumber: { increment: 1 } },
+        select: { lastTaskNumber: true, ownerId: true },
+      });
+
+      // テストデータの報告者は、指定がなければProjectのownerを使う。
+      return tx.task.create({
+        data: {
+          ...data,
+          projectId,
+          number: project.lastTaskNumber,
+          reporterId: data.reporterId ?? project.ownerId,
+        },
+      });
+    });
   }
 
   // 認証時のUser同期とは別に、取得対象の値・更新日時の不変性を確認する。
@@ -303,10 +320,13 @@ describe('Tasks API', () => {
         {
           id: task.id,
           projectId: project.id,
+          number: task.number,
           title: 'ログイン画面を作る',
           description: 'メールアドレスとパスワードでログインする',
           status: 'in_progress',
           priority: 'high',
+          assignee: null,
+          reporter: { id: project.ownerId, name: null },
           startDate: '2026-10-26',
           dueDate: '2026-10-30',
           createdAt: '2026-10-25T15:00:00.123Z',
@@ -333,7 +353,7 @@ describe('Tasks API', () => {
     },
   );
 
-  it('未設定のdescription・日付はnull、status・priorityの初期値はtodo・normalで返す', async () => {
+  it('未設定のdescription・担当者・日付はnull、報告者はオブジェクトで返し、status・priorityの初期値はtodo・normalで返す', async () => {
     const project = await createProject();
     const task = await createTask(project.id);
     const before = await readProjectState();
@@ -347,10 +367,13 @@ describe('Tasks API', () => {
       {
         id: task.id,
         projectId: project.id,
+        number: task.number,
         title: 'Fixture Task',
         description: null,
         status: 'todo',
         priority: 'normal',
+        assignee: null,
+        reporter: { id: project.ownerId, name: null },
         startDate: null,
         dueDate: null,
         createdAt: task.createdAt.toISOString(),
@@ -359,6 +382,80 @@ describe('Tasks API', () => {
     ]);
     expect(await readProjectState()).toEqual(before);
   });
+
+  it('報告者をnullにする更新をDB制約で拒否し、Taskの値を保持する', async () => {
+    const project = await createProject();
+    const task = await createTask(project.id);
+    const before = await readProjectState();
+
+    await expect(
+      prisma.$executeRaw`UPDATE "tasks" SET "reporter_id" = NULL WHERE "id" = ${task.id}`,
+    ).rejects.toMatchObject({
+      code: 'P2010',
+      meta: {
+        driverAdapterError: {
+          cause: { kind: 'NullConstraintViolation', originalCode: '23502' },
+        },
+      },
+    });
+
+    expect(await readProjectState()).toEqual(before);
+  });
+
+  it.each(['一覧', '詳細'] as const)(
+    '%sで担当者・報告者はIDと名前だけを返し、脱退済みの報告者と未設定の名前も保持する',
+    async (target) => {
+      const project = await createProject();
+      const assignee = await createOtherUser();
+      const reporter = await createOtherUser();
+      await prisma.user.update({
+        where: { id: assignee.id },
+        data: { name: '担当者の表示名' },
+      });
+      await prisma.projectMember.createMany({
+        data: [
+          { projectId: project.id, userId: assignee.id, role: 'member' },
+          { projectId: project.id, userId: reporter.id, role: 'member' },
+        ],
+      });
+      const task = await createTask(project.id, {
+        title: '担当付きのTask',
+        assigneeId: assignee.id,
+        reporterId: reporter.id,
+      });
+      await prisma.projectMember.delete({
+        where: {
+          projectId_userId: { projectId: project.id, userId: reporter.id },
+        },
+      });
+      const before = await readProjectState();
+      const path = `/api/projects/${project.id}/tasks`;
+
+      const response = await request(app.getHttpServer())
+        .get(target === '一覧' ? path : `${path}/${task.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect('Content-Type', /json/)
+        .expect(200);
+
+      const expected = {
+        id: task.id,
+        projectId: project.id,
+        number: 1,
+        title: '担当付きのTask',
+        description: null,
+        status: 'todo',
+        priority: 'normal',
+        assignee: { id: assignee.id, name: '担当者の表示名' },
+        reporter: { id: reporter.id, name: null },
+        startDate: null,
+        dueDate: null,
+        createdAt: task.createdAt.toISOString(),
+        updatedAt: task.updatedAt.toISOString(),
+      };
+      expect(response.body).toEqual(target === '一覧' ? [expected] : expected);
+      expect(await readProjectState()).toEqual(before);
+    },
+  );
 
   it.each([
     { startDate: '2028-02-29', dueDate: null },
@@ -606,10 +703,13 @@ describe('Tasks API', () => {
         expect(response.body).toEqual({
           id: task.id,
           projectId: project.id,
+          number: task.number,
           title: 'Fixture Task',
           description: null,
           status: 'todo',
           priority: 'normal',
+          assignee: null,
+          reporter: { id: project.ownerId, name: null },
           startDate: null,
           dueDate: null,
           createdAt: task.createdAt.toISOString(),
@@ -619,7 +719,7 @@ describe('Tasks API', () => {
       },
     );
 
-    it('説明・日付が設定されたTaskを合意した10項目・日付形式で返す', async () => {
+    it('説明・日付が設定されたTaskを合意した13項目・日付形式で返す', async () => {
       const project = await createProject();
       const task = await createTask(project.id, {
         title: 'ログイン画面を作る',
@@ -642,10 +742,13 @@ describe('Tasks API', () => {
       expect(response.body).toEqual({
         id: task.id,
         projectId: project.id,
+        number: task.number,
         title: 'ログイン画面を作る',
         description: 'メールアドレスとパスワードでログインする',
         status: 'in_progress',
         priority: 'high',
+        assignee: null,
+        reporter: { id: project.ownerId, name: null },
         startDate: '2026-10-29',
         dueDate: '2026-11-02',
         createdAt: '2026-10-28T15:00:00.123Z',

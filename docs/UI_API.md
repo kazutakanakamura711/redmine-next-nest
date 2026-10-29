@@ -112,11 +112,13 @@ Sheet を閉じてもログアウト処理中の状態とエラーを保持し�
 | `/projects/[projectId]/tasks/new` | タスクを作成する |
 | `/projects/[projectId]/tasks/[taskId]` | タスクを表示・編集する |
 
-Task 一覧はタブ直下の全幅で表示し、上部の右側に件数を置く。Project ヘッダーにはキーと、本人の role の表示名を使った「オーナーとして参加中」などの案内を表示する。PC はタイトル・状態・優先度・期限・更新日時の表、`md`（48rem / 通常768px）未満はタイトル・状態・優先度・期限のカードにする。タイトルは詳細ページへのリンクとし、開始日は詳細画面で確認する。日付は `YYYY/MM/DD`、更新日時は日本時間の日付で表示し、期限未設定は「—」とする。日本時間の今日より前が期限で、状態が `done` 以外の Task は、期限を赤色と警告アイコンで表示する。
-番号・担当者・報告者・親子関係・絞り込み・Task 作成の操作は後続とし、未実装の項目や操作を一覧に仮表示しない。
+Task 一覧はタブ直下の全幅で表示し、上部の右側に件数を置く。Project ヘッダーにはキーと、本人の role の表示名を使った「オーナーとして参加中」などの案内を表示する。PC は番号・タイトル・状態・優先度・担当者・報告者・期限・更新日時の8列の表とする。表は最小幅56remを確保し、狭い画面では表の中で横スクロールできるようにする。`md`（48rem / 通常768px）未満は番号・タイトル・状態・優先度・担当者・報告者・期限のカードにする。番号は `Project.key` と `Task.number` を組み合わせ、番号とタイトルの両方を詳細ページへのリンクにする。開始日は詳細画面で確認する。日付は `YYYY/MM/DD`、更新日時は日本時間の日付で表示し、期限未設定は「—」とする。日本時間の今日より前が期限で、状態が `done` 以外の Task は、期限を赤色と警告アイコンで表示する。
+担当者・報告者は名前と装飾用のアバターで表示する。担当者が `null` なら「未担当」、Userの名前が未設定・空白のみなら「名前未設定」とし、長い名前は折り返す。モバイルは番号をタイトルの上に置き、その下に優先度、担当者、報告者をそれぞれ別の行で表示する。担当者・報告者はラベル・アバター・名前の順に並べ、期限は優先度の行の右側に置く。loadingも8列の表と番号・担当者・報告者のあるカードの構成に合わせる。
+親子関係・絞り込み・Task 作成の操作は後続とし、未実装の項目や操作を一覧に仮表示しない。
 
-Task 詳細の閲覧ページは実装済みである。Project 詳細を取得した後、URL の Project ID・Task ID を使って詳細 API を呼び、詳細専用のヘッダーと Task のタイトル・説明・状態・優先度・開始日・期限・作成日時・更新日時を表示する。owner・member・viewer とアーカイブ済み Project でも閲覧できる。ヘッダーには「プロジェクト一覧 / Project 名 / タスク詳細」のパンくずを表示し、Project 名からその Project のタスク一覧へ戻れる。Task の連番は未導入のため、ページの見出しは「タスク詳細」とする。
+Task 詳細の閲覧ページは実装済みである。Project 詳細を取得した後、URL の Project ID・Task ID を使って詳細 API を呼び、詳細専用のヘッダーと Task のタイトル・説明・状態・優先度・担当者・報告者・開始日・期限・作成日時・更新日時を表示する。owner・member・viewer とアーカイブ済み Project でも閲覧できる。ヘッダーには「プロジェクト一覧 / Project 名 / APP-12」のパンくずを表示し、Project 名からその Project のタスク一覧へ戻れる。パンくずの末尾とページの見出しには `Project.key` と `Task.number` を組み合わせた番号を表示する。
 タイトルと説明は同じ本文カード、その他の項目は「属性」カードにまとめる。PC は本文を左2列分・属性を右1列分に分け、`lg`（64rem / 通常1024px）未満では本文・属性の順に縦に並べる。説明が未設定なら「説明はありません。」、開始日・期限が未設定なら「未設定」と表示する。説明は HTML として解釈せず、改行を保った本文として表示する。開始日・期限は日付を変えず `YYYY/MM/DD`、作成・更新日時は日本時間の `YYYY/MM/DD HH:mm` で表示する。長い Project 名・タイトル・説明は折り返す。
+担当者・報告者は属性の状態・優先度の下に名前を表示する。担当者が `null` なら「未担当」、Userは存在するが名前が未設定・空白のみなら「名前未設定」とする。報告者は必須であり、名前の未設定は許可する。長い名前は折り返し、PC・モバイルとも横にはみ出さないようにする。共通Task型・Storybook・テストデータはAPIの `number`・nullableな `assignee`・必須の `reporter` に揃える。
 詳細の取得中は `tasks/[taskId]/loading.tsx` でヘッダー・本文・属性のスケルトンを表示する。本文と属性は取得後と同じくPCで左右、モバイルで縦に並べる。読み上げには「タスク詳細を読み込んでいます」と伝え、装飾のスケルトンは読み上げ対象から外す。
 Project 詳細または Task 詳細 API の404は `notFound()` に渡す。それ以外の失敗は `tasks/[taskId]/error.tsx` で「タスク詳細を取得できませんでした」という固定の案内、再試行ボタン、対象Projectのタスク一覧へ戻るリンクを表示する。Client ComponentでURLのProject IDを `useParams()` から取得し、再試行にはNext.jsの `retry()` を使う。内部エラーの内容は画面へ表示しない。編集操作は後続の変更で追加する。
 
@@ -205,6 +207,7 @@ POST   /api/projects/:projectId/unarchive
 - 段階2から、一覧・詳細は ProjectMember に限定する
 - 一覧は owner・member・viewer として参加している Project を作成日時の新しい順で返す。アーカイブ済みも含み、参加 Project がなければ `200` と空配列を返す
 - 段階2から、更新・アーカイブ・解除は owner のみ許可する
+- Projectを返すAPIは `id`・`ownerId`・`name`・`key`・`description`・`isArchived`・`createdAt`・`updatedAt` の8項目に限定し、詳細取得だけ本人の `currentUserRole` を追加する。採番用の `lastTaskNumber` は内部データとして返さない。
 - 存在しない Project と非参加者による詳細・更新・アーカイブ・解除は、同じ `404` 応答で扱い、Project の存在を知らせない
 - 参加者の member・viewer による更新・アーカイブ・解除は `403` を返す
 
@@ -500,6 +503,8 @@ Project と他の参加情報、対象の ID・userId・projectId・createdAt �
 成功時は `204 No Content` を返す。本文は空であり、JSON オブジェクトや `null` は返さない。
 対象 ProjectMember を物理削除し、対象のアプリ側 User と Supabase Auth アカウントは保持する。
 Project と残った参加情報、同じ User の別 Project の参加情報の値・更新日時は変更しない。
+対象Projectで、そのUserが担当するTaskは完了済みを含めて `assigneeId: null` にし、担当を解除したTaskの `updatedAt` を更新する。Task自体・状態・番号・本文・報告者は保持し、未担当・他のUserの担当・他ProjectのTaskは値も更新日時も変更しない。
+担当解除と参加情報の削除は同じtransactionで行い、途中で失敗した場合は両方を取り消す。
 
 判定順は次のとおりとする。
 
@@ -509,7 +514,8 @@ Project と残った参加情報、同じ User の別 Project の参加情報の
 4. 対象の Project 所属・存在と、対象が owner ではないことの確認。
 5. transaction 内で対象 Project 行を `SELECT … FOR UPDATE` によりロックする。
 6. Project の存在・アーカイブ状態、対象の所属・存在・owner 保護を同じ順で再確認する。
-7. `projectId` と `memberId` の両方で対象を限定し、その ProjectMember を削除する。
+7. 再取得したProjectMemberの `userId` と対象 `projectId` でTaskを限定し、担当者を `null` にする。
+8. 同じtransaction内で `projectId` と `memberId` の両方で対象を限定し、その ProjectMember を削除する。
 
 | 条件 | 応答 |
 | --- | --- |
@@ -553,7 +559,7 @@ role 変更の成功応答はその処理時点の参加情報を返し、後続
 削除後に同じ User を再追加すると、新しい ID を持つ ProjectMember を作成する。
 古い memberId への削除は対象不在の404となり、新しい参加情報の role・値・更新日時を変更しない。
 
-拒否時は Project・ProjectMember の値・更新日時を変更しない。
+拒否時は Project・ProjectMember・Task の値・更新日時を変更しない。
 認証時に行う実行者の User プロフィール同期は、この不変性の対象に含めない。
 Web の一覧・追加・権限変更・削除 UI は、APIへの接続と成功・失敗時の表示、成功後の一覧再取得まで実装済みである。
 
@@ -585,10 +591,19 @@ Task の DB 定義と一覧 GET は PR #37、Web の一覧・空状態・loading
   {
     "id": "cmua3r1ik00042ed8lasbg1jk",
     "projectId": "cmua3r1ik00032ed8lasbg1jj",
+    "number": 12,
     "title": "ログイン画面を作る",
     "description": null,
     "status": "todo",
     "priority": "normal",
+    "assignee": {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "山田太郎"
+    },
+    "reporter": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "佐藤花子"
+    },
     "startDate": "2026-10-26",
     "dueDate": null,
     "createdAt": "2026-10-26T08:00:00.000Z",
@@ -597,8 +612,9 @@ Task の DB 定義と一覧 GET は PR #37、Web の一覧・空状態・loading
 ]
 ```
 
-- 返却項目は上の10項目に限定し、Project・参加情報・User などの関連データを含めない。
-- `description`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。
+- 返却項目は上の13項目に限定する。`number` はProject内の整数の番号であり、`Project.key` と結合した表示文字列は含めない。
+- `assignee` は `{ id, name }` または `null`、`reporter` は必須の `{ id, name }` とする。関連するUserからはID・名前だけを取得し、メールアドレス・プロフィールの他の項目・Project・参加情報は返さない。`assigneeId`・`reporterId` も別のキーとして重複して返さない。
+- `description`・`assignee`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。`reporter` は常にオブジェクトで返す。Userの名前が未設定でも、そのUserを表すオブジェクトは保持し、`name` を `null` とする。報告者がProjectから脱退しても、作成者の表示情報を返す。
 - `startDate`・`dueDate` は時刻・タイムゾーンを付けない `YYYY-MM-DD` とする。`createdAt`・`updatedAt` は UTC の ISO 8601 文字列（例: `2026-10-26T08:00:00.000Z`）とする。
 - 日付・日時の文字列変換は Controller で行い、`TaskResponseDto` は返却形式と Swagger の説明を定義する。
 - status は `todo`・`in_progress`・`done`、priority は `low`・`normal`・`high` を返す。
@@ -638,10 +654,19 @@ Project 不在・非参加者の404は、Project のアーカイブ状態や Tas
 {
   "id": "cmua3r1ik00042ed8lasbg1jk",
   "projectId": "cmua3r1ik00032ed8lasbg1jj",
+  "number": 12,
   "title": "ログイン画面を作る",
   "description": "メールアドレスとパスワードでログインする",
   "status": "in_progress",
   "priority": "high",
+  "assignee": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "山田太郎"
+  },
+  "reporter": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "佐藤花子"
+  },
   "startDate": "2026-10-29",
   "dueDate": "2026-11-02",
   "createdAt": "2026-10-28T15:00:00.123Z",
@@ -649,8 +674,8 @@ Project 不在・非参加者の404は、Project のアーカイブ状態や Tas
 }
 ```
 
-返却項目は一覧の各要素と同じ10項目に限定し、Project・参加情報・User などの関連データを含めない。
-`description`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。
+返却項目は一覧の各要素と同じ13項目に限定する。`number`・`assignee`・`reporter` の形式・返却範囲も一覧と同じとし、UserのID・名前以外の関連データは含めない。
+`description`・`assignee`・`startDate`・`dueDate` のキーは省略せず、未設定は `null` を返す。`reporter` は常にオブジェクトで返す。Userの名前が未設定の場合は `name: null` とする。
 status・priority の候補も一覧と同じであり、開始日・期限は `YYYY-MM-DD`、作成・更新日時は UTC の ISO 8601 文字列とする。
 既存の `TaskResponseDto` を使い、日付・日時の変換は Controller で行う。
 
@@ -702,7 +727,7 @@ Task 不在・所属違いの本文は次のとおりとする。
 - owner・member は作成・更新でき、削除は owner のみ、viewer は閲覧だけできる
 - アーカイブ済み Project には Task を作成・更新できない
 
-番号・担当者・報告者は2026-10-29に合意した追加範囲として、DB・API・画面へ段階的に導入する。Task作成時の番号と報告者はAPI側で設定し、担当者を指定する際は同じProjectの参加者であることを検証する。未設定の担当者・報告者は `null` とする。採番とメンバー削除時の担当解除のルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) を参照する。追加後の一覧・詳細APIの返却項目と表示は、対応する実装で契約を更新するまで現行のままとする。
+番号・担当者・報告者は2026-10-29に合意した追加範囲として、DB・API・画面へ段階的に導入する。現在の作業ブランチではカラム・制約、一覧・詳細APIの返却、一覧・詳細Webでの表示、メンバー削除時の担当解除を追加している。Task作成時の採番・報告者設定、担当者の同じProjectへの参加確認は後続とする。これらのデータルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) を参照する。
 
 絞り込み、ページネーション、親子タスクは基本 CRUD の後に追加する。
 

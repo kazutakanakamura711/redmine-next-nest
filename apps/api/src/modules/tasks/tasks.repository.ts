@@ -9,6 +9,10 @@ export class TasksRepository {
     return this.prisma.task.findMany({
       where: { projectId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: {
+        assignee: { select: { id: true, name: true } },
+        reporter: { select: { id: true, name: true } },
+      },
     });
   }
 
@@ -17,6 +21,10 @@ export class TasksRepository {
       where: {
         id: taskId,
         projectId,
+      },
+      include: {
+        assignee: { select: { id: true, name: true } },
+        reporter: { select: { id: true, name: true } },
       },
     });
   }

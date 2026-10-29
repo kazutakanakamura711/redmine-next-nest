@@ -276,6 +276,7 @@ export class ProjectsRepository {
         },
         select: {
           role: true,
+          userId: true,
         },
       });
 
@@ -286,6 +287,16 @@ export class ProjectsRepository {
       if (member.role === ProjectMemberRole.owner) {
         return { status: 'owner_protected' as const };
       }
+
+      // 完了済みも含めて、このProjectで対象Userが担当するTaskだけを未担当に戻す。
+      // 参加情報の削除が失敗した場合は、この更新も同じtransactionで取り消す。
+      await tx.task.updateMany({
+        where: {
+          projectId: data.projectId,
+          assigneeId: member.userId,
+        },
+        data: { assigneeId: null },
+      });
 
       await tx.projectMember.delete({
         where: {

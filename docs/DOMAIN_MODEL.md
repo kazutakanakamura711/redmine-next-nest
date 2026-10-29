@@ -126,24 +126,24 @@ Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・l
 - `createdAt`・`updatedAt` は日時として保存する。日付・日時の API 返却形式と一覧の並び順は [一覧の仕様](./UI_API.md#タスク一覧-get-apiprojectsprojectidtasks)、1件取得の返却形式とエラーは [詳細の仕様](./UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) を参照する。
 - title・description の文字数、日付の前後関係、作成・更新権限、アーカイブ済み Project への作成・更新禁止の検証は、対応する作成・更新 API と同時に実装する。現在の DB 定義には、文字数・日付の前後関係の CHECK 制約は設けていない。
 
-### Task の追加範囲（2026-10-29合意・未実装）
+### Task の追加範囲（2026-10-29合意・段階導入中）
 
-次の項目をTaskの基本機能へ追加する。現在のPrisma schema・一覧API・詳細APIの10項目は、対応する実装で変更するまで維持する。
+現在の作業ブランチでは、次の3カラムと制約、Projectの採番用カウンター `lastTaskNumber`（初期値0）を追加している。一覧・詳細APIは `number`、担当者の `{ id, name }` または `null`、必須の報告者の `{ id, name }` を含む13項目を返す。Userの名前は未設定を許可する。一覧・詳細Webは番号・担当者・報告者を表示し、メンバー削除APIは対象Projectの担当を解除する。Task作成APIの採番・担当者検証・報告者設定は後続である。
 
 | 項目 | 意味 | ルール |
 | --- | --- | --- |
 | number | Project内のタスク番号 | 1から始まる整数。`(projectId, number)` をDBの一意制約で保護する |
 | assigneeId | 担当者のUser ID | `User.id` を参照し、未担当は `null` |
-| reporterId | 報告者（作成者）のUser ID | `User.id` を参照し、未設定は `null` |
+| reporterId | 報告者（作成者）のUser ID | 必須。`User.id` を参照し、DBでも `NOT NULL` とする |
 
 - 表示上の番号は `Project.key` と `Task.number` を組み合わせ、`APP-12` のように表示する。DB・URLで使うTaskの `id` は引き続き別の識別子として保持する。
-- 採番はBackendのTask作成処理で行う。Projectごとの採番用カウンターをDB上で安全に増加させ、採番とTask作成を同じtransactionに含める。Task作成失敗時はカウンター更新も取り消す。カウンターの保存場所はmigration設計時に確定する。
+- 採番はBackendのTask作成処理で行う。Projectの `lastTaskNumber` をDB上で安全に増加させ、採番とTask作成を同じtransactionに含める。Task作成失敗時はカウンター更新も取り消す。この処理は現在テストデータの準備関数で使っており、Task作成APIでは後続の実装とする。
 - 同時作成時の作成順はDBが採番処理を進めた順とする。作成済みTaskの番号は変更せず、Task削除後も番号を詰めたり再利用したりしない。
 - 担当者の設定時は、指定したUserが同じProjectのProjectMemberであることをAPIで検証する。
-- ProjectMemberを削除する際は、対象ProjectでそのUserが担当するTaskの `assigneeId` を、完了済みを含めて `null` にする。Task自体・状態・他Projectの担当は保持する。担当解除と参加情報削除は同じtransactionで行い、担当者設定との保存順もProject単位で揃える。
-- 報告者は既存の用語定義に合わせて作成者として扱い、通常のTask作成APIでは認証済み本人の `User.id` を自動設定する。クライアントから報告者のIDを受け取って本人の代わりに使わず、通常のTask更新APIでは変更しない。
-- Projectから報告者の参加情報が削除されても、Userは残るため `reporterId` は保持する。Userそのものを物理削除する場合の外部キー動作は、migration設計時に決める。
-- 既存の開発用Taskは削除して導入する方針とする。削除対象の確認と実行はmigration実装時に分けて扱い、Project・User・ProjectMember・Authユーザーは保持する。この仕様整理ではデータを変更しない。
+- ProjectMemberを削除する際は、対象ProjectでそのUserが担当するTaskの `assigneeId` を、完了済みを含めて `null` にし、変更したTaskの `updatedAt` を更新する。Task自体・状態・報告者は保持し、未担当・他のUserの担当・他ProjectのTaskの値と更新日時は変更しない。担当解除と参加情報削除はProject行をロックした同じtransactionで行い、途中で失敗した場合は両方を取り消す。担当者設定APIを追加するときもProject単位で保存順を揃える。
+- 報告者は作成者として必ず記録し、通常のTask作成APIでは認証済み本人の `User.id` を自動設定する。クライアントから報告者のIDを受け取って本人の代わりに使わず、通常のTask更新APIでは変更しない。報告者必須化のmigrationを適用する前に、既存Taskの `reporterId` がすべて設定済みであることを確認する。
+- Projectから報告者の参加情報が削除されても、Userは残るため `reporterId` は保持する。担当者・報告者の外部キーは `ON DELETE RESTRICT` とし、Taskから参照されているUserの物理削除を拒否する。
+- 既存の開発用Taskは、ユーザーがPrisma Studioで削除してから追加migrationを適用した。Project・User・ProjectMember・Authユーザーは保持する。新しい環境へ適用する際も、必須の `number` を追加する前に既存Taskの有無を確認する。
 
 ## 認証・認可の基本方針
 

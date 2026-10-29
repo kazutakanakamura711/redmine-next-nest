@@ -7,6 +7,9 @@ import { TaskList } from './tasks-list';
 const task: Task = {
   id: 'task-1',
   projectId: 'project-1',
+  number: 1,
+  assignee: { id: 'assignee-1', name: '山田太郎' },
+  reporter: { id: 'reporter-1', name: '佐藤花子' },
   title: 'ログイン画面を実装する',
   description: null,
   status: 'in_progress',
@@ -30,6 +33,7 @@ describe('TaskList', () => {
     render(
       <TaskList
         tasks={[]}
+        projectKey="APP"
         headerAction={<button type="button">ヘッダーの操作</button>}
       />,
     );
@@ -48,6 +52,8 @@ describe('TaskList', () => {
     const undatedTask: Task = {
       ...task,
       id: 'task-2',
+      number: 2,
+      assignee: null,
       title: '日付未設定のタスク',
       status: 'done',
       priority: 'low',
@@ -56,12 +62,37 @@ describe('TaskList', () => {
       updatedAt: '2026-10-26T00:00:00.000Z',
     };
 
-    render(<TaskList tasks={[task, undatedTask]} />);
+    render(<TaskList tasks={[task, undatedTask]} projectKey="APP" />);
 
     expect(screen.getByText('2件')).toBeInTheDocument();
     expect(screen.queryByText('タスクはありません。')).not.toBeInTheDocument();
 
     const table = within(screen.getByRole('table', { name: 'タスク一覧' }));
+    expect(
+      table.getAllByRole('columnheader').map((header) => header.textContent),
+    ).toEqual([
+      '番号',
+      'タイトル',
+      'ステータス',
+      '優先度',
+      '担当者',
+      '報告者',
+      '期限',
+      '更新日時',
+    ]);
+    expect(table.getByRole('link', { name: 'APP-1' })).toHaveAttribute(
+      'href',
+      '/projects/project-1/tasks/task-1',
+    );
+    const assignedRow = within(
+      table.getByRole('row', { name: /ログイン画面を実装する/ }),
+    );
+    expect(
+      assignedRow.getByRole('cell', { name: '山田太郎' }),
+    ).toBeInTheDocument();
+    expect(
+      assignedRow.getByRole('cell', { name: '佐藤花子' }),
+    ).toBeInTheDocument();
     expect(table.getByText(task.title)).toBeInTheDocument();
     expect(table.getByRole('link', { name: task.title })).toHaveAttribute(
       'href',
@@ -80,11 +111,23 @@ describe('TaskList', () => {
     expect(undatedRow.getByText('完了')).toBeInTheDocument();
     expect(undatedRow.getByText('低')).toBeInTheDocument();
     expect(undatedRow.getAllByText('—')).toHaveLength(1);
+    expect(undatedRow.getByText('未担当')).toBeInTheDocument();
 
     const cards = within(
       screen.getByRole('list', { name: 'タスク一覧（モバイル）' }),
     );
     expect(cards.getAllByRole('listitem')).toHaveLength(2);
+    const firstCard = within(cards.getAllByRole('listitem')[0]);
+    expect(firstCard.getByRole('link', { name: 'APP-1' })).toHaveAttribute(
+      'href',
+      '/projects/project-1/tasks/task-1',
+    );
+    expect(firstCard.getByText('山田太郎')).toBeInTheDocument();
+    expect(firstCard.getByText('報告者')).toBeInTheDocument();
+    expect(firstCard.getByText('佐藤花子')).toBeInTheDocument();
+    expect(
+      within(cards.getAllByRole('listitem')[1]).getByText('未担当'),
+    ).toBeInTheDocument();
     expect(
       cards.getByRole('heading', { name: task.title }),
     ).toBeInTheDocument();
@@ -106,7 +149,9 @@ describe('TaskList', () => {
   ] as const)(
     'status=%s、期限=%s の期限超過表示は%s',
     (status, dueDate, overdue) => {
-      render(<TaskList tasks={[{ ...task, status, dueDate }]} />);
+      render(
+        <TaskList tasks={[{ ...task, status, dueDate }]} projectKey="APP" />,
+      );
 
       for (const container of [
         screen.getByRole('table', { name: 'タスク一覧' }),
@@ -118,4 +163,51 @@ describe('TaskList', () => {
       }
     },
   );
+
+  it.each([null, '   '])(
+    '名前が%sなら名前未設定と表示し、未担当と区別する',
+    (name) => {
+      render(
+        <TaskList
+          projectKey="APP"
+          tasks={[
+            {
+              ...task,
+              assignee: { id: 'assignee-1', name },
+              reporter: { id: 'reporter-1', name },
+            },
+          ]}
+        />,
+      );
+
+      for (const container of [
+        screen.getByRole('table', { name: 'タスク一覧' }),
+        screen.getByRole('list', { name: 'タスク一覧（モバイル）' }),
+      ]) {
+        expect(within(container).getAllByText('名前未設定')).toHaveLength(2);
+        expect(within(container).queryByText('未担当')).not.toBeInTheDocument();
+      }
+    },
+  );
+
+  it('番号・タイトルのリンクでProject IDとTask IDをエンコードする', () => {
+    render(
+      <TaskList
+        projectKey="APP"
+        tasks={[{ ...task, projectId: 'project/1?x=y', id: 'task/1#detail' }]}
+      />,
+    );
+
+    for (const container of [
+      screen.getByRole('table', { name: 'タスク一覧' }),
+      screen.getByRole('list', { name: 'タスク一覧（モバイル）' }),
+    ]) {
+      for (const name of ['APP-1', task.title]) {
+        expect(within(container).getByRole('link', { name })).toHaveAttribute(
+          'href',
+          '/projects/project%2F1%3Fx%3Dy/tasks/task%2F1%23detail',
+        );
+      }
+    }
+  });
 });

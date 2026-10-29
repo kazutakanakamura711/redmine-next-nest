@@ -18,6 +18,9 @@ const fetchMock = vi.fn<typeof fetch>();
 const task: Task = {
   id: 'task-1',
   projectId: 'project-1',
+  number: 12,
+  assignee: null,
+  reporter: { id: 'reporter-1', name: null },
   title: 'タスク詳細を取得する',
   description: null,
   status: 'todo',

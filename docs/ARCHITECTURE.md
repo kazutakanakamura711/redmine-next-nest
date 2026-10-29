@@ -184,7 +184,8 @@ src/
     │   └── projects.module.ts
     └── tasks/
         ├── dto/
-        │   └── task-response.dto.ts
+        │   ├── task-response.dto.ts
+        │   └── task-user-response.dto.ts
         ├── tasks.controller.ts
         ├── tasks.service.ts
         ├── tasks.repository.ts
@@ -197,7 +198,11 @@ src/
 一覧・詳細は AuthGuard による token・メール確認と User 同期の後、Controller が URL の Project ID と本人の User ID を Service に渡す。詳細では URL の Task ID も渡す。
 Service は Repository から本人の参加情報を取得し、なければ既存 Project API と同じ404を返す。owner・member・viewer の全 role に閲覧を許可し、アーカイブ状態では拒否しない。詳細の `findOne()` は参加情報の確認後に Task を取得し、対象がなければ「タスクが見つかりません」の404を返す。
 Repository の `findAll()` は Task を Project ID で限定し、作成日時・ID の降順で取得する。詳細の `findById()` は Prisma の `findUnique()` に Task ID と Project ID を指定し、両方が一致する1件または `null` を返す。
+どちらの取得でも、担当者・報告者の関連Userを `select` でID・名前だけに限定して読み込む。Controllerは `number`、`{ id, name }` または `null` の担当者、必須の `{ id, name }` の報告者を返し、関連Userのメールアドレスなどを含めない。Userの名前は `null` を許可する。
 Controller が返却項目を明示し、日付・日時を API の文字列形式に変換する。一覧は配列、詳細は単一オブジェクトを返し、既存の `TaskResponseDto` を共有する。レスポンス DTO 自体は変換処理を持たない。
+
+メンバー削除の `ProjectsRepository.deleteProjectMember()` は、Project行をロックし、アーカイブ・対象の所属・owner保護を再確認してから、対象Userの担当Taskを `projectId` と `assigneeId` で限定して未担当へ戻し、参加情報を削除する。担当解除と参加情報削除は同じtransactionに含める。Serviceは従来の認証済み本人のmembership・owner権限の確認を担当し、Controllerの204応答は維持する。
+Projectを返すControllerの各操作では、同じファイル内の `toProjectResponse()` で公開項目と日時の文字列変換を揃える。採番用の `lastTaskNumber` などDBの内部カラムをそのまま返さず、詳細取得だけ本人の `currentUserRole` を追加する。
 
 ## それぞれの責務
 

@@ -39,23 +39,27 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // このユーザーが owner になっているプロジェクト一覧。
-  ownedProjects Project[]
-
+  ownedProjects  Project[]
   // このユーザーのプロジェクト参加情報一覧。
   projectMembers ProjectMember[]
+  // このユーザーが担当するタスク一覧。
+  assignedTasks  Task[]          @relation("TaskAssignee")
+  // このユーザーが報告したタスク一覧。
+  reportedTasks  Task[]          @relation("TaskReporter")
 
   @@map("users")
 }
 
 model Project {
-  id          String   @id @default(cuid()) // プロジェクトのID
-  ownerId     String   @map("owner_id") @db.Uuid // 作成者のUser ID（User.id と同じ UUID 型）
-  name        String // プロジェクトの名前
-  key         String   @unique // プロジェクトのキー
-  description String? // プロジェクトの説明
-  isArchived  Boolean  @default(false) @map("is_archived") // プロジェクトがアーカイブされているかどうか
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid()) // プロジェクトのID
+  ownerId        String   @map("owner_id") @db.Uuid // 作成者のUser ID（User.id と同じ UUID 型）
+  name           String // プロジェクトの名前
+  key            String   @unique // プロジェクトのキー
+  description    String? // プロジェクトの説明
+  isArchived     Boolean  @default(false) @map("is_archived") // プロジェクトがアーカイブされているかどうか
+  lastTaskNumber Int      @default(0) @map("last_task_number") // 最後に採番したタスク番号。次回は1増やして使う
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   // ownerId が User.id を参照し、このプロジェクトの owner を表す。
   owner          User            @relation(fields: [ownerId], references: [id])
@@ -77,9 +81,8 @@ model ProjectMember {
 
   // この参加情報が属するプロジェクト。
   project Project @relation(fields: [projectId], references: [id])
-
   // この参加情報のユーザー。
-  user User @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
   @@unique([projectId, userId]) // 同じユーザーが同じプロジェクトに複数回参加できないようにする
   @@map("project_members")
@@ -88,6 +91,9 @@ model ProjectMember {
 model Task {
   id          String       @id @default(cuid()) // タスクのID
   projectId   String       @map("project_id") // プロジェクトのID
+  assigneeId  String?      @map("assignee_id") @db.Uuid // 担当者のユーザーのID
+  reporterId  String       @map("reporter_id") @db.Uuid // 報告者（作成者）のユーザーのID
+  number      Int // プロジェクトのKEYと結合して使う番号
   title       String // タイトル
   description String? // 詳細説明
   status      TaskStatus   @default(todo) // ステータス
@@ -98,8 +104,13 @@ model Task {
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   // タスクが所属するプロジェクト
-  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  // タスクの担当者。Userの物理削除は参照中なら拒否する。
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  // タスクの報告者。Projectから脱退してもUserへの参照は保持する。
+  reporter User    @relation("TaskReporter", fields: [reporterId], references: [id], onDelete: Restrict)
 
+  @@unique([projectId, number])
   @@index([projectId, createdAt, id])
   @@map("tasks")
 }

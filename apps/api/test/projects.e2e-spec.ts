@@ -115,8 +115,8 @@ describe('Projects endpoint', () => {
     // 本物の token を検証し、E2E 専用 DB にアプリ側の User を作成する。
     const response = await request(app.getHttpServer())
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
+      .set('Authorization', `Bearer ${accessToken}`);
+    expect(response.status, JSON.stringify(response.body?.message)).toBe(200);
     expect(response.body).toMatchObject({ id: userId, email });
   });
 
@@ -128,7 +128,10 @@ describe('Projects endpoint', () => {
 
     const prisma = app.get(PrismaService);
     try {
-      // Project を参照する参加情報を先に削除し、外部キー制約に抵触しないようにする。
+      // 今回作成したProjectのTask・参加情報から順に、外部キーの参照元を片付ける。
+      await prisma.task.deleteMany({
+        where: { project: { key: { in: projectKeys } } },
+      });
       await prisma.projectMember.deleteMany({
         where: { project: { key: { in: projectKeys } } },
       });
@@ -232,6 +235,7 @@ describe('Projects endpoint', () => {
         expect(response.body).toEqual([
           expect.objectContaining({ id: project.id, ownerId, key: projectKey }),
         ]);
+        expect(response.body[0]).not.toHaveProperty('lastTaskNumber');
       },
     );
 
@@ -2849,6 +2853,294 @@ describe('Projects endpoint', () => {
   });
 
   describe('メンバー削除: DELETE /api/projects/:projectId/members/:memberId', () => {
+    async function createTaskAssignmentProject({
+      requesterRole = 'owner',
+      targetRole = 'member',
+      isArchived = false,
+    }: {
+      requesterRole?: 'owner' | 'member' | 'viewer' | null;
+      targetRole?: 'member' | 'viewer';
+      isArchived?: boolean;
+    } = {}) {
+      const prisma = app.get(PrismaService);
+      const target = await createOtherUser();
+      const ownerId =
+        requesterRole === 'owner' ? userId : (await createOtherUser()).id;
+      const previousTime = new Date('2025-01-01T00:00:00.000Z');
+      const project = await prisma.project.create({
+        data: {
+          ownerId,
+          key: projectKey,
+          name: 'Task Assignment Member Deletion',
+          isArchived,
+          lastTaskNumber: 5,
+          projectMembers: {
+            create: [
+              { userId: ownerId, role: 'owner' },
+              { userId: target.id, role: targetRole },
+              ...(requesterRole && requesterRole !== 'owner'
+                ? [{ userId, role: requesterRole }]
+                : []),
+            ],
+          },
+          tasks: {
+            create: [
+              ...(['todo', 'in_progress', 'done'] as const).map(
+                (status, index) => ({
+                  number: index + 1,
+                  title: `Assigned ${status}`,
+                  status,
+                  assigneeId: target.id,
+                  reporterId: target.id,
+                  createdAt: previousTime,
+                  updatedAt: previousTime,
+                }),
+              ),
+              {
+                number: 4,
+                title: 'Another assignee',
+                assigneeId: ownerId,
+                reporterId: target.id,
+                createdAt: previousTime,
+                updatedAt: previousTime,
+              },
+              {
+                number: 5,
+                title: 'Unassigned',
+                assigneeId: null,
+                reporterId: target.id,
+                createdAt: previousTime,
+                updatedAt: previousTime,
+              },
+            ],
+          },
+        },
+        include: {
+          projectMembers: { orderBy: { id: 'asc' } },
+          tasks: { orderBy: { id: 'asc' } },
+        },
+      });
+      const member = project.projectMembers.find(
+        (entry) => entry.userId === target.id,
+      )!;
+      return { prisma, project, member, target };
+    }
+
+    function readTaskAssignmentProject(projectId: string) {
+      return app.get(PrismaService).project.findUniqueOrThrow({
+        where: { id: projectId },
+        include: {
+          projectMembers: { orderBy: { id: 'asc' } },
+          tasks: { orderBy: { id: 'asc' } },
+        },
+      });
+    }
+
+    it.each(['member', 'viewer'] as const)(
+      '%sの削除で対象Projectの担当だけを解除し、完了状態・報告者・他Projectの担当を保持する',
+      async (targetRole) => {
+        const { prisma, project, member, target } =
+          await createTaskAssignmentProject({ targetRole });
+        const otherKey = projectKey.replace('E2E', 'OTH');
+        projectKeys.push(otherKey);
+        const otherProject = await prisma.project.create({
+          data: {
+            ownerId: userId,
+            key: otherKey,
+            name: 'Keep Other Project Assignment',
+            lastTaskNumber: 1,
+            projectMembers: {
+              create: [
+                { userId, role: 'owner' },
+                { userId: target.id, role: 'member' },
+              ],
+            },
+            tasks: {
+              create: {
+                number: 1,
+                title: 'Keep assignment',
+                assigneeId: target.id,
+                reporterId: target.id,
+              },
+            },
+          },
+          include: {
+            projectMembers: { orderBy: { id: 'asc' } },
+            tasks: { orderBy: { id: 'asc' } },
+          },
+        });
+
+        const response = await request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(204);
+        expect(response.text).toBe('');
+
+        const after = await readTaskAssignmentProject(project.id);
+        expect(after).toEqual({
+          ...project,
+          projectMembers: project.projectMembers.filter(
+            (entry) => entry.id !== member.id,
+          ),
+          tasks: project.tasks.map((task) =>
+            task.assigneeId === target.id
+              ? { ...task, assigneeId: null, updatedAt: expect.any(Date) }
+              : task,
+          ),
+        });
+        for (const task of project.tasks.filter(
+          (task) => task.assigneeId === target.id,
+        )) {
+          expect(
+            after.tasks
+              .find((entry) => entry.id === task.id)!
+              .updatedAt.getTime(),
+          ).toBeGreaterThan(task.updatedAt.getTime());
+        }
+        expect(await readTaskAssignmentProject(otherProject.id)).toEqual(
+          otherProject,
+        );
+        expect(
+          await prisma.user.findUnique({ where: { id: target.id } }),
+        ).toEqual(target);
+
+        const completed = project.tasks.find((task) => task.status === 'done')!;
+        const detail = await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/tasks/${completed.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200);
+        expect(detail.body).toMatchObject({
+          status: 'done',
+          assignee: null,
+          reporter: { id: target.id, name: null },
+        });
+      },
+    );
+
+    it.each([
+      {
+        name: 'tokenなし',
+        requesterRole: 'owner',
+        isArchived: false,
+        targetType: 'member',
+        status: 401,
+        useToken: false,
+      },
+      {
+        name: 'member権限',
+        requesterRole: 'member',
+        isArchived: false,
+        targetType: 'member',
+        status: 403,
+        useToken: true,
+      },
+      {
+        name: 'viewer権限',
+        requesterRole: 'viewer',
+        isArchived: false,
+        targetType: 'member',
+        status: 403,
+        useToken: true,
+      },
+      {
+        name: '非参加者',
+        requesterRole: null,
+        isArchived: false,
+        targetType: 'member',
+        status: 404,
+        useToken: true,
+      },
+      {
+        name: 'アーカイブ済み',
+        requesterRole: 'owner',
+        isArchived: true,
+        targetType: 'member',
+        status: 409,
+        useToken: true,
+      },
+      {
+        name: 'owner保護',
+        requesterRole: 'owner',
+        isArchived: false,
+        targetType: 'owner',
+        status: 409,
+        useToken: true,
+      },
+      {
+        name: '対象不在',
+        requesterRole: 'owner',
+        isArchived: false,
+        targetType: 'missing',
+        status: 404,
+        useToken: true,
+      },
+    ] as const)(
+      '$nameで削除を拒否した場合はTaskの担当と更新日時も変更しない',
+      async ({ requesterRole, isArchived, targetType, status, useToken }) => {
+        const { prisma, project, member } = await createTaskAssignmentProject({
+          requesterRole,
+          isArchived,
+        });
+        const ownerMember = project.projectMembers.find(
+          (entry) => entry.role === 'owner',
+        )!;
+        if (targetType === 'owner') {
+          await prisma.task.updateMany({
+            where: { projectId: project.id, assigneeId: member.userId },
+            data: { assigneeId: project.ownerId },
+          });
+        }
+        const before = await readTaskAssignmentProject(project.id);
+        const memberId =
+          targetType === 'owner'
+            ? ownerMember.id
+            : targetType === 'missing'
+              ? 'not-found'
+              : member.id;
+        const deletion = request(app.getHttpServer()).delete(
+          `/api/projects/${project.id}/members/${memberId}`,
+        );
+        if (useToken) deletion.set('Authorization', `Bearer ${accessToken}`);
+        await deletion.expect(status);
+        expect(await readTaskAssignmentProject(project.id)).toEqual(before);
+      },
+    );
+
+    it('transaction内の更新・削除後に失敗した場合は担当解除と参加情報削除を両方取り消す', async () => {
+      const { prisma, project, member, target } =
+        await createTaskAssignmentProject();
+      const runTransaction = prisma.$transaction.bind(prisma);
+      let changesSeenInsideTransaction = false;
+      app.useLogger(false);
+      const transactionSpy = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementationOnce((operation, options) =>
+          runTransaction(async (tx) => {
+            await operation(tx);
+            const remainingMember = await tx.projectMember.findUnique({
+              where: { id: member.id },
+            });
+            const remainingAssignments = await tx.task.count({
+              where: { projectId: project.id, assigneeId: target.id },
+            });
+            changesSeenInsideTransaction =
+              remainingMember === null && remainingAssignments === 0;
+            throw new Error('transaction失敗時の取り消しを確認するための例外');
+          }, options),
+        );
+
+      try {
+        await request(app.getHttpServer())
+          .delete(`/api/projects/${project.id}/members/${member.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(500);
+        expect(changesSeenInsideTransaction).toBe(true);
+        expect(await readTaskAssignmentProject(project.id)).toEqual(project);
+      } finally {
+        transactionSpy.mockRestore();
+      }
+    });
+
     it('role変更が先にProject行をロックした場合はrole変更200の後に削除204となり、他の参加情報を維持する', async () => {
       const prisma = app.get(PrismaService);
       const target = await createOtherUser();
@@ -4048,6 +4340,7 @@ describe('Projects endpoint', () => {
         .expect(201);
 
       // DBが作るidや日時は毎回変わるため、固定値ではなく型と必要な値を確認する。
+      expect(response.body).not.toHaveProperty('lastTaskNumber');
       expect(response.body).toMatchObject({
         id: expect.any(String),
         ownerId: userId,
@@ -4195,6 +4488,7 @@ describe('Projects endpoint', () => {
         description: '更新後の説明',
         isArchived: false,
       });
+      expect(response.body).not.toHaveProperty('lastTaskNumber');
       expect(
         await prisma.project.findUnique({
           where: { id: project.id },
@@ -4586,6 +4880,7 @@ describe('Projects endpoint', () => {
         key: projectKey,
         isArchived: true,
       });
+      expect(response.body).not.toHaveProperty('lastTaskNumber');
 
       expect(
         await prisma.project.findUnique({
@@ -4840,6 +5135,7 @@ describe('Projects endpoint', () => {
         key: projectKey,
         isArchived: false,
       });
+      expect(response.body).not.toHaveProperty('lastTaskNumber');
 
       expect(
         await prisma.project.findUnique({

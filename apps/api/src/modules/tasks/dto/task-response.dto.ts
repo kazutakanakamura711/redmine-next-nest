@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { TaskPriority, TaskStatus } from '../../../generated/prisma/enums.js';
+import { TaskUserResponseDto } from './task-user-response.dto.js';
 
 // Task API が返す JSON の形を Swagger に伝えるための DTO。
 export class TaskResponseDto {
@@ -14,6 +15,14 @@ export class TaskResponseDto {
     example: 'cmua3r1ik00032ed8lasbg1jj',
   })
   projectId: string;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'プロジェクト内のタスク番号',
+    minimum: 1,
+    example: 12,
+  })
+  number: number;
 
   @ApiProperty({
     description: 'タスク名',
@@ -44,6 +53,19 @@ export class TaskResponseDto {
     example: TaskPriority.normal,
   })
   priority: TaskPriority;
+
+  @ApiProperty({
+    type: TaskUserResponseDto,
+    description: '担当者の表示情報。未担当は null',
+    nullable: true,
+  })
+  assignee: TaskUserResponseDto | null;
+
+  @ApiProperty({
+    type: TaskUserResponseDto,
+    description: '報告者（タスク作成者）の表示情報',
+  })
+  reporter: TaskUserResponseDto;
 
   @ApiProperty({
     type: String,

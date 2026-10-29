@@ -43,7 +43,7 @@ export default async function ProjectTasksPage({
         activeTab={ProjectTabs.Task}
         currentUserRole={project.currentUserRole}
       />
-      <TaskList tasks={tasks} />
+      <TaskList tasks={tasks} projectKey={project.key} />
     </>
   );
 }
