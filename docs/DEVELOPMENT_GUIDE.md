@@ -57,6 +57,14 @@ Taskの型・状態／優先度のバッジを `features/tasks` で共有し、�
 
 PR前の最終確認では、`pnpm format:check`、ブラウザテストの型チェック、専用環境用のAPI・Web build、Playwright全7件が成功した。一覧・詳細のPC／モバイル画像を `docs/images/task-list-updated-*.png`・`docs/images/task-detail-*.png` に保存している。実行前後の専用DBのUser・Project・ProjectMember・Taskと専用SupabaseのAuthユーザーはすべて0件で、確認後は専用環境を終了した。
 
+### Task の追加項目の方針（2026-10-29）
+
+Task詳細Webの作業に続く追加範囲として、番号・担当者・報告者を合意した。Project内の番号は安全な採番処理とDBの一意制約で守り、採番とTask作成を同じtransactionに含める。担当者・報告者は `User.id` または `null` とし、参加情報削除時には担当者を解除し、報告者は作成者の記録として保持する。
+
+現在のTask詳細Webとは変更を区切り、まずmigrationの影響と確認方法を明確にする。番号の採番はTask作成処理、担当解除はメンバー削除処理と合わせて実装・検証する。既存の開発用Taskを削除して開始する方針だが、対象データの確認と削除は実装段階で扱う。今回の仕様整理ではPrisma schema・DB・API契約は変更しない。
+
+同時作成時の番号の重複防止、Task作成失敗時の取り消し、番号の再利用防止、Projectをまたぐ担当指定の拒否、メンバー削除と担当設定の競合をAPI E2Eで確認する。具体的なデータルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) を参照する。
+
 ## 例: プロジェクト作成 API
 
 新しい CRUD 機能は、毎回次の小さな順番で進める。
