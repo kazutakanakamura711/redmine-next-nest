@@ -97,10 +97,13 @@ describe('Tasks API', () => {
     expect(accessToken).toBeTruthy();
 
     // 本物のtokenを検証し、アプリ側のUserも既存の認証処理から作る。
-    await request(app.getHttpServer())
+    const authResponse = await request(app.getHttpServer())
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
+      .set('Authorization', `Bearer ${accessToken}`);
+    expect(
+      authResponse.status,
+      JSON.stringify(authResponse.body?.message),
+    ).toBe(200);
   });
 
   afterEach(async () => {
@@ -221,6 +224,606 @@ describe('Tasks API', () => {
       },
     });
   }
+
+  describe('POST /api/projects/:projectId/tasks', () => {
+    function postTask(
+      projectId: string,
+      body: Record<string, unknown> = { title: 'New Task' },
+    ) {
+      return request(app.getHttpServer())
+        .post(`/api/projects/${projectId}/tasks`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send(body);
+    }
+
+    it.each(['owner', 'member'] as const)(
+      '%sは最小入力で作成でき、本人を報告者にして13項目だけ返す',
+      async (role) => {
+        const project = await createProjectForRole(role);
+        const before = await readProjectState();
+        const { body } = await postTask(project.id, {
+          title: '  New Task  ',
+        }).expect(201);
+        const saved = await prisma.task.findUniqueOrThrow({
+          where: { id: body.id },
+        });
+
+        expect(body).toEqual({
+          id: saved.id,
+          projectId: project.id,
+          number: 1,
+          title: 'New Task',
+          description: null,
+          status: 'todo',
+          priority: 'normal',
+          assignee: null,
+          reporter: { id: userId, name: null },
+          startDate: null,
+          dueDate: null,
+          createdAt: saved.createdAt.toISOString(),
+          updatedAt: saved.updatedAt.toISOString(),
+        });
+        expect(saved).toMatchObject({
+          number: 1,
+          reporterId: userId,
+          assigneeId: null,
+        });
+        const [after] = await readProjectState();
+        expect(after).toEqual({
+          ...before[0],
+          lastTaskNumber: 1,
+          updatedAt: after.updatedAt,
+          tasks: [saved],
+        });
+        await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/tasks/${saved.id}`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+          .expect(body);
+        await request(app.getHttpServer())
+          .get(`/api/projects/${project.id}/tasks`)
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+          .expect([body]);
+      },
+    );
+
+    it.each(['owner', 'member', 'viewer'] as const)(
+      '同じProjectの%sを担当者にできる',
+      async (role) => {
+        const project = await createProject();
+        const assignee =
+          role === 'owner'
+            ? await prisma.user.findUniqueOrThrow({ where: { id: userId } })
+            : await createOtherUser();
+        if (role !== 'owner') {
+          await prisma.projectMember.create({
+            data: { projectId: project.id, userId: assignee.id, role },
+          });
+        }
+        await adminClient.auth.admin.updateUserById(userId, {
+          user_metadata: { name: '報告者' },
+        });
+        if (role !== 'owner') {
+          await prisma.user.update({
+            where: { id: assignee.id },
+            data: { name: '担当者' },
+          });
+        }
+        const { body } = await postTask(project.id, {
+          title: 'Details',
+          description: '  説明\n2行目  ',
+          status: 'in_progress',
+          priority: 'high',
+          assigneeId: assignee.id,
+          startDate: '2028-02-29',
+          dueDate: '2028-03-01',
+        }).expect(201);
+        expect(body).toMatchObject({
+          description: '説明\n2行目',
+          status: 'in_progress',
+          priority: 'high',
+          assignee: {
+            id: assignee.id,
+            name: role === 'owner' ? '報告者' : '担当者',
+          },
+          reporter: { id: userId, name: '報告者' },
+          startDate: '2028-02-29',
+          dueDate: '2028-03-01',
+        });
+        expect(Object.keys(body.assignee).sort()).toEqual(['id', 'name']);
+        expect(Object.keys(body.reporter).sort()).toEqual(['id', 'name']);
+        const saved = await prisma.task.findUniqueOrThrow({
+          where: { id: body.id },
+        });
+        expect(saved.startDate?.toISOString()).toBe('2028-02-29T00:00:00.000Z');
+        expect(saved.dueDate?.toISOString()).toBe('2028-03-01T00:00:00.000Z');
+      },
+    );
+
+    it.each([
+      { description: null, assigneeId: null, startDate: null, dueDate: null },
+      { description: ' \n\t ', status: 'done', priority: 'low' },
+      {
+        title: 'a'.repeat(200),
+        description: 'a'.repeat(5000),
+        startDate: '2026-10-30',
+        dueDate: '2026-10-30',
+      },
+      { startDate: '2026-10-30' },
+      { dueDate: '2026-10-30' },
+      { startDate: '0001-01-01', dueDate: '9999-12-31' },
+    ])('任意項目の省略・null・境界値を保存する: %j', async (input) => {
+      const project = await createProject();
+      const { body } = await postTask(project.id, {
+        title: 'Optional',
+        ...input,
+      }).expect(201);
+      expect(body).toMatchObject({
+        title: input.title ?? 'Optional',
+        description: input.description?.trim() || null,
+        status: input.status ?? 'todo',
+        priority: input.priority ?? 'normal',
+        assignee: null,
+        startDate: input.startDate ?? null,
+        dueDate: input.dueDate ?? null,
+      });
+    });
+
+    it.each([
+      ['titleなし', {}],
+      ['title null', { title: null }],
+      ['title数値', { title: 1 }],
+      ['空title', { title: '' }],
+      ['空白title', { title: ' \n\t ' }],
+      ['title 201文字', { title: 'a'.repeat(201) }],
+      ['description数値', { title: 'Task', description: 1 }],
+      [
+        'description 5001文字',
+        { title: 'Task', description: 'a'.repeat(5001) },
+      ],
+      ['status不正', { title: 'Task', status: 'closed' }],
+      ['status null', { title: 'Task', status: null }],
+      ['priority不正', { title: 'Task', priority: 'urgent' }],
+      ['priority null', { title: 'Task', priority: null }],
+      ['assigneeId形式不正', { title: 'Task', assigneeId: 'not-a-uuid' }],
+      ['assigneeId数値', { title: 'Task', assigneeId: 1 }],
+      ['開始日不正', { title: 'Task', startDate: '2026-02-29' }],
+      ['期限不正', { title: 'Task', dueDate: '2026-04-31' }],
+      ['開始日に時刻', { title: 'Task', startDate: '2026-10-30T00:00:00Z' }],
+      ['期限に時刻', { title: 'Task', dueDate: '2026-10-30T00:00:00+09:00' }],
+      ['日付の0埋めなし', { title: 'Task', startDate: '2026-1-1' }],
+      ['0年', { title: 'Task', dueDate: '0000-01-01' }],
+      ['日付数値', { title: 'Task', startDate: 20261030 }],
+      [
+        '期限が開始日より前',
+        { title: 'Task', startDate: '2026-10-30', dueDate: '2026-10-29' },
+      ],
+      ['number指定', { title: 'Task', number: 99 }],
+      [
+        'reporterId指定',
+        { title: 'Task', reporterId: '11111111-1111-4111-8111-111111111111' },
+      ],
+      ['projectId指定', { title: 'Task', projectId: 'another' }],
+      ['userId指定', { title: 'Task', userId: 'another' }],
+      ['id指定', { title: 'Task', id: 'another' }],
+      ['定義外の項目', { title: 'Task', extra: true }],
+    ])(
+      '%sは400で拒否し、カウンター・Task・参加情報を変更しない',
+      async (_label, input) => {
+        const project = await createProject();
+        const before = await readProjectState();
+        await postTask(project.id, input).expect(400);
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it.each([undefined, 'Basic invalid', 'Bearer invalid-token'])(
+      '認証ヘッダー%sは401で拒否する',
+      async (authorization) => {
+        const project = await createProject();
+        const before = await readProjectState();
+        const pending = request(app.getHttpServer())
+          .post(`/api/projects/${project.id}/tasks`)
+          .send({ title: 'Task' });
+        if (authorization) pending.set('Authorization', authorization);
+        await pending.expect(401);
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it.each([{ email: undefined }, { email_confirmed_at: undefined }])(
+      'メール条件を満たさなければ403で拒否する: %j',
+      async (emailState) => {
+        const project = await createProject();
+        const before = await readProjectState();
+        const authService = app.get(AuthService);
+        const verifiedUser = await authService.verifyAccessToken(accessToken);
+        vi.spyOn(authService, 'verifyAccessToken').mockResolvedValueOnce({
+          ...verifiedUser,
+          ...emailState,
+        });
+        await postTask(project.id).expect(403);
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it.each([false, true])(
+      '非参加者はProject不在と同じ404、viewerは403になる（archive=%s）',
+      async (isArchived) => {
+        const other = await createOtherUser();
+        const project = await createProject(other.id, isArchived);
+        const viewerProject = await createProjectForRole('viewer', isArchived);
+        const before = await readProjectState();
+        for (const projectId of [project.id, 'not-found']) {
+          await postTask(projectId, { title: 'Task', assigneeId: randomUUID() })
+            .expect(404)
+            .expect(projectNotFound);
+        }
+        await postTask(viewerProject.id).expect(403);
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it('ownerIdが本人でも参加情報を失えば作成できない', async () => {
+      const project = await createProject();
+      await prisma.projectMember.deleteMany({
+        where: { projectId: project.id, userId },
+      });
+      const before = await readProjectState();
+      await postTask(project.id).expect(404).expect(projectNotFound);
+      expect(await readProjectState()).toEqual(before);
+    });
+
+    it('queryのuserId・reporterId・numberで実行者・報告者・採番を指定できない', async () => {
+      const other = await createOtherUser();
+      const otherProject = await createProject(other.id);
+      const before = await readProjectState();
+      await postTask(otherProject.id)
+        .query({ userId: other.id })
+        .expect(404)
+        .expect(projectNotFound);
+      expect(await readProjectState()).toEqual(before);
+
+      const project = await createProject();
+      const { body } = await postTask(project.id)
+        .query({ userId: other.id, reporterId: other.id, number: 99 })
+        .expect(201);
+      expect(body).toMatchObject({
+        number: 1,
+        reporter: { id: userId, name: null },
+      });
+    });
+
+    it.each(['owner', 'member'] as const)(
+      'アーカイブ済みProjectには%sも作成できない',
+      async (role) => {
+        const project = await createProjectForRole(role, true);
+        const before = await readProjectState();
+        await postTask(project.id, {
+          title: 'Task',
+          assigneeId: randomUUID(),
+        }).expect(409);
+        expect(await readProjectState()).toEqual(before);
+      },
+    );
+
+    it('存在しないUser・非参加User・別Projectだけの参加Userは同じ400で拒否する', async () => {
+      const project = await createProject();
+      const outsider = await createOtherUser();
+      const otherMember = await createOtherUser();
+      await createProject(otherMember.id);
+      const before = await readProjectState();
+      for (const assigneeId of [randomUUID(), outsider.id, otherMember.id]) {
+        await postTask(project.id, { title: 'Task', assigneeId })
+          .expect(400)
+          .expect({
+            message: '担当者は同じプロジェクトの参加者を指定してください',
+            error: 'Bad Request',
+            statusCode: 400,
+          });
+        expect(await readProjectState()).toEqual(before);
+      }
+    });
+
+    it('Projectごとに1から採番し、削除後も番号を再利用しない', async () => {
+      const project = await createProject();
+      const otherProject = await createProject();
+      const first = await postTask(project.id).expect(201);
+      const second = await postTask(project.id).expect(201);
+      await prisma.task.delete({ where: { id: second.body.id } });
+      const third = await postTask(project.id).expect(201);
+      const other = await postTask(otherProject.id).expect(201);
+      expect([
+        first.body.number,
+        second.body.number,
+        third.body.number,
+        other.body.number,
+      ]).toEqual([1, 2, 3, 1]);
+      expect(
+        await prisma.project.findUnique({ where: { id: project.id } }),
+      ).toMatchObject({ lastTaskNumber: 3 });
+    });
+
+    it('同時作成でも番号が重複せず、すべてのTaskを保存する', async () => {
+      const project = await createProject();
+      const responses = await Promise.all(
+        Array.from({ length: 8 }, (_, i) =>
+          postTask(project.id, { title: `Task ${i}` }).expect(201),
+        ),
+      );
+      expect(
+        responses.map(({ body }) => body.number).sort((a, b) => a - b),
+      ).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(new Set(responses.map(({ body }) => body.id)).size).toBe(8);
+      expect(
+        await prisma.task.count({ where: { projectId: project.id } }),
+      ).toBe(8);
+      expect(
+        await prisma.project.findUnique({ where: { id: project.id } }),
+      ).toMatchObject({ lastTaskNumber: 8 });
+    });
+
+    it('既存番号と重複すれば409で拒否し、採番更新も取り消す', async () => {
+      const project = await createProject();
+      await createTask(project.id);
+      // StudioでTaskだけを手動作成した場合のカウンター不整合を再現する。
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { lastTaskNumber: 0 },
+      });
+      const before = await readProjectState();
+      await postTask(project.id).expect(409).expect({
+        message: 'タスク番号が競合しました',
+        error: 'Conflict',
+        statusCode: 409,
+      });
+      expect(await readProjectState()).toEqual(before);
+    });
+
+    it('採番・Task保存後の失敗は両方を取り消し、次の成功で1を使う', async () => {
+      const project = await createProject();
+      const before = await readProjectState();
+      const runTransaction = prisma.$transaction.bind(prisma);
+      let changesSeen = false;
+      app.useLogger(false);
+      const spy = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementationOnce((operation, options) =>
+          runTransaction(async (tx) => {
+            await operation(tx);
+            const saved = await tx.project.findUniqueOrThrow({
+              where: { id: project.id },
+            });
+            changesSeen =
+              saved.lastTaskNumber === 1 &&
+              (await tx.task.count({ where: { projectId: project.id } })) === 1;
+            throw new Error('保存後の失敗時のrollbackを確認する');
+          }, options),
+        );
+      try {
+        await postTask(project.id).expect(500);
+        expect(changesSeen).toBe(true);
+        expect(await readProjectState()).toEqual(before);
+      } finally {
+        spy.mockRestore();
+      }
+      const { body } = await postTask(project.id).expect(201);
+      expect(body.number).toBe(1);
+    });
+
+    // 固定sleepを使わず、対象のDB接続が実際にロック待ちになったことを確認する。
+    async function waitForBlockedQuery(
+      blockerPid: number,
+      prefix: string,
+      table: string,
+    ) {
+      return vi.waitUntil(
+        async () => {
+          const [waiting] = await prisma.$queryRaw<{ pid: number }[]>`
+          SELECT pid FROM pg_stat_activity
+          WHERE ${blockerPid}::integer = ANY(pg_blocking_pids(pid))
+            AND query LIKE ${prefix + '%'} AND query LIKE ${'%' + table + '%'}
+        `;
+          return waiting?.pid;
+        },
+        { timeout: 3000, interval: 10 },
+      );
+    }
+
+    it.each([
+      'archive',
+      'remove_creator',
+      'demote_creator',
+      'remove_assignee',
+    ] as const)(
+      'Projectロック待ちの間に%sが先に保存されたら最新状態で拒否する',
+      async (operation) => {
+        const project = await createProjectForRole('member');
+        const target = await createOtherUser();
+        await prisma.projectMember.create({
+          data: { projectId: project.id, userId: target.id, role: 'viewer' },
+        });
+        let release = () => {};
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        let ready = (_pid: number) => {};
+        let rejectReady = (_error: unknown) => {};
+        const locked = new Promise<number>((resolve, reject) => {
+          ready = resolve;
+          rejectReady = reject;
+        });
+        const blocker = prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT id FROM projects WHERE id = ${project.id} FOR UPDATE`;
+            if (operation === 'archive') {
+              await tx.project.update({
+                where: { id: project.id },
+                data: { isArchived: true },
+              });
+            } else if (operation === 'demote_creator') {
+              await tx.projectMember.update({
+                where: { projectId_userId: { projectId: project.id, userId } },
+                data: { role: 'viewer' },
+              });
+            } else {
+              await tx.projectMember.delete({
+                where: {
+                  projectId_userId: {
+                    projectId: project.id,
+                    userId: operation === 'remove_creator' ? userId : target.id,
+                  },
+                },
+              });
+            }
+            const [{ pid }] = await tx.$queryRaw<
+              { pid: number }[]
+            >`SELECT pg_backend_pid() AS pid`;
+            ready(pid);
+            await gate;
+          },
+          { timeout: 10000 },
+        );
+        blocker.catch(rejectReady);
+        let pending: Promise<request.Response> | undefined;
+        try {
+          const pid = await locked;
+          pending = postTask(project.id, {
+            title: 'Task',
+            assigneeId: target.id,
+          }).then((response) => response);
+          pending.catch(() => {});
+          await waitForBlockedQuery(pid, '%SELECT', 'projects');
+          release();
+          await blocker;
+          const afterChange = await readProjectState();
+          const response = await pending;
+          expect(response.status).toBe(
+            {
+              archive: 409,
+              remove_creator: 404,
+              demote_creator: 403,
+              remove_assignee: 400,
+            }[operation],
+          );
+          expect(await readProjectState()).toEqual(afterChange);
+          expect(afterChange[0]).toMatchObject({
+            lastTaskNumber: 0,
+            tasks: [],
+          });
+        } finally {
+          release();
+          await Promise.allSettled([blocker, ...(pending ? [pending] : [])]);
+        }
+      },
+      15000,
+    );
+
+    it.each(['remove_assignee', 'archive'] as const)(
+      '作成が先にProjectをロックした場合は%sが完了まで待つ',
+      async (operation) => {
+        const project = await createProject();
+        const target = await createOtherUser();
+        const member = await prisma.projectMember.create({
+          data: { projectId: project.id, userId: target.id, role: 'member' },
+        });
+        let release = () => {};
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        let ready = (_pid: number) => {};
+        let rejectReady = (_error: unknown) => {};
+        const locked = new Promise<number>((resolve, reject) => {
+          ready = resolve;
+          rejectReady = reject;
+        });
+        const blocker = prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRaw`LOCK TABLE tasks IN SHARE MODE`;
+            const [{ pid }] = await tx.$queryRaw<
+              { pid: number }[]
+            >`SELECT pg_backend_pid() AS pid`;
+            ready(pid);
+            await gate;
+          },
+          { timeout: 10000 },
+        );
+        blocker.catch(rejectReady);
+        let pendingCreate: Promise<request.Response> | undefined;
+        let pendingChange: Promise<request.Response> | undefined;
+        try {
+          const pid = await locked;
+          pendingCreate = postTask(project.id, {
+            title: 'Task',
+            assigneeId: target.id,
+          })
+            .expect(201)
+            .then((response) => response);
+          pendingCreate.catch(() => {});
+          const creatorPid = await waitForBlockedQuery(pid, 'INSERT', 'tasks');
+          pendingChange = (
+            operation === 'remove_assignee'
+              ? request(app.getHttpServer()).delete(
+                  `/api/projects/${project.id}/members/${member.id}`,
+                )
+              : request(app.getHttpServer()).post(
+                  `/api/projects/${project.id}/archive`,
+                )
+          )
+            .set('Authorization', `Bearer ${accessToken}`)
+            .expect(operation === 'remove_assignee' ? 204 : 200)
+            .then((response) => response);
+          pendingChange.catch(() => {});
+          await waitForBlockedQuery(
+            creatorPid,
+            operation === 'archive' ? 'UPDATE' : '%SELECT',
+            'projects',
+          );
+          release();
+          await blocker;
+          const [created] = await Promise.all([pendingCreate, pendingChange]);
+          expect(created.body.assignee.id).toBe(target.id);
+          const saved = await prisma.task.findUniqueOrThrow({
+            where: { id: created.body.id },
+          });
+          expect(saved).toMatchObject({
+            number: 1,
+            reporterId: userId,
+            assigneeId: operation === 'remove_assignee' ? null : target.id,
+          });
+          expect(
+            await prisma.project.findUnique({ where: { id: project.id } }),
+          ).toMatchObject({
+            lastTaskNumber: 1,
+            isArchived: operation === 'archive',
+          });
+        } finally {
+          release();
+          await Promise.allSettled([
+            blocker,
+            ...(pendingCreate ? [pendingCreate] : []),
+            ...(pendingChange ? [pendingChange] : []),
+          ]);
+        }
+      },
+      15000,
+    );
+
+    it('作成者がProjectを脱退しても報告者への参照を保持する', async () => {
+      const project = await createProjectForRole('member');
+      const { body } = await postTask(project.id).expect(201);
+      await prisma.projectMember.delete({
+        where: { projectId_userId: { projectId: project.id, userId } },
+      });
+      const saved = await prisma.task.findUniqueOrThrow({
+        where: { id: body.id },
+        include: { reporter: true },
+      });
+      expect(saved.reporter.id).toBe(userId);
+      await postTask(project.id).expect(404).expect(projectNotFound);
+    });
+  });
 
   it.each([
     ['tokenなし', undefined],

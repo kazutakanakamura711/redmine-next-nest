@@ -17,6 +17,7 @@ Bruno で [redmine-next-nest-api](./redmine-next-nest-api/) をコレクショ�
 | [add-project-member](./redmine-next-nest-api/add-project-member.yml)                 | NestJS: `POST /api/projects/:projectId/members`            | owner が登録済み User を追加               |
 | [update-project-member-role](./redmine-next-nest-api/update-project-member-role.yml) | NestJS: `PATCH /api/projects/:projectId/members/:memberId` | owner がメンバーの role を変更             |
 | [get-tasks](./redmine-next-nest-api/get-tasks.yml)                                   | NestJS: `GET /api/projects/:projectId/tasks`               | 参加者がタスク一覧を取得                   |
+| [create-task](./redmine-next-nest-api/create-task.yml)                               | NestJS: `POST /api/projects/:projectId/tasks`              | owner・memberがタスクを作成                |
 | [supabase-update-password](./redmine-next-nest-api/supabase-update-password.yml)     | Supabase: `PUT /auth/v1/user`                              | ログインユーザーのパスワードを変更         |
 
 NestJS は `http://localhost:3001`、ローカル Supabase は `http://127.0.0.1:54321` で動きます。
@@ -240,6 +241,15 @@ Bruno の `loginPassword` を変えるだけでは、Supabase 側のパスワー
 | Project 作成の `409`                           | Body の `key` が既存 Project と重複していないか                                                                         |
 
 操作後は `pnpm exec supabase stop` で Supabase を停止できます。通常の停止ではローカルデータを保持します。
+
+## タスクを作成する
+
+[create-task](./redmine-next-nest-api/create-task.yml)を開き、`projectId`に対象ProjectのID、Secretsの`accessToken`にowner・member本人のtokenを設定します。
+Bodyはtitleだけでも送信できます。担当者を指定する場合は`assigneeId`を、メンバー一覧の`userId`へ置き換えます（参加情報の`id`とは異なります）。viewerも担当者として指定できます。
+
+成功時は201で、採番した`number`と本人の`reporter`を含むTaskが返ります。続けて一覧・詳細で保存結果を確認できます。`number`・`reporterId`は送信しません。
+日付は`YYYY-MM-DD`とし、期限を開始日より前にすると400、viewer本人の作成は403、アーカイブ済みProjectでは409になります。
+番号競合の409になった場合は、Studioで手動作成したTaskの最大番号とProjectの採番カウンターの整合性を確認します。開発データの補正は別途承認を得て行い、番号を詰めたりカウンターを下げたりしません。
 
 ## Swagger と公式資料
 

@@ -573,7 +573,7 @@ PATCH  /api/projects/:projectId/tasks/:taskId
 DELETE /api/projects/:projectId/tasks/:taskId
 ```
 
-Task の DB 定義と一覧 GET は PR #37、Web の一覧・空状態・loading・error は PR #38、詳細 GET は PR #41 で `develop` にマージ済みである。`feat/phase-2/task-detail-web` では詳細の閲覧画面・loading・error・404判定・一覧から詳細へのリンクを実装している。作成・更新・削除の API・画面は、操作ごとに追加する。
+Task の DB 定義と一覧 GET は PR #37、Web の一覧・空状態・loading・error は PR #38、詳細 GET は PR #41 で `develop` にマージ済みである。詳細Webと、PR #43の番号・担当者・報告者の追加もマージ済みである。`feat/phase-2/task-create-api` では作成POSTを追加する。作成画面・更新・削除は、後続の操作として追加する。
 
 #### タスク一覧: GET /api/projects/:projectId/tasks
 
@@ -700,11 +700,11 @@ Task 不在・所属違いの本文は次のとおりとする。
 
 詳細取得の成功・拒否で Project・ProjectMember・Task の値と更新日時を変更しない。認証時の User プロフィール同期は、この不変性の対象に含めない。
 
-#### 後続の作成・更新・削除
+#### タスク作成: POST /api/projects/:projectId/tasks
 
-以下の入力例と業務ルールは、対応する API を追加するときに実装・検証する。
+対象Projectのowner・memberが作成できる。本人はAuthGuardが検証したtokenから特定し、`ownerId`だけを根拠に許可しない。viewerは閲覧だけに限定し、アーカイブ済みProjectへの作成を拒否する。
 
-`POST /api/projects/:projectId/tasks` の入力例:
+入力例:
 
 ```json
 {
@@ -712,22 +712,60 @@ Task 不在・所属違いの本文は次のとおりとする。
   "description": "メールアドレスとパスワードを入力できる画面を作成する",
   "status": "todo",
   "priority": "normal",
+  "assigneeId": null,
   "startDate": "2026-09-20",
   "dueDate": "2026-09-25"
 }
 ```
 
-初期に扱うルール:
+| 項目 | 入力ルール・省略時 |
+| --- | --- |
+| title | 必須の文字列。前後の空白を除いた後、1〜200文字。null・空文字・空白だけは不可 |
+| description | 任意の文字列、前後の空白を除いた後、5,000文字以内。省略・null・空文字・空白だけは説明なしとしてnullに統一 |
+| status | `todo`・`in_progress`・`done`。省略時は`todo`、nullは不可 |
+| priority | `low`・`normal`・`high`。省略時は`normal`、nullは不可 |
+| assigneeId | 同じProjectに参加するUserのUUID。roleはowner・member・viewerのいずれも指定可。省略・nullは未担当 |
+| startDate・dueDate | 実在する日付を`YYYY-MM-DD`で指定する（年は0001〜9999）。時刻付き・型違い・空文字は不可。省略・nullは未設定。片方だけの指定は許可し、両方ある場合は期限が開始日以降であること（同日も可） |
 
-- `title` は1〜200文字
-- `status` は `todo`、`in_progress`、`done`
-- `priority` は `low`、`normal`、`high`
-- `dueDate` は `startDate` より前にできない
-- URL の `projectId` と Task の所属 Project が一致しない場合は更新・削除できない
-- owner・member は作成・更新でき、削除は owner のみ、viewer は閲覧だけできる
-- アーカイブ済み Project には Task を作成・更新できない
+本文はこの7項目だけを受け取る。`id`・`projectId`・`number`・`reporterId`・`userId`など、定義外の項目は400で拒否する。
+所属ProjectはURLから設定し、報告者は認証済み本人の`User.id`を必ず保存する。
 
-番号・担当者・報告者は2026-10-29に合意した追加範囲として、DB・API・画面へ段階的に導入する。現在の作業ブランチではカラム・制約、一覧・詳細APIの返却、一覧・詳細Webでの表示、メンバー削除時の担当解除を追加している。Task作成時の採番・報告者設定、担当者の同じProjectへの参加確認は後続とする。これらのデータルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) を参照する。
+成功時は201と、詳細取得と同じ13項目の単一オブジェクトを返す。番号・担当者・報告者の返却範囲、null、日付・日時の形式も詳細と共通であり、関連Userのメールアドレスは含めない。
+
+保存順とtransaction:
+
+1. 認証とDTO検証の後、Serviceで本人の参加情報・owner/member権限、日付の前後関係を確認する。
+2. Repositoryのtransaction内で対象Project行を`FOR UPDATE`でロックする。
+3. ロック後の最新の本人の参加情報・role、アーカイブ状態、担当者の同じProjectへの参加を確認する。この順で判定し、非参加者にはProjectの404、viewerには403を返す。
+4. `Project.lastTaskNumber`をDB上で1増加させ、その番号と本人のreporterIdでTaskを作成する。カウンター増加とTask作成は同じtransactionに含め、保存が失敗したら両方を取り消す。
+5. 作成済みTaskの番号は変更せず、削除した番号も再利用しない。番号はProjectごとに1から始まり、同時作成もProjectロックとDBの`(projectId, number)`一意制約で重複を防ぐ。
+
+メンバー削除・role変更・アーカイブとは同じProject行で順序を揃える。担当者の削除が先に保存されれば400、作成が先なら201で作成した後に削除処理がそのTaskの担当を解除する。作成者自身の脱退・viewerへの変更が先なら404・403となる。アーカイブが先なら409、作成が先なら保存完了後にアーカイブできる。HTTPレスポンスの到着順は保証しない。
+報告者の参加情報が後から削除されてもUserへの参照は保持する。
+
+| 条件 | 応答 |
+| --- | --- |
+| activeなProjectのowner・member、有効な入力 | `201`とTaskの単一オブジェクト |
+| tokenなし・形式不正・無効 | 既存認証処理の`401` |
+| メール未設定・未確認 | `403`・「確認済みのメールアドレスが必要です。」 |
+| DTO入力不正・定義外の項目、または期限が開始日より前 | `400`。日付の前後関係は「期限は開始日以降の日付を指定してください」 |
+| Project不在・非参加（保存時の再確認を含む） | 一覧・詳細と同じ`404`・「プロジェクトが見つかりません」 |
+| 本人がviewer（保存時の再確認を含む） | `403`・「タスクを作成する権限がありません」 |
+| Projectがアーカイブ済み | `409`・「アーカイブ済みのプロジェクトにはタスクを作成できません」 |
+| 担当者のUser不在・非参加・別Projectだけに参加 | 同じ`400`・「担当者は同じプロジェクトの参加者を指定してください」 |
+| 採番した番号が既存Taskと重複 | `409`・「タスク番号が競合しました」。カウンター更新も取り消す |
+
+成功時はTaskを1件追加し、対象Projectの`lastTaskNumber`と`updatedAt`を更新する。他のProject・参加情報・既存Taskの値と更新日時は維持する。拒否時・保存失敗時はProject・参加情報・Taskの値と更新日時を変更しない。認証時のUserプロフィール同期は対象外である。
+Studio等で手動作成したTaskはカウンターを更新しないため、導入前に各Projectのカウンターが最大番号以上であることを確認する。削除済み番号を再利用しないよう、カウンターを下げない。開発データの補正は承認を得て行い、APIで自動補正しない。
+
+#### 後続の更新・削除
+
+- title・description・status・priority・担当者・日付の更新を、別の1操作として追加する。
+- URLの`projectId`とTaskの所属Projectが一致しない場合は更新・削除できない。
+- owner・memberは更新でき、削除はownerのみ、viewerは閲覧だけできる。
+- アーカイブ済みProjectにはTaskを更新できない。通常の更新APIでは報告者を変更しない。
+
+番号・担当者・報告者のデータルールは [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) を参照する。
 
 絞り込み、ページネーション、親子タスクは基本 CRUD の後に追加する。
 
