@@ -1,9 +1,21 @@
-import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { TasksService } from './tasks.service.js';
 import { type AuthenticatedRequest, AuthGuard } from '../auth/auth.guard.js';
 import { TaskResponseDto } from './dto/task-response.dto.js';
+import { CreateTaskDto } from './dto/create-task.dto.js';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -50,21 +62,7 @@ export class TaskController {
   ): Promise<TaskResponseDto[]> {
     const tasks = await this.tasksService.findAll(projectId, request.user.id);
 
-    return tasks.map((task) => ({
-      id: task.id,
-      projectId: task.projectId,
-      number: task.number,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      assignee: task.assignee,
-      reporter: task.reporter,
-      startDate: task.startDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
-      dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-    }));
+    return tasks.map(toTaskResponse);
   }
 
   @Get(':taskId')
@@ -100,20 +98,65 @@ export class TaskController {
       request.user.id,
     );
 
-    return {
-      id: task.id,
-      projectId: task.projectId,
-      number: task.number,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      assignee: task.assignee,
-      reporter: task.reporter,
-      startDate: task.startDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
-      dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-    };
+    return toTaskResponse(task);
   }
+
+  @Post()
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '参加しているプロジェクトにタスクを作成する' })
+  @ApiParam({
+    name: 'projectId',
+    description: 'タスクを作成するプロジェクトのID',
+  })
+  @ApiCreatedResponse({
+    description:
+      'owner・memberが作成できる。番号は自動採番し、報告者は認証済み本人を設定する',
+    type: TaskResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      '入力が不正、定義外の項目がある、または担当者が同じProjectの参加者ではない',
+  })
+  @ApiForbiddenResponse({
+    description: 'メール未設定・未確認、または本人がviewer',
+  })
+  @ApiNotFoundResponse({
+    description: 'プロジェクトが存在しない、または参加していない',
+  })
+  @ApiConflictResponse({
+    description: 'アーカイブ済みProject、またはタスク番号の競合',
+  })
+  async create(
+    @Param('projectId') projectId: string,
+    @Body() dto: CreateTaskDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TaskResponseDto> {
+    const task = await this.tasksService.create(
+      projectId,
+      dto,
+      request.user.id,
+    );
+    return toTaskResponse(task);
+  }
+}
+
+// 一覧・詳細・作成で、公開項目と日付の返却形式を揃える。
+function toTaskResponse(
+  task: Awaited<ReturnType<TasksService['create']>>,
+): TaskResponseDto {
+  return {
+    id: task.id,
+    projectId: task.projectId,
+    number: task.number,
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    assignee: task.assignee,
+    reporter: task.reporter,
+    startDate: task.startDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
+    dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null, // ISO文字列から 2026-10-26 の部分を取り出す
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+  };
 }

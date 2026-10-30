@@ -104,7 +104,7 @@ export function TaskList({ tasks, projectKey, headerAction }: TasksListProps) {
           <div className="hidden md:block">
             <Table
               aria-label="タスク一覧"
-              className="min-w-224 table-fixed bg-background"
+              className="min-w-4xl table-fixed bg-background"
             >
               <TableHeader>
                 <TableRow className="border-border bg-slate-50 hover:bg-slate-50">

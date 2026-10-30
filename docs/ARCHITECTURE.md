@@ -184,6 +184,7 @@ src/
     │   └── projects.module.ts
     └── tasks/
         ├── dto/
+        │   ├── create-task.dto.ts
         │   ├── task-response.dto.ts
         │   └── task-user-response.dto.ts
         ├── tasks.controller.ts
@@ -200,6 +201,10 @@ Service は Repository から本人の参加情報を取得し、なければ既
 Repository の `findAll()` は Task を Project ID で限定し、作成日時・ID の降順で取得する。詳細の `findById()` は Prisma の `findUnique()` に Task ID と Project ID を指定し、両方が一致する1件または `null` を返す。
 どちらの取得でも、担当者・報告者の関連Userを `select` でID・名前だけに限定して読み込む。Controllerは `number`、`{ id, name }` または `null` の担当者、必須の `{ id, name }` の報告者を返し、関連Userのメールアドレスなどを含めない。Userの名前は `null` を許可する。
 Controller が返却項目を明示し、日付・日時を API の文字列形式に変換する。一覧は配列、詳細は単一オブジェクトを返し、既存の `TaskResponseDto` を共有する。レスポンス DTO 自体は変換処理を持たない。
+
+Task作成も同じController → Service → Repositoryの構成に追加する。`CreateTaskDto`は入力形式・文字数・enum・日付形式を検証する。Serviceは本人のmembershipとrole、日付の前後関係を確認し、報告者に本人のIDを設定する。
+Repositoryはtransaction内でProject行をロックし、本人のmembership・role、アーカイブ状態、任意の担当者のmembershipを最新状態で再確認してから、採番用カウンターの増加とTask作成を行う。失敗時は両方を取り消す。既存のメンバー操作と同様、保存時の判定結果はstatusでServiceへ返し、ServiceがHTTP例外へ変換する。番号の一意制約違反もRepositoryで扱い、HTTPの知識を持ち込まない。
+Controllerの同じファイル内の`toTaskResponse()`で一覧・詳細・作成の公開項目と日付・日時の形式を揃える。作成は201を返す。DDDモデル・UseCase・Repository interfaceの導入やschema・migrationの変更は含めない。
 
 メンバー削除の `ProjectsRepository.deleteProjectMember()` は、Project行をロックし、アーカイブ・対象の所属・owner保護を再確認してから、対象Userの担当Taskを `projectId` と `assigneeId` で限定して未担当へ戻し、参加情報を削除する。担当解除と参加情報削除は同じtransactionに含める。Serviceは従来の認証済み本人のmembership・owner権限の確認を担当し、Controllerの204応答は維持する。
 Projectを返すControllerの各操作では、同じファイル内の `toProjectResponse()` で公開項目と日時の文字列変換を揃える。採番用の `lastTaskNumber` などDBの内部カラムをそのまま返さず、詳細取得だけ本人の `currentUserRole` を追加する。

@@ -114,7 +114,7 @@ role 変更 API は role のみの必須入力、ProjectMember ID のパラメ�
 同じ role の成功、owner 保護・アーカイブ禁止、400・401・403・404・409を説明しています。
 削除 API は ProjectMember ID の指定、本文なしの204、User・Supabase Auth アカウントの保持、
 401・403・404・409、owner 保護・アーカイブ判定の優先を説明しています。
-Tasks には一覧・詳細 API の Bearer 認証、Project ID、詳細の Task ID、200の配列・単一オブジェクトと401・403・404を記載しています。
+Tasks には一覧・詳細・作成 API の Bearer 認証、Project ID、詳細の Task ID、作成入力、200・201の応答と400・401・403・404・409を記載しています。
 `TaskResponseDto` は status・priority の enum、日付の `date`、日時の `date-time`、任意項目の nullable を説明します。
 **Authorize** に Supabase の `access_token` の値だけを入力してから、**Try it out → Execute** で実行できます。
 `Bearer` の接頭辞は Swagger が付けるため、入力に含めません。
@@ -290,7 +290,33 @@ Project不在・非参加は404・「プロジェクトが見つかりません�
 参加Project内のTask不在と別ProjectのTaskは、同じ404・「タスクが見つかりません」で扱います。両Projectに参加していても所属の違うTaskは取得できません。
 レスポンス例とエラー本文は [UI_API.md](../../docs/UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) を参照してください。
 
-Task一覧のWebはPR #38でマージ済みです。詳細画面と作成・更新・削除 API・画面は後続です。担当者・番号・親子関係などは基本 CRUD の後に追加します。
+Task一覧・詳細Webと、PR #43の番号・担当者・報告者の追加はマージ済みです。今回の変更は作成APIに絞り、作成画面・更新・削除は後続で追加します。
+
+## Task 作成 API
+
+`POST /api/projects/:projectId/tasks`は、activeなProjectに参加するowner・memberへ許可します。必須入力は`title`だけです。
+
+```json
+{
+  "title": "ログイン画面を作る",
+  "description": "メールアドレスとパスワードでログインする",
+  "status": "todo",
+  "priority": "normal",
+  "assigneeId": null,
+  "startDate": "2026-10-30",
+  "dueDate": "2026-11-02"
+}
+```
+
+省略時の状態はtodo、優先度はnormal、担当者・説明・日付はnullです。担当者には同じProjectの参加者のUser IDを指定します。開始日・期限は時刻のない`YYYY-MM-DD`で、両方ある場合は期限が開始日以降である必要があります。
+`number`・`reporterId`を含む定義外の入力は400で拒否します。番号はBackendで採番し、報告者は認証済み本人を設定します。成功時は201と、一覧・詳細と共通の13項目を返します。
+
+採番とTask作成は同じtransactionに含め、途中の失敗ではカウンターの増加も取り消します。メンバー削除・role変更・アーカイブと同じProject行をロックし、ロック取得後にも最新の本人の権限・アーカイブ状態・担当者の参加を確認します。これにより、脱退済みのUserを担当者にしたTaskの保存や、権限を失った本人による作成を防ぎます。
+入力・エラー・保存順の詳細は [UI_API.md](../../docs/UI_API.md#タスク作成-post-apiprojectsprojectidtasks) を参照してください。
+
+Prisma StudioでTaskだけを作成しても`Project.lastTaskNumber`は増えません。API導入前にProjectごとの最大番号と比較し、カウンターが小さい場合は承認を得て補正します。カウンターを下げたり、既存Taskを自動変更する処理はありません。
+
+作成のAPI E2Eは、認証・認可・入力の境界値・レスポンス・DBへの保存に加え、同時作成・削除後の番号再利用防止・失敗時のrollbackを確認します。競合テストはPostgreSQLの実際のロック待ちを確認し、メンバー削除・role変更・アーカイブと作成の保存順を検証します。Webは今回変更しないため、作成画面のブラウザテストは後続です。
 
 ## 確認コマンド
 

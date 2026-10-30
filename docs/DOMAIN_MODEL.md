@@ -96,8 +96,8 @@ Project に属する作業項目である。初期は、タスクを分かりや
 | --- | --- | --- |
 | id | タスク ID | 自動採番する |
 | projectId | 所属プロジェクト | 必須 |
-| title | タスク名 | 1〜200文字、必須 |
-| description | 詳細 | 任意、5,000文字以内 |
+| title | タスク名 | 前後の空白を除いた後、1〜200文字、必須 |
+| description | 詳細 | 任意、前後の空白を除いた後、5,000文字以内。空文字はnull |
 | status | 進行状態 | 初期値は `todo` |
 | priority | 優先度 | 初期値は `normal` |
 | startDate | 開始日 | 任意 |
@@ -117,18 +117,18 @@ priority: low  | normal      | high
 - 閲覧権限がないユーザーは、Project や Task を取得できない。
 - `done` にした日時は、基本 CRUD を完成させた後に追加する。Project内連番・担当者・報告者は、下記の合意済みの範囲として段階的に追加する。
 
-Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38 で `develop` にマージ済みである。詳細取得 API は PR #41 でマージ済みであり、`feat/phase-2/task-detail-web` では詳細の閲覧画面・loading・error・404判定・一覧から詳細へのリンクを実装している。作成・更新・削除 API・画面は後続とする。
+Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・loading・error は PR #38、詳細取得 API は PR #41でマージ済みであり、詳細WebとPR #43の番号・担当者・報告者もマージ済みである。`feat/phase-2/task-create-api`では作成APIを追加する。作成画面・更新・削除API・画面は後続とする。
 
 - 一覧・詳細の閲覧には本人の ProjectMember が必要であり、owner・member・viewer に許可する。`ownerId` が本人でも参加情報がなければ許可しない。参加情報の削除後は、同じ token でも取得できない。
 - アーカイブ済み Project の Task も閲覧できる。Project 不在と非参加者による取得は、同じ対象不在として扱う。
 - 詳細取得では、指定した Project に属する Task だけを取得する。両方の Project に参加していても別 Project の Task は取得できず、その Project 内に Task が存在しない場合と同じ対象不在として扱う。
 - `description`・`startDate`・`dueDate` の未設定は `null` とする。開始日・期限は時刻を持たない日付であり、DB には `DATE` 型で保存する。
 - `createdAt`・`updatedAt` は日時として保存する。日付・日時の API 返却形式と一覧の並び順は [一覧の仕様](./UI_API.md#タスク一覧-get-apiprojectsprojectidtasks)、1件取得の返却形式とエラーは [詳細の仕様](./UI_API.md#タスク詳細-get-apiprojectsprojectidtaskstaskid) を参照する。
-- title・description の文字数、日付の前後関係、作成・更新権限、アーカイブ済み Project への作成・更新禁止の検証は、対応する作成・更新 API と同時に実装する。現在の DB 定義には、文字数・日付の前後関係の CHECK 制約は設けていない。
+- 作成APIはtitle・descriptionの文字数、日付の前後関係、owner・memberだけの作成権限、アーカイブ済みProjectへの作成禁止を検証する。更新時も対応するAPIで検証する。現在のDB定義には、文字数・日付の前後関係のCHECK制約は設けていない。
 
 ### Task の追加範囲（2026-10-29合意・段階導入中）
 
-現在の作業ブランチでは、次の3カラムと制約、Projectの採番用カウンター `lastTaskNumber`（初期値0）を追加している。一覧・詳細APIは `number`、担当者の `{ id, name }` または `null`、必須の報告者の `{ id, name }` を含む13項目を返す。Userの名前は未設定を許可する。一覧・詳細Webは番号・担当者・報告者を表示し、メンバー削除APIは対象Projectの担当を解除する。Task作成APIの採番・担当者検証・報告者設定は後続である。
+PR #43で、次の3カラムと制約、Projectの採番用カウンター `lastTaskNumber`（初期値0）を追加済みである。一覧・詳細APIは `number`、担当者の `{ id, name }` または `null`、必須の報告者の `{ id, name }` を含む13項目を返す。Userの名前は未設定を許可する。一覧・詳細Webは番号・担当者・報告者を表示し、メンバー削除APIは対象Projectの担当を解除する。今回の作成APIで採番・担当者検証・報告者設定を追加する。
 
 | 項目 | 意味 | ルール |
 | --- | --- | --- |
@@ -137,7 +137,7 @@ Task の DB 定義と一覧 API は PR #37、Web の Task 一覧・空状態・l
 | reporterId | 報告者（作成者）のUser ID | 必須。`User.id` を参照し、DBでも `NOT NULL` とする |
 
 - 表示上の番号は `Project.key` と `Task.number` を組み合わせ、`APP-12` のように表示する。DB・URLで使うTaskの `id` は引き続き別の識別子として保持する。
-- 採番はBackendのTask作成処理で行う。Projectの `lastTaskNumber` をDB上で安全に増加させ、採番とTask作成を同じtransactionに含める。Task作成失敗時はカウンター更新も取り消す。この処理は現在テストデータの準備関数で使っており、Task作成APIでは後続の実装とする。
+- 採番はBackendのTask作成処理で行う。Projectの `lastTaskNumber` をDB上で安全に増加させ、採番とTask作成を同じtransactionに含める。Task作成失敗時はカウンター更新も取り消す。作成APIはProject行をロックして本人の最新の参加情報・role、アーカイブ状態、担当者の参加情報を確認してから採番・保存する。
 - 同時作成時の作成順はDBが採番処理を進めた順とする。作成済みTaskの番号は変更せず、Task削除後も番号を詰めたり再利用したりしない。
 - 担当者の設定時は、指定したUserが同じProjectのProjectMemberであることをAPIで検証する。
 - ProjectMemberを削除する際は、対象ProjectでそのUserが担当するTaskの `assigneeId` を、完了済みを含めて `null` にし、変更したTaskの `updatedAt` を更新する。Task自体・状態・報告者は保持し、未担当・他のUserの担当・他ProjectのTaskの値と更新日時は変更しない。担当解除と参加情報削除はProject行をロックした同じtransactionで行い、途中で失敗した場合は両方を取り消す。担当者設定APIを追加するときもProject単位で保存順を揃える。
