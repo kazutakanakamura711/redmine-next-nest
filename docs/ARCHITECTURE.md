@@ -30,6 +30,7 @@ Project 関連の現在の配置は、利用する画面の範囲に合わせる
 | --- | --- |
 | 一覧画面のテーブル・テスト | `(list)/_components` |
 | 新規作成の API 呼び出し・テスト | `new/_lib` |
+| タスク作成フォームの入力スキーマ・テスト | `[projectId]/tasks/new/_lib/schema` |
 | タスク・メンバー・設定で共有する Project 詳細取得・テスト | `[projectId]/_lib` |
 | メンバーの取得・追加・権限変更・削除の API 呼び出しと Hook・テスト | `[projectId]/members/_lib` |
 | 共通ナビゲーションと一覧で使う Project 一覧取得、共有するエラー型 | `projects` 直下の `_lib` |
@@ -37,6 +38,8 @@ Project 関連の現在の配置は、利用する画面の範囲に合わせる
 タスクの状態・優先度と Project の role は、上記の route 配下から `src/features/tasks/types`・`src/features/projects/types` を直接 import して使う。
 
 Task 詳細の `tasks/[taskId]/page.tsx` は Server Component とし、共有の `getProject()` で Project を確認してから、同じ route の `_lib/get-task.ts` で認証付きの詳細 API を呼ぶ。404 を表す `null` はページで `notFound()` に変換し、それ以外の失敗は同じ route の `error.tsx` へ伝える。`error.tsx` は Client Component とし、固定の案内、`retry()` による再取得、`useParams()` で取得したProject IDを使った一覧へのリンクを表示する。`_components/task-detail.tsx` は取得済みの Task の表示だけを担当し、セッション・API 呼び出し・編集状態を持たない。
+
+Task作成は、`tasks/new/page.tsx`でProject・本人・担当者候補を取得する。見出しを担当する`CreateTask`はServer Componentとし、`CreateTaskForm`はClient Componentとして入力管理・Zodによる検証・送信状態・エラー表示・成功後の遷移を担当する。作成APIの呼び出しは`tasks/new/_lib/create-task.ts`、入力スキーマとテストは同じ`_lib/schema/create-task-form.ts`・`.test.ts`に置く。フォームのDateは送信時にYYYY-MM-DDへ変換し、作成成功後は返却されたTaskの詳細ページへ移動する。
 
 ログアウト操作のテストは `(app)/_components/logout-button.test.tsx` に置く。
 

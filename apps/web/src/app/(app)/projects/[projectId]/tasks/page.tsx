@@ -1,5 +1,10 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Plus } from 'lucide-react';
+import { cn } from 'cn';
 
+import { buttonVariants } from '@/components/ui/button';
+import { ProjectRole } from '@/features/projects/types/project-role';
 import { getProject } from '../_lib/get-project';
 import { ProjectDetailHeader } from '../_components/project-detail-header';
 import {
@@ -30,6 +35,12 @@ export default async function ProjectTasksPage({
     notFound();
   }
 
+  // Projectの情報を持つpageで、作成画面への入口を表示できるか判断する。
+  const canCreateTask =
+    !project.isArchived &&
+    (project.currentUserRole === ProjectRole.Owner ||
+      project.currentUserRole === ProjectRole.Member);
+
   return (
     <>
       <ProjectDetailHeader
@@ -43,7 +54,24 @@ export default async function ProjectTasksPage({
         activeTab={ProjectTabs.Task}
         currentUserRole={project.currentUserRole}
       />
-      <TaskList tasks={tasks} projectKey={project.key} />
+      <TaskList
+        tasks={tasks}
+        projectKey={project.key}
+        headerAction={
+          canCreateTask ? (
+            <Link
+              href={`/projects/${encodeURIComponent(project.id)}/tasks/new`}
+              className={cn(
+                buttonVariants(),
+                'h-9 w-full rounded-sm bg-indigo-600 text-xs text-white hover:bg-indigo-700 md:h-8 md:w-auto',
+              )}
+            >
+              <Plus aria-hidden="true" className="size-3.5" />
+              タスク作成
+            </Link>
+          ) : undefined
+        }
+      />
     </>
   );
 }
