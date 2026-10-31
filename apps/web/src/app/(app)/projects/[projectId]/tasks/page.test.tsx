@@ -102,6 +102,34 @@ describe('ProjectTasksPage', () => {
       expect(Boolean(screen.queryByRole('link', { name: '設定' }))).toBe(
         currentUserRole === ProjectRole.Owner,
       );
+      const createTaskLink = screen.queryByRole('link', {
+        name: 'タスク作成',
+      });
+      if (currentUserRole === ProjectRole.Viewer) {
+        expect(createTaskLink).not.toBeInTheDocument();
+      } else {
+        expect(createTaskLink).toHaveAttribute(
+          'href',
+          `/projects/${project.id}/tasks/new`,
+        );
+      }
+    },
+  );
+
+  it.each(Object.values(ProjectRole))(
+    'アーカイブ済みProjectでは%sにもタスク作成リンクを表示しない',
+    async (currentUserRole) => {
+      mocks.getProject.mockResolvedValue({
+        ...project,
+        currentUserRole,
+        isArchived: true,
+      });
+
+      await renderPage();
+
+      expect(
+        screen.queryByRole('link', { name: 'タスク作成' }),
+      ).not.toBeInTheDocument();
     },
   );
 
@@ -120,6 +148,10 @@ describe('ProjectTasksPage', () => {
 
     expect(screen.getByText('0件')).toBeInTheDocument();
     expect(screen.getByText('タスクはありません。')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'タスク作成' })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/tasks/new`,
+    );
     expect(mocks.notFound).not.toHaveBeenCalled();
   });
 
